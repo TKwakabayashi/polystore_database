@@ -1,0 +1,12 @@
+# Ignore database actual data
+docker/neo4j/data/
+docker/neo4j/logs/
+
+# Ignore dump files
+*.dump
+
+#ignore meta folder
+docs/
+
+# Rust build artifacts
+target/
