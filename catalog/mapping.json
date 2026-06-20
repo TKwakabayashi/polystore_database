@@ -1,0 +1,506 @@
+{
+  "labels": {
+    "Comment": [
+      "Comment"
+    ],
+    "Forum": [
+      "Forum"
+    ],
+    "Organisation": [
+      "Organisation"
+    ],
+    "Person": [
+      "Person"
+    ],
+    "Place": [
+      "Place"
+    ],
+    "Post": [
+      "Post"
+    ],
+    "Tag": [
+      "Tag"
+    ],
+    "TagClass": [
+      "TagClass"
+    ]
+  },
+  "entities": {
+    "Forum": {
+      "labels": [
+        "Forum"
+      ],
+      "properties": {
+        "creationDate": {
+          "type": "datetime",
+          "database": [
+            "graph"
+          ]
+        },
+        "id": {
+          "type": "long",
+          "database": [
+            "graph"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "HAS_MEMBER": {
+          "targetEntities": [
+            "Person"
+          ],
+          "database": []
+        },
+        "HAS_MODERATOR": {
+          "targetEntities": [
+            "Person"
+          ],
+          "database": []
+        }
+      }
+    },
+    "Message": {
+      "labels": [
+        "Message"
+      ],
+      "properties": {
+        "browserUsed": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "content": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "creationDate": {
+          "type": "datetime",
+          "database": [
+            "graph"
+          ]
+        },
+        "id": {
+          "type": "long",
+          "database": [
+            "graph"
+          ]
+        },
+        "imageFile": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "language": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "length": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        },
+        "locationIP": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "HAS_CREATOR": {
+          "targetEntities": [
+            "Person"
+          ],
+          "database": []
+        },
+        "HAS_TAG": {
+          "targetEntities": [
+            "Tag"
+          ],
+          "database": []
+        },
+        "IS_LOCATED_IN": {
+          "targetEntities": [
+            "Place"
+          ],
+          "database": []
+        }
+      }
+    },
+    "Organisation": {
+      "labels": [
+        "Organisation"
+      ],
+      "properties": {
+        "id": {
+          "type": "long",
+          "database": [
+            "graph"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "url": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "IS_LOCATED_IN": {
+          "targetEntities": [
+            "Place"
+          ],
+          "database": []
+        }
+      }
+    },
+    "Person": {
+      "labels": [
+        "Person"
+      ],
+      "properties": {
+        "birthday": {
+          "type": "date",
+          "database": [
+            "graph"
+          ]
+        },
+        "browserUsed": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "creationDate": {
+          "type": "datetime",
+          "database": [
+            "graph"
+          ]
+        },
+        "email": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "firstName": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "gender": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "id": {
+          "type": "long",
+          "database": [
+            "graph"
+          ]
+        },
+        "lastName": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "locationIP": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "speaks": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "HAS_INTEREST": {
+          "targetEntities": [
+            "Tag"
+          ],
+          "database": []
+        },
+        "IS_LOCATED_IN": {
+          "targetEntities": [
+            "Place"
+          ],
+          "database": []
+        },
+        "KNOWS": {
+          "targetEntities": [
+            "Person"
+          ],
+          "database": []
+        },
+        "STUDY_AT": {
+          "targetEntities": [
+            "Organisation"
+          ],
+          "database": []
+        },
+        "WORK_AT": {
+          "targetEntities": [
+            "Organisation"
+          ],
+          "database": []
+        }
+      }
+    },
+    "Place": {
+      "labels": [
+        "Place"
+      ],
+      "properties": {
+        "id": {
+          "type": "long",
+          "database": [
+            "graph"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "url": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "IS_PART_OF": {
+          "targetEntities": [
+            "Place"
+          ],
+          "database": []
+        }
+      }
+    },
+    "Tag": {
+      "labels": [
+        "Tag"
+      ],
+      "properties": {
+        "id": {
+          "type": "long",
+          "database": [
+            "graph"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "url": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {}
+    },
+    "TagClass": {
+      "labels": [
+        "Tag"
+      ],
+      "properties": {
+        "id": {
+          "type": "long",
+          "database": [
+            "graph"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "url": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {}
+    }
+  },
+  "relationships": {
+    "CONTAINER_OF": {
+      "labels": [
+        "CONTAINER_OF"
+      ],
+      "properties": {}
+    },
+    "HAS_CREATOR": {
+      "labels": [
+        "HAS_CREATOR"
+      ],
+      "properties": {}
+    },
+    "HAS_INTEREST": {
+      "labels": [
+        "HAS_INTEREST"
+      ],
+      "properties": {}
+    },
+    "HAS_MEMBER": {
+      "labels": [
+        "HAS_MEMBER"
+      ],
+      "properties": {
+        "creationDate": {
+          "type": "datetime",
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    },
+    "HAS_MODERATOR": {
+      "labels": [
+        "HAS_MODERATOR"
+      ],
+      "properties": {}
+    },
+    "HAS_TAG": {
+      "labels": [
+        "HAS_TAG"
+      ],
+      "properties": {}
+    },
+    "HAS_TYPE": {
+      "labels": [
+        "HAS_TYPE"
+      ],
+      "properties": {}
+    },
+    "IS_LOCATED_IN": {
+      "labels": [
+        "IS_LOCATED_IN"
+      ],
+      "properties": {}
+    },
+    "IS_PART_OF": {
+      "labels": [
+        "IS_PART_OF"
+      ],
+      "properties": {}
+    },
+    "IS_SUBCLASS_OF": {
+      "labels": [
+        "IS_SUBCLASS_OF"
+      ],
+      "properties": {}
+    },
+    "KNOWS": {
+      "labels": [
+        "KNOWS"
+      ],
+      "properties": {
+        "creationDate": {
+          "type": "datetime",
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    },
+    "LIKES": {
+      "labels": [
+        "LIKES"
+      ],
+      "properties": {
+        "creationDate": {
+          "type": "datetime",
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    },
+    "REPLY_OF": {
+      "labels": [
+        "REPLY_OF"
+      ],
+      "properties": {}
+    },
+    "STUDY_AT": {
+      "labels": [
+        "STUDY_AT"
+      ],
+      "properties": {
+        "classYear": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    },
+    "WORK_AT": {
+      "labels": [
+        "WORK_AT"
+      ],
+      "properties": {
+        "workFrom": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "mapping_path": "../catalog/mapping.json",
+  "neo4j": {
+    "uri": "",
+    "user": "",
+    "password": ""
+  },
+  "mongo": {
+    "uri": "",
+    "dbname": ""
+  },
+  "leveldb": {
+    "path": "../datastore/data/polystore_kvs"
+  },
+  "mysql": {
+    "dsn": ""
+  },
+  "cassandra": {
+    "hosts": [""],
+    "keyspace": ""
+  }
+}
