@@ -58,7 +58,7 @@ func main() {
 	case "workflow":
 		// migration → Neo4j比較 まで通しで
 		def := lookup(*workload)
-		cypher, params, migs := def(migrator.ModeKvsToGraph, true)
+		cypher, params, migs := def(migrator.ModeKvsToGraph, false)
 		workloads.RunWorkflow(ctx, *workload, cfg, cypher, params, migs)
 
 	default: // "run"
