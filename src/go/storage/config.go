@@ -7,7 +7,7 @@ import (
 )
 
 type Config struct {
-	MappingPath string           `json:"mappingpath,omitempty"`
+	MappingPath string           `json:"mapping_path,omitempty"`
 	Neo4j       *Neo4jConfig     `json:"neo4j,omitempty"`
 	Mongo       *MongoConfig     `json:"mongo,omitempty"`
 	LevelDB     *LevelDBConfig   `json:"leveldb,omitempty"`

@@ -6,6 +6,7 @@ datastore/snapshot.sh
 
 # Ignore dump files
 *.dump
+.DS_Store
 
 #ignore meta folder
 docs/

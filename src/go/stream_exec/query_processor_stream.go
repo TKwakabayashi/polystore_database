@@ -36,7 +36,8 @@ type QueryProcessor struct {
 	cqlSes *gocql.Session
 	ctx    context.Context
 
-	rg *storage.Registry
+	rg   *storage.Registry
+	exec ExecPolicy
 }
 
 type Metrics struct {
@@ -116,6 +117,17 @@ func NewQueryProcessorWithConfig(ctx context.Context, cfg storage.Config) (*Quer
 		SlotToVar: []string{},
 	}
 
+	exec := ExecPolicy{
+		Mode:    ExecFixed,
+		Default: OpConcurrency{Workers: 1, MaxConcurrency: 1},
+		PerOp: map[OpKind]OpConcurrency{
+			OpExpand:          {Workers: 4, MaxConcurrency: 8},
+			OpVarLengthExpand: {Workers: 2, MaxConcurrency: 4},
+			OpFilter:          {Workers: 4, MaxConcurrency: 8},
+			OpProjection:      {Workers: 4, MaxConcurrency: 8},
+		},
+	}
+
 	qp := &QueryProcessor{
 		records:   []Record{},
 		slotTable: st,
@@ -123,6 +135,7 @@ func NewQueryProcessorWithConfig(ctx context.Context, cfg storage.Config) (*Quer
 		metrics:   make(map[int]Metrics),
 		counts:    make(map[string]int),
 		ctx:       ctx,
+		exec:      exec,
 	}
 
 	rg, err := storage.NewRegistry(ctx, cfg)

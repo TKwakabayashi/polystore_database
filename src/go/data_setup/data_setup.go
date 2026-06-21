@@ -254,6 +254,16 @@ func cleanCassandra(hosts []string, keyspace string) error {
 	}
 	defer session.Close()
 
+	// keyspace が無ければ作成（初回セットアップでも落ちないようにする）。
+	// 単一ノード開発向けに SimpleStrategy / RF=1。本番では適宜変更すること。
+	createKeyspace := fmt.Sprintf(
+		"CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}",
+		keyspace,
+	)
+	if err := session.Query(createKeyspace).Exec(); err != nil {
+		return fmt.Errorf("failed to create keyspace %s: %w", keyspace, err)
+	}
+
 	// メタデータの取得
 	keyspaceMetadata, err := session.KeyspaceMetadata(keyspace)
 	if err != nil {

@@ -10,25 +10,27 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func MigrateData(config MigrationConfig, sconfig storage.Config) error {
+// TODO: Migration時に移行件数と実行時間
+func MigrateData(config MigrationConfig, sconfig storage.Config) (int, error) {
+	count := 0
 	mappingDictionary, err := schema.LoadMappingDictionary(config.MappingPath)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	srcKind, destKind, err := modeStores(config.Mode)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if err := ExecuteMigrationStream(config, sconfig, srcKind, destKind, mappingDictionary); err != nil {
-		return err
+		return 0, err
 	}
 	/*
 		if err := executeMigrationBulk(mappingDictionary, config, src, dest); err != nil {
-			return err
+			return count, err
 		}
 	*/
-	return mappingDictionary.SaveMappingDictionary(config.MappingPath)
+	return count, mappingDictionary.SaveMappingDictionary(config.MappingPath)
 }
 
 func ExecuteMigrationStream(config MigrationConfig, scfg storage.Config, srcKind, destKind storage.StoreKind, md *schema.MappingDictionary) error {
