@@ -1,8 +1,7 @@
 # Ignore database actual data
 config/config.json
-datastore/data/
-datastore/docker/
-datastore/snapshot.sh
+datastore/
+src/go/storage/config.go
 
 # Ignore dump files
 *.dump

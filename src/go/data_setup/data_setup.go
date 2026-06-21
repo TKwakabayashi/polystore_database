@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"polystore_database/src/go/storage"
-	"strings"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gocql/gocql"
@@ -76,81 +75,81 @@ func Run(ctx context.Context, cfg storage.Config) error {
 
 	session := driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite})
 	defer session.Close(ctx)
-
-	// 1. 全ノードに共通ラベル 'Entity' を付与  インデックスポリシーに依存
-	fmt.Println("Applying common label 'Entity' to all nodes...")
-	if _, err = session.ExecuteWrite(ctx, func(tx neo4j.ManagedTransaction) (interface{}, error) {
-		query := `
-			CALL apoc.periodic.iterate(
-				"MATCH (n) WHERE NOT n:Entity RETURN n",
-				"SET n:Entity",
-				{batchSize: 10000, parallel: false}
-			)`
-		return tx.Run(ctx, query, nil)
-	}); err != nil {
-		return fmt.Errorf("failed to apply common label: %w", err)
-	}
-
-	// 2. ノードに UUID を付与
-	fmt.Println("Assigning UUIDs to nodes...")
-	if _, err = session.ExecuteWrite(ctx, func(tx neo4j.ManagedTransaction) (interface{}, error) {
-		query := `
-			CALL apoc.periodic.iterate(
-				"MATCH (n:Entity) WHERE n.uuid IS NULL RETURN n",
-				"SET n.uuid = 'N-' + apoc.create.uuid()",
-				{batchSize: 10000, parallel: false}
-			)`
-		return tx.Run(ctx, query, nil)
-	}); err != nil {
-		return fmt.Errorf("failed to assign node UUIDs: %w", err)
-	}
-
-	// 3. リレーションシップに UUID を付与
-	fmt.Println("Assigning UUIDs to relationships...")
-	if _, err = session.ExecuteWrite(ctx, func(tx neo4j.ManagedTransaction) (interface{}, error) {
-		query := `
-			CALL apoc.periodic.iterate(
-				"MATCH ()-[r]->() WHERE r.uuid IS NULL RETURN r",
-				"SET r.uuid = 'E-' + apoc.create.uuid()",
-				{batchSize: 10000, parallel: false}
-			)`
-		return tx.Run(ctx, query, nil)
-	}); err != nil {
-		return fmt.Errorf("failed to assign relationship UUIDs: %w", err)
-	}
-
-	// 4. Entity(uuid) の一意制約
-	fmt.Println("Creating unique constraint for Entity(uuid)...")
-	if _, err = session.ExecuteWrite(ctx, func(tx neo4j.ManagedTransaction) (interface{}, error) {
-		query := "CREATE CONSTRAINT node_uuid_unique IF NOT EXISTS FOR (n:Entity) REQUIRE n.uuid IS UNIQUE"
-		return tx.Run(ctx, query, nil)
-	}); err != nil {
-		return fmt.Errorf("failed to create constraint: %w", err)
-	}
-
-	// 5. 各リレーションシップ型に uuid 一意制約
-	relresult, err := session.Run(ctx, "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType", nil)
-	if err != nil {
-		return fmt.Errorf("failed to fetch relationship types: %w", err)
-	}
-	var relTypes []string
-	for relresult.Next(ctx) {
-		if r, ok := relresult.Record().Get("relationshipType"); ok {
-			relTypes = append(relTypes, r.(string))
+	/*
+		// 1. 全ノードに共通ラベル 'Entity' を付与  インデックスポリシーに依存
+		fmt.Println("Applying common label 'Entity' to all nodes...")
+		if _, err = session.ExecuteWrite(ctx, func(tx neo4j.ManagedTransaction) (interface{}, error) {
+			query := `
+				CALL apoc.periodic.iterate(
+					"MATCH (n) WHERE NOT n:Entity RETURN n",
+					"SET n:Entity",
+					{batchSize: 10000, parallel: false}
+				)`
+			return tx.Run(ctx, query, nil)
+		}); err != nil {
+			return fmt.Errorf("failed to apply common label: %w", err)
 		}
-	}
-	for _, relType := range relTypes {
-		constraintName := strings.ToLower(relType) + "_uuid_unique"
-		query := fmt.Sprintf(
-			"CREATE CONSTRAINT %s IF NOT EXISTS FOR ()-[r:%s]-() REQUIRE r.uuid IS UNIQUE",
-			constraintName, relType,
-		)
-		if _, err := session.Run(ctx, query, nil); err != nil {
-			fmt.Printf("Could not create constraint for relationship %s: %v\n", relType, err)
-			continue
-		}
-	}
 
+		// 2. ノードに UUID を付与
+		fmt.Println("Assigning UUIDs to nodes...")
+		if _, err = session.ExecuteWrite(ctx, func(tx neo4j.ManagedTransaction) (interface{}, error) {
+			query := `
+				CALL apoc.periodic.iterate(
+					"MATCH (n:Entity) WHERE n.uuid IS NULL RETURN n",
+					"SET n.uuid = 'N-' + apoc.create.uuid()",
+					{batchSize: 10000, parallel: false}
+				)`
+			return tx.Run(ctx, query, nil)
+		}); err != nil {
+			return fmt.Errorf("failed to assign node UUIDs: %w", err)
+		}
+
+		// 3. リレーションシップに UUID を付与
+		fmt.Println("Assigning UUIDs to relationships...")
+		if _, err = session.ExecuteWrite(ctx, func(tx neo4j.ManagedTransaction) (interface{}, error) {
+			query := `
+				CALL apoc.periodic.iterate(
+					"MATCH ()-[r]->() WHERE r.uuid IS NULL RETURN r",
+					"SET r.uuid = 'E-' + apoc.create.uuid()",
+					{batchSize: 10000, parallel: false}
+				)`
+			return tx.Run(ctx, query, nil)
+		}); err != nil {
+			return fmt.Errorf("failed to assign relationship UUIDs: %w", err)
+		}
+
+		// 4. Entity(uuid) の一意制約
+		fmt.Println("Creating unique constraint for Entity(uuid)...")
+		if _, err = session.ExecuteWrite(ctx, func(tx neo4j.ManagedTransaction) (interface{}, error) {
+			query := "CREATE CONSTRAINT node_uuid_unique IF NOT EXISTS FOR (n:Entity) REQUIRE n.uuid IS UNIQUE"
+			return tx.Run(ctx, query, nil)
+		}); err != nil {
+			return fmt.Errorf("failed to create constraint: %w", err)
+		}
+
+		// 5. 各リレーションシップ型に uuid 一意制約
+		relresult, err := session.Run(ctx, "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType", nil)
+		if err != nil {
+			return fmt.Errorf("failed to fetch relationship types: %w", err)
+		}
+		var relTypes []string
+		for relresult.Next(ctx) {
+			if r, ok := relresult.Record().Get("relationshipType"); ok {
+				relTypes = append(relTypes, r.(string))
+			}
+		}
+		for _, relType := range relTypes {
+			constraintName := strings.ToLower(relType) + "_uuid_unique"
+			query := fmt.Sprintf(
+				"CREATE CONSTRAINT %s IF NOT EXISTS FOR ()-[r:%s]-() REQUIRE r.uuid IS UNIQUE",
+				constraintName, relType,
+			)
+			if _, err := session.Run(ctx, query, nil); err != nil {
+				fmt.Printf("Could not create constraint for relationship %s: %v\n", relType, err)
+				continue
+			}
+		}
+	*/
 	// --- 他4ストアのクリア（接続情報はすべて cfg から）---
 	if cfg.Mongo != nil {
 		if err := cleanMongoDB(ctx, cfg.Mongo.URI, cfg.Mongo.DBName); err != nil {

@@ -37,9 +37,9 @@ type CassandraConfig struct {
 
 func DefaultConfig() Config {
 	neo4j := &Neo4jConfig{
-		URI:      "bolt://localhost:7690",
+		URI:      "bolt://localhost:7687",
 		User:     "neo4j",
-		Password: "password",
+		Password: "password123",
 	}
 	mongo := &MongoConfig{
 		URI:    "mongodb://localhost:27017",

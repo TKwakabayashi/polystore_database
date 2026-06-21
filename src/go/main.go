@@ -14,8 +14,8 @@ import (
 func main() {
 	var (
 		mode       = flag.String("mode", "run", "実行モード: setup | migrate | run | workflow")
-		workload   = flag.String("workload", "IS4", "ワークロード名")
-		configPath = flag.String("config", "../config/config.json", "設定ファイル(JSON)")
+		workload   = flag.String("workload", "Q9", "ワークロード名")
+		configPath = flag.String("config", "../../config/config.json", "設定ファイル(JSON)")
 	)
 	flag.Parse()
 
