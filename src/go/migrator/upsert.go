@@ -2,12 +2,16 @@ package migrator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"polystore_database/src/go/codec"
 	"polystore_database/src/go/plan"
 	"polystore_database/src/go/storage"
+	"sort"
 	"strings"
+	"time"
 
+	"github.com/go-sql-driver/mysql"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -18,43 +22,38 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func upsertDataStream(ctx context.Context, cfg MigrationConfig, dbKind storage.StoreKind, reg *storage.Registry, inCh <-chan DataRowStream, outCh chan<- DataRowStream, typeMap map[string]string) error {
+// upsertDataStream は inCh から受け取った行をバッチで移行先へ書き込む。
+// Delete への転送はフェーズ分離により廃止し、書き込み専任にした。
+func upsertDataStream(ctx context.Context, cfg MigrationConfig, dbKind storage.StoreKind, reg *storage.Registry, inCh <-chan DataRowStream, typeMap map[string]string) error {
 	const batchSize = 2000
 	batch := make([]DataRowStream, 0, batchSize)
 
-	// バッチ書き込み実行処理
 	flush := func(rows []DataRowStream) error {
 		if len(rows) == 0 {
 			return nil
 		}
 
+		var err error
 		switch dbKind {
 		case storage.Relational:
-			return upsertRdb(ctx, cfg, reg, typeMap, rows)
+			err = upsertRdb(ctx, cfg, reg, typeMap, rows)
 		case storage.Document:
-			return upsertDoc(ctx, cfg, reg, typeMap, rows)
+			err = upsertDoc(ctx, cfg, reg, typeMap, rows)
 		case storage.Graph:
-			return upsertGraph(ctx, cfg, reg, typeMap, rows)
+			err = upsertGraph(ctx, cfg, reg, typeMap, rows)
 		case storage.Columnar:
-			return upsertCol(ctx, cfg, reg, typeMap, rows)
+			err = upsertCol(ctx, cfg, reg, typeMap, rows)
 		case storage.Kvs:
-			return upsertKvs(ctx, cfg, reg, typeMap, rows)
+			err = upsertKvs(ctx, cfg, reg, typeMap, rows)
 		default:
-
+			return fmt.Errorf("unsupported dest store: %s", dbKind.String())
 		}
-
-		// 全ての書き込みが物理的に成功した後、Deleteステージへ流す
-		for _, row := range rows {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case outCh <- row:
-			}
+		if err != nil {
+			return err
 		}
 		return nil
 	}
 
-	// メインループ
 	for {
 		select {
 		case <-ctx.Done():
@@ -79,7 +78,7 @@ func upsertGraph(ctx context.Context, cfg MigrationConfig, reg *storage.Registry
 	if !ok {
 		return fmt.Errorf("graph store not available")
 	}
-	session := drv.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead})
+	session := drv.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite})
 	defer session.Close(ctx)
 
 	unwindParams := make([]map[string]interface{}, len(rows))
@@ -91,7 +90,8 @@ func upsertGraph(ctx context.Context, cfg MigrationConfig, reg *storage.Registry
 				cleanPayload[p] = finalVal
 			}
 		}
-		unwindParams[i] = map[string]interface{}{"uuid": row.UUID, "payload": cleanPayload}
+		// 境界変換: id.UUID -> string（neo4j packstream は名前付き型を扱えない）
+		unwindParams[i] = map[string]interface{}{"uuid": row.UUID.String(), "payload": cleanPayload}
 	}
 
 	var query string
@@ -123,21 +123,28 @@ func upsertKvs(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, 
 	levelBatch := new(leveldb.Batch)
 	for _, row := range rows {
 		for p, val := range row.Payload {
+			if val == nil {
+				continue
+			}
 			// KVS専用バイナリエンコード
 			valBytes, err := codec.EncodeForKVS(val, typeMap[p])
 			if err != nil {
 				return fmt.Errorf("kvs encode failed: %w", err)
 			}
-			if valBytes == nil {
-				return fmt.Errorf("KVSエンコード結果がnilです (UUID: %s, Prop: %s)", row.UUID.String(), p)
-			}
+
+			// json(複雑値)は保存のみ。転置索引は張らない（値検索は非対応）。
+			complex := strings.EqualFold(typeMap[p], "json")
 
 			entityKey := codec.BuildEntityKey(cfg.Entity, row.UUID.String(), p)
-			if oldVal, err := db.Get(entityKey, nil); err == nil {
-				levelBatch.Delete(codec.BuildIndexKey(cfg.Entity, p, oldVal, row.UUID.String()))
+			if !complex {
+				if oldVal, err := db.Get(entityKey, nil); err == nil {
+					levelBatch.Delete(codec.BuildIndexKey(cfg.Entity, p, oldVal, row.UUID.String()))
+				}
 			}
 			levelBatch.Put(entityKey, valBytes)
-			levelBatch.Put(codec.BuildIndexKey(cfg.Entity, p, valBytes, row.UUID.String()), []byte{})
+			if !complex {
+				levelBatch.Put(codec.BuildIndexKey(cfg.Entity, p, valBytes, row.UUID.String()), []byte{})
+			}
 		}
 	}
 	if err := db.Write(levelBatch, &opt.WriteOptions{Sync: true}); err != nil {
@@ -162,7 +169,7 @@ func upsertDoc(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, 
 			finalPayload[p] = finalVal
 		}
 		models[i] = mongo.NewUpdateOneModel().
-			SetFilter(bson.M{"uuid": row.UUID}).
+			SetFilter(bson.M{"uuid": row.UUID.String()}).
 			SetUpdate(bson.M{"$set": finalPayload}).
 			SetUpsert(true)
 	}
@@ -178,13 +185,11 @@ func upsertCol(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, 
 	if !ok {
 		return fmt.Errorf("columnar store not available")
 	}
-	// テーブル準備
-	_ = session.Query(fmt.Sprintf("CREATE TABLE IF NOT EXISTS \"%s\" (uuid text PRIMARY KEY)", cfg.Entity)).WithContext(ctx).Exec()
-	for _, p := range cfg.Properties {
-		_ = session.Query(fmt.Sprintf("ALTER TABLE \"%s\" ADD \"%s\" %s", cfg.Entity, p, codec.MapToCassandraType(typeMap[p]))).WithContext(ctx).Exec()
-	}
+	// スキーマ準備は prepareDestSchema で1回実施済み（ここでは DDL を行わない）
 
 	eg, gctx := errgroup.WithContext(ctx)
+	// 行ごとに goroutine を無制限生成すると Cassandra の接続プールが枯渇するため上限を設ける
+	eg.SetLimit(32)
 	quotedProps := make([]string, len(cfg.Properties))
 	for i, p := range cfg.Properties {
 		quotedProps[i] = fmt.Sprintf("\"%s\"", p)
@@ -195,9 +200,8 @@ func upsertCol(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, 
 	for _, r := range rows {
 		r := r
 		eg.Go(func() error {
-			args := []interface{}{r.UUID}
+			args := []interface{}{r.UUID.String()}
 			for _, p := range cfg.Properties {
-				// カサンドラ用に int32 / int64 を厳格化
 				finalVal, _ := codec.PrepareForDB(r.Payload[p], typeMap[p], "columnar")
 				args = append(args, finalVal)
 			}
@@ -216,18 +220,11 @@ func upsertRdb(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, 
 	if !ok {
 		return fmt.Errorf("relational store not available")
 	}
-	// テーブルとカラムの動的準備
-	createTableQuery := fmt.Sprintf("CREATE TABLE IF NOT EXISTS `%s` (uuid VARCHAR(255) PRIMARY KEY)", cfg.Entity)
-	if _, err := db.ExecContext(ctx, createTableQuery); err != nil {
-		return fmt.Errorf("failed to prepare table %s: %w", cfg.Entity, err)
-	}
-	for _, p := range cfg.Properties {
-		sqlType := codec.MapToSQLType(typeMap[p])
-		alterQuery := fmt.Sprintf("ALTER TABLE `%s` ADD COLUMN `%s` %s", cfg.Entity, p, sqlType)
-		_, _ = db.ExecContext(ctx, alterQuery)
-	}
+	// スキーマ準備は prepareDestSchema で1回実施済み（ここでは DDL を行わない）
 
-	// バルククエリ構築
+	// ワーカー間でロック取得順を揃え、デッドロック頻度を下げる
+	sort.Slice(rows, func(i, j int) bool { return rows[i].UUID < rows[j].UUID })
+
 	numProps := len(cfg.Properties)
 	placeholderGroup := "(" + strings.Repeat("?,", numProps) + "?)"
 	batchPlaceholders := make([]string, len(rows))
@@ -235,9 +232,8 @@ func upsertRdb(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, 
 
 	for i, r := range rows {
 		batchPlaceholders[i] = placeholderGroup
-		args = append(args, r.UUID)
+		args = append(args, r.UUID.String())
 		for _, p := range cfg.Properties {
-			// 格納先(RDB)に合わせた最終変換
 			finalVal, err := codec.PrepareForDB(r.Payload[p], typeMap[p], "relational")
 			if err != nil {
 				return err
@@ -257,9 +253,32 @@ func upsertRdb(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, 
 		"INSERT INTO `%s` (uuid, %s) VALUES %s ON DUPLICATE KEY UPDATE %s",
 		cfg.Entity, strings.Join(quotedProps, ", "), strings.Join(batchPlaceholders, ", "), strings.Join(updateClauses, ", "),
 	)
-	if _, err := db.ExecContext(ctx, query, args...); err != nil {
-		return fmt.Errorf("mysql bulk upsert failed: %w", err)
-	}
 
-	return nil
+	// デッドロック(1213)/ロック待ち(1205)は再試行
+	const maxAttempts = 5
+	var lastErr error
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if _, err := db.ExecContext(ctx, query, args...); err != nil {
+			lastErr = err
+			if isMySQLRetryable(err) {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(time.Duration(attempt+1) * 20 * time.Millisecond):
+				}
+				continue
+			}
+			return fmt.Errorf("mysql bulk upsert failed: %w", err)
+		}
+		return nil
+	}
+	return fmt.Errorf("mysql bulk upsert failed after %d attempts: %w", maxAttempts, lastErr)
+}
+
+func isMySQLRetryable(err error) bool {
+	var me *mysql.MySQLError
+	if errors.As(err, &me) {
+		return me.Number == 1213 || me.Number == 1205
+	}
+	return false
 }

@@ -102,7 +102,7 @@ func DefineWorkloadQ9(mode migrator.MigrationMode, isMigration bool) (string, ma
 		"maxDate":  "2011-06-16T00:00:00.000Z",
 	}
 	var migs []migrator.MigrationConfig
-	if isMigration { // authoritative（旧 executeWorkFlowQ9 より）
+	if isMigration {
 		migs = []migrator.MigrationConfig{
 			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id", "firstName", "lastName"}, Mode: mode},
 			{ObjType: plan.Entity, Entity: "Message", Properties: []string{"creationDate", "id", "content", "imageFile"}, Mode: mode},
@@ -126,7 +126,7 @@ func DefineWorkloadQ11(mode migrator.MigrationMode, isMigration bool) (string, m
 		"workFromYear": "2008",
 	}
 	var migs []migrator.MigrationConfig
-	if isMigration { // authoritative（旧 executeWorkFlowQ11 より）
+	if isMigration {
 		migs = []migrator.MigrationConfig{
 			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id", "firstName", "lastName", "browserUsed", "creationDate", "email", "gender", "locationIP", "speaks"}, Mode: mode},
 			{ObjType: plan.Entity, Entity: "Organisation", Properties: []string{"type", "name"}, Mode: mode},
@@ -146,7 +146,7 @@ func DefineWorkloadIS1(mode migrator.MigrationMode, isMigration bool) (string, m
 		"personId": "21990232558284",
 	}
 	var migs []migrator.MigrationConfig
-	if isMigration { // authoritative（旧 executeWorkFlowIS1 より）
+	if isMigration {
 		migs = []migrator.MigrationConfig{
 			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id", "firstName", "lastName", "birthday", "gender", "locationIP", "browserUsed", "creationDate"}, Mode: mode},
 			{ObjType: plan.Entity, Entity: "Place", Properties: []string{"type", "id"}, Mode: mode},

@@ -3,6 +3,8 @@ package migrator
 import (
 	"context"
 	"fmt"
+	"math"
+	"math/big"
 	"polystore_database/src/go/codec"
 	"polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
@@ -15,21 +17,62 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-func fetchDataStream(ctx context.Context, cfg MigrationConfig, dbKind storage.StoreKind, reg *storage.Registry, typeMap map[string]string, dataCh chan<- DataRowStream) error {
+// fetchDataStream はソースからデータを読み出し dataCh へ流す。
+// shardTotal>1 のとき、uuid をシャード分割し (shardIdx, shardTotal) が担当する範囲だけを取得する。
+// 分割は uuid をバイト順で網羅的に区切るため、全ワーカー合わせて重複も取りこぼしもない。
+func fetchDataStream(ctx context.Context, cfg MigrationConfig, dbKind storage.StoreKind, reg *storage.Registry, typeMap map[string]string, dataCh chan<- DataRowStream, shardIdx, shardTotal int) error {
 	switch dbKind {
 	case storage.Graph:
 		return fetchGraph(ctx, cfg, reg, typeMap, dataCh)
 	case storage.Kvs:
-		return fetchKvs(ctx, cfg, reg, typeMap, dataCh)
+		return fetchKvs(ctx, cfg, reg, typeMap, dataCh, shardIdx, shardTotal)
 	case storage.Document:
-		return fetchDoc(ctx, cfg, reg, typeMap, dataCh)
+		return fetchDoc(ctx, cfg, reg, typeMap, dataCh, shardIdx, shardTotal)
 	case storage.Columnar:
-		return fetchCol(ctx, cfg, reg, typeMap, dataCh)
+		return fetchCol(ctx, cfg, reg, typeMap, dataCh, shardIdx, shardTotal)
 	case storage.Relational:
 		return fetchRdb(ctx, cfg, reg, typeMap, dataCh)
 	default:
 		return fmt.Errorf("streaming fetch not implemented for: %s", dbKind.String())
 	}
+}
+
+// shardBounds は shardIdx/shardTotal に対応する uuid の [lo, hi) バイト境界を返す。
+// lo=="" は下限なし、hi=="" は上限なしを表す。境界は先頭バイト空間を等分するため、
+// 全シャードで uuid 空間を過不足なく分割する（バイト順比較に依存）。
+func shardBounds(shardIdx, shardTotal int) (lo, hi string) {
+	if shardTotal <= 1 {
+		return "", ""
+	}
+	if shardIdx > 0 {
+		lo = string([]byte{byte(shardIdx * 256 / shardTotal)})
+	}
+	if shardIdx < shardTotal-1 {
+		hi = string([]byte{byte((shardIdx + 1) * 256 / shardTotal)})
+	}
+	return lo, hi
+}
+
+// shardTokenBounds は Cassandra の token(uuid) 空間 [MinInt64, MaxInt64] を等分し、
+// shardIdx の [lo, hi) を返す。hasHi=false は最終シャード（上限なし）を表す。
+func shardTokenBounds(shardIdx, shardTotal int) (lo, hi int64, hasHi bool) {
+	if shardTotal <= 1 {
+		return math.MinInt64, 0, false
+	}
+	min := big.NewInt(math.MinInt64)
+	span := new(big.Int).Sub(big.NewInt(math.MaxInt64), min) // 2^64 - 1
+	total := big.NewInt(int64(shardTotal))
+	at := func(k int) int64 {
+		v := new(big.Int).Mul(span, big.NewInt(int64(k)))
+		v.Div(v, total)
+		v.Add(v, min)
+		return v.Int64()
+	}
+	lo = at(shardIdx)
+	if shardIdx == shardTotal-1 {
+		return lo, 0, false
+	}
+	return lo, at(shardIdx + 1), true
 }
 
 func fetchGraph(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, typeMap map[string]string, dataCh chan<- DataRowStream) error {
@@ -43,7 +86,8 @@ func fetchGraph(ctx context.Context, cfg MigrationConfig, reg *storage.Registry,
 	var label, query string
 	if cfg.ObjType == plan.Relationship {
 		label = "r"
-		query = fmt.Sprintf("MATCH ()-[%s:%s]-() ", label, cfg.Entity)
+		// 有向 -> で各リレーションを1回だけ読む（無向 - だと両方向で2回 fetch し無駄）
+		query = fmt.Sprintf("MATCH ()-[%s:%s]->() ", label, cfg.Entity)
 	} else {
 		label = "n"
 		query = fmt.Sprintf("MATCH (%s:%s) ", label, cfg.Entity)
@@ -71,9 +115,8 @@ func fetchGraph(ctx context.Context, cfg MigrationConfig, reg *storage.Registry,
 			continue
 		}
 
-		uuid, _ := dataMap["uuid"].(id.UUID)
-		if uuid == "" {
-			// uuid empty
+		uuid := asUUID(dataMap["uuid"])
+		if uuid.Empty() {
 			continue
 		}
 
@@ -97,13 +140,24 @@ func fetchGraph(ctx context.Context, cfg MigrationConfig, reg *storage.Registry,
 	return nil
 }
 
-func fetchKvs(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, typeMap map[string]string, dataCh chan<- DataRowStream) error {
+func fetchKvs(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, typeMap map[string]string, dataCh chan<- DataRowStream, shardIdx, shardTotal int) error {
 	db, ok := reg.LevelDB()
 	if !ok {
 		return fmt.Errorf("kvs store not available")
 	}
-	prefix := cfg.Entity + codec.Sep
-	iter := db.NewIterator(util.BytesPrefix([]byte(prefix)), nil)
+	// キーは Entity + Sep + uuid + Sep + prop。uuid の先頭バイトで範囲を絞る。
+	// 1つの uuid のキー群は同じ uuid 接頭辞を共有するため、シャード境界で分断されない。
+	base := []byte(cfg.Entity + codec.Sep)
+	rng := util.BytesPrefix(base)
+	if lo, hi := shardBounds(shardIdx, shardTotal); lo != "" || hi != "" {
+		if lo != "" {
+			rng.Start = append(append([]byte{}, base...), lo...)
+		}
+		if hi != "" {
+			rng.Limit = append(append([]byte{}, base...), hi...)
+		}
+	}
+	iter := db.NewIterator(rng, nil)
 	defer iter.Release()
 
 	var currentUUID id.UUID
@@ -153,12 +207,24 @@ func fetchKvs(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, t
 	return flush()
 }
 
-func fetchDoc(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, typeMap map[string]string, dataCh chan<- DataRowStream) error {
+func fetchDoc(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, typeMap map[string]string, dataCh chan<- DataRowStream, shardIdx, shardTotal int) error {
 	db, ok := reg.Mongo()
 	if !ok {
 		return fmt.Errorf("document store not available")
 	}
-	cur, err := db.Collection(cfg.Entity).Find(ctx, bson.M{})
+	// BSON の文字列比較はバイト順なので、uuid 範囲でシャードを絞れる（uuid インデックス利用可）。
+	filter := bson.M{}
+	if lo, hi := shardBounds(shardIdx, shardTotal); lo != "" || hi != "" {
+		cond := bson.M{}
+		if lo != "" {
+			cond["$gte"] = lo
+		}
+		if hi != "" {
+			cond["$lt"] = hi
+		}
+		filter["uuid"] = cond
+	}
+	cur, err := db.Collection(cfg.Entity).Find(ctx, filter)
 	if err != nil {
 		return err
 	}
@@ -169,8 +235,8 @@ func fetchDoc(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, t
 		if err := cur.Decode(&doc); err != nil {
 			return err
 		}
-		uuid, _ := doc["uuid"].(id.UUID)
-		if uuid == "" {
+		uuid := asUUID(doc["uuid"])
+		if uuid.Empty() {
 			continue
 		}
 
@@ -193,7 +259,7 @@ func fetchDoc(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, t
 	return nil
 }
 
-func fetchCol(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, typeMap map[string]string, dataCh chan<- DataRowStream) error {
+func fetchCol(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, typeMap map[string]string, dataCh chan<- DataRowStream, shardIdx, shardTotal int) error {
 	session, ok := reg.Cassandra()
 	if !ok {
 		return fmt.Errorf("columnar store not available")
@@ -203,7 +269,18 @@ func fetchCol(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, t
 		quotedProps[i] = fmt.Sprintf("\"%s\"", p)
 	}
 	query := fmt.Sprintf("SELECT \"uuid\", %s FROM \"%s\"", strings.Join(quotedProps, ", "), cfg.Entity)
-	iter := session.Query(query).WithContext(ctx).Iter()
+	// パーティションキー uuid の token 範囲でシャードを絞る（token 空間は一様分布）。
+	var args []interface{}
+	if shardTotal > 1 {
+		lo, hi, hasHi := shardTokenBounds(shardIdx, shardTotal)
+		query += " WHERE token(uuid) >= ?"
+		args = append(args, lo)
+		if hasHi {
+			query += " AND token(uuid) < ?"
+			args = append(args, hi)
+		}
+	}
+	iter := session.Query(query, args...).WithContext(ctx).Iter()
 
 	for {
 		row := make(map[string]interface{})
@@ -211,7 +288,7 @@ func fetchCol(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, t
 			break
 		}
 
-		uuid, _ := row["uuid"].(id.UUID)
+		uuid := asUUID(row["uuid"])
 		if uuid.Empty() {
 			continue
 		}
@@ -280,15 +357,17 @@ func fetchRdb(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, t
 			}
 
 			if colName == "uuid" {
-				uuid, _ = val.(id.UUID)
+				uuid = asUUID(val)
 				continue
 			}
-			// ParseToNative に置換
 			nativeVal, err := codec.ParseToNative(val, typeMap[colName])
 			if err != nil {
 				return fmt.Errorf("parse error [relational] UUID %s, Prop %s: %w", uuid.String(), colName, err)
 			}
 			payload[colName] = nativeVal
+		}
+		if uuid.Empty() {
+			continue
 		}
 		select {
 		case <-ctx.Done():

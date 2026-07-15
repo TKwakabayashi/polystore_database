@@ -44,11 +44,20 @@ type MigrationConfig struct {
 	Mode        MigrationMode
 	MappingPath string
 	MongoDbName string
+	// DeleteSource が true のときだけ、Verify とマッピング切替が成功した後に
+	// ソース側のデータを削除する。デフォルト（false）ではソースを一切消さないため、
+	// コピー・検証が完了するまでデータ消失は発生しない。
+	DeleteSource bool
 }
 
 type DataRowStream struct {
 	UUID    id.UUID
 	Payload map[string]interface{}
+}
+
+// ModeStores は Mode を (src, dest) の StoreKind へ写す公開ヘルパ（検証・実験用）。
+func ModeStores(m MigrationMode) (src, dest storage.StoreKind, err error) {
+	return modeStores(m)
 }
 
 // modeStores は Mode を (src, dest) の StoreKind へ写す。

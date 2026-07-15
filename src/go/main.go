@@ -13,9 +13,11 @@ import (
 
 func main() {
 	var (
-		mode       = flag.String("mode", "run", "実行モード: setup | migrate | run | workflow")
-		workload   = flag.String("workload", "Q9", "ワークロード名")
+		mode       = flag.String("mode", "run", "実行モード: setup | migrate | run | workflow | verify-migrate")
+		workload   = flag.String("workload", "Q11", "ワークロード名")
 		configPath = flag.String("config", "../../config/config.json", "設定ファイル(JSON)")
+		migMode    = flag.String("migmode", "graph_to_rdb", "移行モード（a_to_b）: migrate / workflow / verify-migrate で使用")
+		deleteSrc  = flag.Bool("delete", true, "移行成功後にソース側の該当データを削除する（migrate / workflow）")
 	)
 	flag.Parse()
 
@@ -46,9 +48,14 @@ func main() {
 		}
 
 	case "migrate":
-		// 単体マイグレーション（時間・件数を出力）
+		// 単体マイグレーション（-migmode の方向で移行し、時間・件数を出力）
 		def := lookup(*workload)
-		_, _, migs := def(migrator.ModeKvsToGraph, false) // ←移行モードは実験に応じて選ぶ
+		mode := migrator.MigrationMode(*migMode)
+		_, _, migs := def(mode, true)
+		for i := range migs {
+			migs[i].Mode = mode // def が Mode 未設定の定義(IS4等)でも確実に効かせる
+			migs[i].DeleteSource = *deleteSrc
+		}
 		res, err := workloads.RunMigration(ctx, cfg, migs)
 		if err != nil {
 			log.Fatalf("migration に失敗: %v", err)
@@ -56,10 +63,19 @@ func main() {
 		workloads.PrintMigration(res)
 
 	case "workflow":
-		// migration → Neo4j比較 まで通しで
+		// migration → クエリ実行(Neo4j比較) まで通しで（-migmode の方向で移行）
 		def := lookup(*workload)
-		cypher, params, migs := def(migrator.ModeKvsToGraph, false)
+		mode := migrator.MigrationMode(*migMode)
+		cypher, params, migs := def(mode, true)
+		for i := range migs {
+			migs[i].Mode = mode
+			migs[i].DeleteSource = *deleteSrc
+		}
 		workloads.RunWorkflow(ctx, *workload, cfg, cypher, params, migs)
+
+	case "verify-migrate":
+		// 【一時】migrator の動作確認（非破壊ラウンドトリップ検証）
+		workloads.RunMigrationVerify(ctx, cfg, *workload, migrator.MigrationMode(*migMode))
 
 	default: // "run"
 		// クエリ実行のみ（SelectedTarget/SelectedFormat に従う）
