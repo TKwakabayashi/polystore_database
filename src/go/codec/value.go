@@ -47,10 +47,34 @@ func EncodeForKVS(val interface{}, targetType string) ([]byte, error) {
 		}
 
 	case "string", "text":
+		if isComplexValue(val) {
+			return nil, fmt.Errorf("KVS encode: complex value for %q declared as %q; declare it as \"json\"", fmt.Sprintf("%T", val), targetType)
+		}
 		return []byte(fmt.Sprint(val)), nil
+
+	case "json":
+		// 配列/構造体などの複雑値は JSON にして保存（エンティティキー用。転置索引は張らない）
+		return json.Marshal(val)
 	}
 
 	return nil, fmt.Errorf("KVS encode unsupported type: %T for target %s", val, targetType)
+}
+
+// isComplexValue は値が配列/スライス/マップ（=スカラーでない複雑値）かを判定する。
+// []byte は生バイト列としてスカラー扱いする。
+func isComplexValue(val interface{}) bool {
+	if val == nil {
+		return false
+	}
+	if _, ok := val.([]byte); ok {
+		return false
+	}
+	switch reflect.ValueOf(val).Kind() {
+	case reflect.Slice, reflect.Array, reflect.Map:
+		return true
+	default:
+		return false
+	}
 }
 
 func DecodeValue(valBytes []byte, typeName string) interface{} {
@@ -80,6 +104,14 @@ func DecodeValue(valBytes []byte, typeName string) interface{} {
 	case "date", "datetime":
 		// 文字列として返し、ParseToNative側で time.Time に変換させる
 		return string(valBytes)
+
+	case "json":
+		// 保存時に JSON 化した複雑値を構造へ復元
+		var out interface{}
+		if err := json.Unmarshal(valBytes, &out); err != nil {
+			return string(valBytes) // 壊れていれば生文字列で返す
+		}
+		return out
 
 	default:
 		return string(valBytes)
@@ -151,6 +183,10 @@ func ParseToNative(val interface{}, targetType string) (interface{}, error) {
 			if t, err := time.Parse(time.RFC3339, v); err == nil {
 				return t, nil
 			}
+			// MySQL DATETIME 形式（PrepareForDB の relational 書き込みと対称）
+			if t, err := time.Parse("2006-01-02 15:04:05", v); err == nil {
+				return t, nil
+			}
 			if t, err := time.Parse("2006-01-02", v); err == nil {
 				return t, nil
 			}
@@ -163,9 +199,17 @@ func ParseToNative(val interface{}, targetType string) (interface{}, error) {
 			return nil, fmt.Errorf("invalid type for time.Time: %T", val)
 		}
 
+	case "json":
+		// 複雑値（配列/構造体）は構造のまま保持し、各ストアの書き込み側で直列化する。
+		return val, nil
+
 	case "string", "text":
 		if s, ok := val.(string); ok {
 			return s, nil
+		}
+		if isComplexValue(val) {
+			// 複雑値を string へ丸めると非可逆にマングルされるため明示エラー
+			return nil, fmt.Errorf("complex value (%T) declared as %q; declare the property as \"json\"", val, targetType)
 		}
 		return fmt.Sprint(val), nil
 
@@ -190,6 +234,21 @@ func PrepareForDB(val interface{}, targetType string, destType string) (interfac
 		return nil, nil
 	}
 	targetType = strings.ToLower(targetType)
+
+	// 複雑値(json)は行指向/列指向では JSON 文字列に、document/graph ではネイティブのまま渡す
+	// （Mongo は配列/オブジェクト、Neo4j はプリミティブ配列をネイティブ格納できる）。
+	if targetType == "json" {
+		switch destType {
+		case "relational", "columnar":
+			b, err := json.Marshal(val)
+			if err != nil {
+				return nil, fmt.Errorf("json marshal for %s failed: %w", destType, err)
+			}
+			return string(b), nil
+		default: // document / graph
+			return val, nil
+		}
+	}
 
 	switch destType {
 	case "document": // MongoDB

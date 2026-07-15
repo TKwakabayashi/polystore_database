@@ -20,6 +20,9 @@ func MapToSQLType(t string) string {
 	case "date":
 		// 時刻なしの日付のみに対応
 		return "DATE"
+	case "json":
+		// 配列/構造体などの複雑値は JSON 文字列として保存
+		return "JSON"
 	default:
 		// 未知の型は安全のために文字型として扱う
 		return "TEXT"
@@ -46,6 +49,9 @@ func MapToCassandraType(typeName string) string {
 		return "boolean"
 	case "uuid":
 		return "uuid"
+	case "json":
+		// 配列/構造体などの複雑値は JSON 文字列(text)として保存
+		return "text"
 	default:
 		panic(fmt.Sprintf("unsupported cassandra type mapping for: %s", typeName))
 	}

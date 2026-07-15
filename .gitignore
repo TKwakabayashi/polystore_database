@@ -6,6 +6,7 @@ src/go/storage/config.go
 # Ignore dump files
 *.dump
 .DS_Store
+*.prof
 
 #ignore meta folder
 docs/
