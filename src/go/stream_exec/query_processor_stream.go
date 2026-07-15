@@ -14,7 +14,11 @@ import (
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"github.com/syndtr/goleveldb/leveldb"
 	"go.mongodb.org/mongo-driver/mongo"
+	"golang.org/x/sync/semaphore"
 )
+
+func noResource() struct{}       { return struct{}{} }
+func closeNoResource(_ struct{}) {}
 
 type Record struct {
 	Slots []string
@@ -38,6 +42,7 @@ type QueryProcessor struct {
 
 	rg   *storage.Registry
 	exec ExecPolicy
+	sem  *semaphore.Weighted // ExecDynamic 用：全演算子で共有する全体上限
 }
 
 type Metrics struct {
@@ -118,13 +123,14 @@ func NewQueryProcessorWithConfig(ctx context.Context, cfg storage.Config) (*Quer
 	}
 
 	exec := ExecPolicy{
-		Mode:    ExecFixed,
-		Default: OpConcurrency{Workers: 1, MaxConcurrency: 1},
+		Mode:                 ExecDynamic,
+		Default:              OpConcurrency{Workers: 2},
+		GlobalMaxConcurrency: 8, // ExecDynamic 時のシステム全体の同時DB上限
 		PerOp: map[OpKind]OpConcurrency{
-			OpExpand:          {Workers: 4, MaxConcurrency: 8},
-			OpVarLengthExpand: {Workers: 2, MaxConcurrency: 4},
-			OpFilter:          {Workers: 4, MaxConcurrency: 8},
-			OpProjection:      {Workers: 4, MaxConcurrency: 8},
+			OpExpand:          {Workers: 4},
+			OpVarLengthExpand: {Workers: 2},
+			OpFilter:          {Workers: 4},
+			OpProjection:      {Workers: 4},
 		},
 	}
 
@@ -136,6 +142,7 @@ func NewQueryProcessorWithConfig(ctx context.Context, cfg storage.Config) (*Quer
 		counts:    make(map[string]int),
 		ctx:       ctx,
 		exec:      exec,
+		sem:       semaphore.NewWeighted(int64(exec.globalMax())),
 	}
 
 	rg, err := storage.NewRegistry(ctx, cfg)
@@ -260,7 +267,7 @@ func ExecuteOperatorStream(qp *QueryProcessor, op plan.PlanNode, counter *int, w
 		switch o := op.(type) {
 		case *plan.EntityScan:
 			opType = "EntityScan"
-			rowCount, err = ScanGraphStream(qp, o, outputStream)
+			rowCount, err = scanByStore(qp, o, outputStream)
 
 		case *plan.Expand:
 			opType = "Expand"
@@ -272,8 +279,7 @@ func ExecuteOperatorStream(qp *QueryProcessor, op plan.PlanNode, counter *int, w
 
 		case *plan.Filter:
 			opType = "Filter"
-			rowCount, err = streamFilterGraph(qp, o, inputStream, outputStream)
-
+			rowCount, err = filterByStore(qp, o, inputStream, outputStream)
 		case *plan.Projection:
 			opType = "Projection"
 			err = streamProjection(qp, o, inputStream)
@@ -298,4 +304,38 @@ func ExecuteOperatorStream(qp *QueryProcessor, op plan.PlanNode, counter *int, w
 	}()
 
 	return outputStream, nil
+}
+
+func scanByStore(qp *QueryProcessor, o *plan.EntityScan, out chan<- []Record) (int, error) {
+	switch o.DataStore {
+	case "graph", "", "unknown":
+		return ScanGraphStream(qp, o, out)
+	case "document":
+		return ScanDocStream(qp, o, out)
+	case "kvs":
+		return ScanKvsStream(qp, o, out)
+	case "relational":
+		return ScanRdbStream(qp, o, out)
+	case "columnar":
+		return ScanColStream(qp, o, out)
+	default:
+		return 0, fmt.Errorf("unknown datastore for scan: %s", o.DataStore)
+	}
+}
+
+func filterByStore(qp *QueryProcessor, o *plan.Filter, in <-chan []Record, out chan<- []Record) (int, error) {
+	switch o.DataStore {
+	case "graph", "", "unknown":
+		return streamFilterGraph(qp, o, in, out)
+	case "document":
+		return FilterDocStream(qp, o, in, out)
+	case "kvs":
+		return FilterKvsStream(qp, o, in, out)
+	case "relational":
+		return FilterRdbStream(qp, o, in, out)
+	case "columnar":
+		return FilterColStream(qp, o, in, out)
+	default:
+		return 0, fmt.Errorf("unknown datastore for filter: %s", o.DataStore)
+	}
 }

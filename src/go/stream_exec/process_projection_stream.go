@@ -104,8 +104,13 @@ func FetchPropertiesBulk(qp *QueryProcessor, ids []string, unit *plan.Projection
 	case "graph":
 		return fetchGraphPropsStream(qp, ids, unit, plan)
 	case "document":
-		// return fetchDocPropsBulk(qp, ids, unit, plan)
-		return nil
+		return fetchDocPropsStream(qp, ids, unit, plan)
+	case "kvs":
+		return fetchKvsPropsStream(qp, ids, unit, plan)
+	case "columnar":
+		return fetchColPropsStream(qp, ids, unit, plan)
+	case "relational":
+		return fetchRdbPropsStream(qp, ids, unit, plan)
 	default:
 		return nil
 	}

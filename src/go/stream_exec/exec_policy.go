@@ -1,20 +1,20 @@
 package stream_executor
 
 import (
-	"sync"
+	"context"
 	"sync/atomic"
 
-	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 )
 
 type ExecMode int
 
 const (
-	ExecFixed   ExecMode = iota // 固定ワーカー数
-	ExecDynamic                 // セマフォによる動的割り当て
+	ExecFixed   ExecMode = iota // 固定ワーカー数（演算子ごと）
+	ExecDynamic                 // システム全体で1つのセマフォ
 )
 
-// OpKind は演算子の種別。種別ごとに並行度を設定する。
 type OpKind string
 
 const (
@@ -25,10 +25,9 @@ const (
 	OpProjection      OpKind = "Projection"
 )
 
-// OpConcurrency は 1 演算子種別あたりの並行度設定。
+// OpConcurrency は ExecFixed 用：演算子種別ごとのワーカー数。
 type OpConcurrency struct {
-	Workers        int // ExecFixed: 固定ワーカー数
-	MaxConcurrency int // ExecDynamic: 同時実行（=同時セッション）上限
+	Workers int
 }
 
 func (c OpConcurrency) workers() int {
@@ -38,22 +37,16 @@ func (c OpConcurrency) workers() int {
 	return c.Workers
 }
 
-func (c OpConcurrency) maxConc() int {
-	if c.MaxConcurrency < 1 {
-		return 1
-	}
-	return c.MaxConcurrency
-}
-
-// ExecPolicy は実行並行戦略。Mode で固定/動的を切り替え、
-// 並行度は演算子種別ごと(PerOp)に設定する（未設定は Default）。
+// ExecPolicy は実行並行戦略。
+//   - ExecFixed:   PerOp[op].Workers（演算子ごとのワーカー数）
+//   - ExecDynamic: GlobalMaxConcurrency（システム全体の同時DBアクセス上限。共有セマフォ）
 type ExecPolicy struct {
-	Mode    ExecMode
-	PerOp   map[OpKind]OpConcurrency
-	Default OpConcurrency
+	Mode                 ExecMode
+	PerOp                map[OpKind]OpConcurrency
+	Default              OpConcurrency
+	GlobalMaxConcurrency int
 }
 
-// For は指定演算子種別の並行度を返す（未設定なら Default）。
 func (p ExecPolicy) For(op OpKind) OpConcurrency {
 	if c, ok := p.PerOp[op]; ok {
 		return c
@@ -61,71 +54,94 @@ func (p ExecPolicy) For(op OpKind) OpConcurrency {
 	return p.Default
 }
 
-// batchFunc は 1 バッチを処理し、処理した行数を返す。
-// セッションは runBatches が用意・クローズするので、fn 側で閉じてはならない。
-type batchFunc func(sess neo4j.SessionWithContext, batch []Record) (int, error)
+func (p ExecPolicy) globalMax() int {
+	if p.GlobalMaxConcurrency < 1 {
+		return 1
+	}
+	return p.GlobalMaxConcurrency
+}
 
-// runBatches は inputStream の各バッチを、演算子種別 op に設定された並行度で処理する。
-//   - ExecFixed:   PerOp[op].Workers 個のワーカーが batchChan を消費。
-//     各ワーカーはセッションを 1 本だけ開いて使い回す。
-//   - ExecDynamic: バッチ毎に goroutine を起こすが、セマフォで同時数を
-//     PerOp[op].MaxConcurrency に制限。各 goroutine が専用セッションを持つ。
-func (qp *QueryProcessor) runBatches(op OpKind, inputStream <-chan []Record, fn batchFunc) (int, error) {
-	c := qp.exec.For(op)
-
+// runBatches は並行戦略とリソース R の生存管理を担う。特定DBに非依存。
+//   - process: 1バッチを処理して生成レコードを返す（emit はしない / DBアクセスはこの中）。
+//   - 動的モードは sem（システム全体で共有）を DB 区間だけ acquire/release し、
+//     解放後に runBatches が emit するためデッドロックしない。
+func runBatches[R any](
+	ctx context.Context,
+	policy ExecPolicy,
+	sem *semaphore.Weighted, // 動的モードのみ使用。全演算子で同一インスタンスを共有
+	op OpKind,
+	inputStream <-chan []Record,
+	outputStream chan<- []Record,
+	newRes func() R,
+	closeRes func(R),
+	process func(res R, batch []Record) ([]Record, error),
+) (int, error) {
 	var total int64
-	var firstErr error
-	var errOnce sync.Once
-	setErr := func(e error) {
-		if e != nil {
-			errOnce.Do(func() { firstErr = e })
+	var g errgroup.Group
+
+	emit := func(rows []Record) {
+		const chunk = 2000
+		for len(rows) > 0 {
+			n := len(rows)
+			if n > chunk {
+				n = chunk
+			}
+			outputStream <- rows[:n:n]
+			rows = rows[n:]
 		}
-	}
-	newSess := func() neo4j.SessionWithContext {
-		return qp.neoDriver.NewSession(qp.ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead})
 	}
 
-	switch qp.exec.Mode {
+	switch policy.Mode {
 	case ExecDynamic:
-		sem := make(chan struct{}, c.maxConc())
-		var wg sync.WaitGroup
-		for batch := range inputStream {
-			sem <- struct{}{} // 上限到達時はここでブロック（負荷に応じた抑制）
-			wg.Add(1)
-			go func(b []Record) {
-				defer wg.Done()
-				defer func() { <-sem }()
-				sess := newSess()
-				defer sess.Close(qp.ctx)
-				n, err := fn(sess, b)
-				atomic.AddInt64(&total, int64(n))
-				setErr(err)
-			}(batch)
+		if sem == nil {
+			sem = semaphore.NewWeighted(int64(policy.globalMax()))
 		}
-		wg.Wait()
+		for batch := range inputStream {
+			b := batch
+			if err := sem.Acquire(ctx, 1); err != nil { // permit 未保持でブロック
+				break
+			}
+			g.Go(func() error {
+				res := newRes()
+				out, err := process(res, b) // DB区間（permit 保持）
+				closeRes(res)
+				sem.Release(1) // emit 前に解放
+				if err != nil {
+					return err
+				}
+				emit(out) // permit 無しで送信
+				atomic.AddInt64(&total, int64(len(out)))
+				return nil
+			})
+		}
 
 	default: // ExecFixed
+		c := policy.For(op)
 		batchChan := make(chan []Record, c.workers())
-		var wg sync.WaitGroup
 		for i := 0; i < c.workers(); i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				sess := newSess() // ワーカー単位で 1 本だけ開いて使い回す
-				defer sess.Close(qp.ctx)
+			g.Go(func() error {
+				res := newRes() // ワーカー単位で使い回す
+				defer closeRes(res)
+				var werr error
 				for b := range batchChan {
-					n, err := fn(sess, b)
-					atomic.AddInt64(&total, int64(n))
-					setErr(err)
+					out, err := process(res, b)
+					if err != nil {
+						if werr == nil {
+							werr = err
+						}
+						continue
+					}
+					emit(out)
+					atomic.AddInt64(&total, int64(len(out)))
 				}
-			}()
+				return werr
+			})
 		}
 		for batch := range inputStream {
 			batchChan <- batch
 		}
 		close(batchChan)
-		wg.Wait()
 	}
 
-	return int(total), firstErr
+	return int(total), g.Wait()
 }

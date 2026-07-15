@@ -3,23 +3,39 @@ package test
 import (
 	"context"
 	"fmt"
+	"os"
 	planner "polystore_database/src/go/logical_plan"
 	"polystore_database/src/go/storage"
 	executor "polystore_database/src/go/stream_exec"
+	"runtime"
+	"runtime/pprof"
 	"strconv"
 	"time"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
-// Trials はベンチ計測の試行回数（この回数だけ実行して平均を取る）。手動で切り替え。
-const Trials = 10
+// ベンチ計測の回数（マクロ定数。手動で切り替え）。
+//   - Warmup: 計測から除外する先頭ウォームアップ回数（キャッシュ/JIT 等の暖機）
+//   - Trials: Warmup の後に実行し、平均を取る計測回数
+const (
+	Warmup = 3
+	Trials = 10
+)
 
-// average は exec を Trials 回実行し、TotalLatency（と Steps）を平均した ExecResult を返す。
+// average は exec を Warmup 回（結果は破棄）→ Trials 回 実行し、
+// 後半 Trials 回の TotalLatency（と Steps）を平均した ExecResult を返す。
 // Rows は最後の試行のものを保持する（件数は試行間で一定の前提）。
 func average(exec func() (ExecResult, error)) (ExecResult, error) {
 	if Trials <= 0 {
 		return ExecResult{}, fmt.Errorf("Trials must be >= 1")
+	}
+
+	// ウォームアップ（計測に含めない）
+	for i := 0; i < Warmup; i++ {
+		if _, err := exec(); err != nil {
+			return ExecResult{}, err
+		}
 	}
 
 	var (
@@ -82,7 +98,7 @@ func RunNeo4j(ctx context.Context, cfg storage.Neo4jConfig, cypher string, param
 
 	session := driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead})
 	defer session.Close(ctx)
-
+	// cypher = "CYPHER runtime=parallel\n" + cypher
 	return average(func() (ExecResult, error) {
 		start := time.Now()
 		rowsAny, err := session.ExecuteRead(ctx, func(tx neo4j.ManagedTransaction) (interface{}, error) {
@@ -116,7 +132,26 @@ func RunCustom(ctx context.Context, cfg storage.Config, cypher string, params ma
 		return ExecResult{}, fmt.Errorf("QueryProcessor の初期化に失敗（DB は全て起動済みですか？）: %w", err)
 	}
 	defer qp.Close()
+	// --- ここからプロファイル（接続確立後・計測対象だけを囲む）---
+	fcpu, _ := os.Create("cpu.prof")
+	pprof.StartCPUProfile(fcpu)
+	runtime.SetBlockProfileRate(1) // 1ns = 全ブロックイベント記録
+	runtime.SetMutexProfileFraction(1)
+	defer func() {
+		pprof.StopCPUProfile()
+		fcpu.Close()
 
+		dump := func(name string) {
+			f, _ := os.Create(name + ".prof")
+			defer f.Close()
+			pprof.Lookup(name).WriteTo(f, 0)
+		}
+		runtime.GC() // heap のライブ集合を正確に
+		dump("heap")
+		dump("allocs")
+		dump("block")
+		dump("mutex")
+	}()
 	return average(func() (ExecResult, error) {
 		qp.Reset() // 試行ごとに中間状態をクリア
 
