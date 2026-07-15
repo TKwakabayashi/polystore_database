@@ -52,6 +52,8 @@ COUNT: [cC][oO][uU][nN][tT];
 REDUCE: [rR][eE][dD][uU][cC][eE];
 SUM: [sS][uU][mM];
 AVG: [aA][vV][gG];
+MIN: [mM][iI][nN];
+MAX: [mM][aA][xX];
 COALESCE: [cC][oO][aA][lL][eE][sS][cC][eE];
 
 IN: [iI][nN];
@@ -92,7 +94,12 @@ relationship:
     | MINUS WS* LSQUARE variable? types? range? properties? RSQUARE WS* MINUS;
 
 returnItems: returnItem (COMMA returnItem)*;
-returnItem: expression (AS variable)? | COALESCE LPAREN expression (COMMA expression)* RPAREN;
+returnItem:
+      aggregateFunc (AS variable)?
+    | expression (AS variable)?
+    | COALESCE LPAREN expression (COMMA expression)* RPAREN (AS variable)?;
+aggregateFunc: (COUNT | SUM | AVG | MIN | MAX) LPAREN (STAR | DISTINCT? aggArg) RPAREN;
+aggArg: IDENTIFIER (DOT IDENTIFIER)?;
 
 orderItems: ORDER_BY orderItem (COMMA orderItem)*;
 orderItem: expression (ASC|DESC);

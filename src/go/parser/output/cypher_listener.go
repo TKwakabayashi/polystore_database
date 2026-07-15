@@ -1,7 +1,6 @@
 // Code generated from Cypher.g4 by ANTLR 4.13.2. DO NOT EDIT.
 
 package parser // Cypher
-
 import "github.com/antlr4-go/antlr/v4"
 
 // CypherListener is a complete listener for a parse tree produced by CypherParser.
@@ -43,6 +42,12 @@ type CypherListener interface {
 
 	// EnterReturnItem is called when entering the returnItem production.
 	EnterReturnItem(c *ReturnItemContext)
+
+	// EnterAggregateFunc is called when entering the aggregateFunc production.
+	EnterAggregateFunc(c *AggregateFuncContext)
+
+	// EnterAggArg is called when entering the aggArg production.
+	EnterAggArg(c *AggArgContext)
 
 	// EnterOrderItems is called when entering the orderItems production.
 	EnterOrderItems(c *OrderItemsContext)
@@ -154,6 +159,12 @@ type CypherListener interface {
 
 	// ExitReturnItem is called when exiting the returnItem production.
 	ExitReturnItem(c *ReturnItemContext)
+
+	// ExitAggregateFunc is called when exiting the aggregateFunc production.
+	ExitAggregateFunc(c *AggregateFuncContext)
+
+	// ExitAggArg is called when exiting the aggArg production.
+	ExitAggArg(c *AggArgContext)
 
 	// ExitOrderItems is called when exiting the orderItems production.
 	ExitOrderItems(c *OrderItemsContext)

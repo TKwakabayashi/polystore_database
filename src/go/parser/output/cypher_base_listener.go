@@ -1,7 +1,6 @@
 // Code generated from Cypher.g4 by ANTLR 4.13.2. DO NOT EDIT.
 
 package parser // Cypher
-
 import "github.com/antlr4-go/antlr/v4"
 
 // BaseCypherListener is a complete listener for a parse tree produced by CypherParser.
@@ -92,6 +91,18 @@ func (s *BaseCypherListener) EnterReturnItem(ctx *ReturnItemContext) {}
 
 // ExitReturnItem is called when production returnItem is exited.
 func (s *BaseCypherListener) ExitReturnItem(ctx *ReturnItemContext) {}
+
+// EnterAggregateFunc is called when production aggregateFunc is entered.
+func (s *BaseCypherListener) EnterAggregateFunc(ctx *AggregateFuncContext) {}
+
+// ExitAggregateFunc is called when production aggregateFunc is exited.
+func (s *BaseCypherListener) ExitAggregateFunc(ctx *AggregateFuncContext) {}
+
+// EnterAggArg is called when production aggArg is entered.
+func (s *BaseCypherListener) EnterAggArg(ctx *AggArgContext) {}
+
+// ExitAggArg is called when production aggArg is exited.
+func (s *BaseCypherListener) ExitAggArg(ctx *AggArgContext) {}
 
 // EnterOrderItems is called when production orderItems is entered.
 func (s *BaseCypherListener) EnterOrderItems(ctx *OrderItemsContext) {}
