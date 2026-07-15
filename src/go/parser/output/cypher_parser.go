@@ -32,21 +32,21 @@ var CypherParserStaticData struct {
 func cypherParserInit() {
 	staticData := &CypherParserStaticData
 	staticData.LiteralNames = []string{
-		"", "'|'", "", "", "", "", "", "'WITH'", "'<>'", "'.'", "'<-'", "'->'",
-		"'<'", "'>'", "':'", "','", "'('", "')'", "'['", "']'", "'{'", "'}'",
-		"'-'", "'''", "'*'", "'..'", "'CREATE'", "'DELETE'", "'ORDER BY'", "'ASC'",
-		"'DESC'", "'LIMIT'", "'OPTIONAL'", "'UNWIND'", "'FINISH'", "'SET'",
-		"'='", "'AND'", "'OR'", "'NOT'", "'XOR'",
+		"", "'|'", "", "", "", "", "", "'WITH'", "'<>'", "'<='", "'>='", "'.'",
+		"'<-'", "'->'", "'<'", "'>'", "':'", "','", "'('", "')'", "'['", "']'",
+		"'{'", "'}'", "'-'", "'''", "'*'", "'..'", "'CREATE'", "'DELETE'", "'ORDER BY'",
+		"'ASC'", "'DESC'", "'LIMIT'", "'OPTIONAL'", "'UNWIND'", "'FINISH'",
+		"'SET'", "'='", "'AND'", "'OR'", "'NOT'", "'XOR'",
 	}
 	staticData.SymbolicNames = []string{
 		"", "", "MATCH", "RETURN", "WHERE", "DISTINCT", "AS", "WITH", "NEQ",
-		"DOT", "LARROW", "RARROW", "LANGLE", "RANGLE", "COLON", "COMMA", "LPAREN",
-		"RPAREN", "LSQUARE", "RSQUARE", "LCURLY", "RCURLY", "MINUS", "SQUOTE",
-		"STAR", "DOUBLE_DOT", "CREATE", "DELETE", "ORDER_BY", "ASC", "DESC",
-		"LIMIT", "OPTIONAL", "UNWIND", "FINISH", "SET", "EQ", "AND", "OR", "NOT",
-		"XOR", "COUNT", "REDUCE", "SUM", "AVG", "MIN", "MAX", "COALESCE", "IN",
-		"ALL", "ANY", "NONE", "SINGLE", "CALL", "STRING", "NUMBER", "IDENTIFIER",
-		"WS",
+		"LE", "GE", "DOT", "LARROW", "RARROW", "LANGLE", "RANGLE", "COLON",
+		"COMMA", "LPAREN", "RPAREN", "LSQUARE", "RSQUARE", "LCURLY", "RCURLY",
+		"MINUS", "SQUOTE", "STAR", "DOUBLE_DOT", "CREATE", "DELETE", "ORDER_BY",
+		"ASC", "DESC", "LIMIT", "OPTIONAL", "UNWIND", "FINISH", "SET", "EQ",
+		"AND", "OR", "NOT", "XOR", "COUNT", "REDUCE", "SUM", "AVG", "MIN", "MAX",
+		"COALESCE", "IN", "ALL", "ANY", "NONE", "SINGLE", "CALL", "STRING",
+		"NUMBER", "IDENTIFIER", "WS",
 	}
 	staticData.RuleNames = []string{
 		"cypher", "statement", "matchClause", "returnClause", "whereClause",
@@ -57,7 +57,7 @@ func cypherParserInit() {
 	}
 	staticData.PredictionContextCache = antlr.NewPredictionContextCache()
 	staticData.serializedATN = []int32{
-		4, 1, 57, 429, 2, 0, 7, 0, 2, 1, 7, 1, 2, 2, 7, 2, 2, 3, 7, 3, 2, 4, 7,
+		4, 1, 59, 437, 2, 0, 7, 0, 2, 1, 7, 1, 2, 2, 7, 2, 2, 3, 7, 3, 2, 4, 7,
 		4, 2, 5, 7, 5, 2, 6, 7, 6, 2, 7, 7, 7, 2, 8, 7, 8, 2, 9, 7, 9, 2, 10, 7,
 		10, 2, 11, 7, 11, 2, 12, 7, 12, 2, 13, 7, 13, 2, 14, 7, 14, 2, 15, 7, 15,
 		2, 16, 7, 16, 2, 17, 7, 17, 2, 18, 7, 18, 2, 19, 7, 19, 2, 20, 7, 20, 2,
@@ -95,161 +95,164 @@ func cypherParserInit() {
 		1, 21, 1, 21, 1, 21, 1, 21, 1, 21, 1, 21, 1, 21, 1, 21, 1, 21, 1, 21, 1,
 		21, 1, 21, 1, 21, 1, 21, 1, 21, 1, 21, 1, 21, 1, 21, 1, 21, 1, 21, 1, 21,
 		1, 21, 1, 21, 1, 21, 1, 21, 1, 21, 1, 21, 1, 21, 1, 21, 1, 21, 1, 21, 1,
-		21, 3, 21, 374, 8, 21, 1, 21, 1, 21, 1, 21, 1, 21, 1, 21, 1, 21, 5, 21,
-		382, 8, 21, 10, 21, 12, 21, 385, 9, 21, 1, 22, 1, 22, 1, 23, 1, 23, 1,
-		23, 1, 23, 5, 23, 393, 8, 23, 10, 23, 12, 23, 396, 9, 23, 1, 24, 1, 24,
-		1, 24, 5, 24, 401, 8, 24, 10, 24, 12, 24, 404, 9, 24, 1, 24, 1, 24, 1,
-		24, 1, 24, 1, 24, 3, 24, 411, 8, 24, 1, 25, 1, 25, 1, 26, 1, 26, 3, 26,
-		417, 8, 26, 1, 27, 3, 27, 420, 8, 27, 1, 27, 1, 27, 3, 27, 424, 8, 27,
-		1, 27, 3, 27, 427, 8, 27, 1, 27, 0, 1, 42, 28, 0, 2, 4, 6, 8, 10, 12, 14,
-		16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48, 50,
-		52, 54, 0, 3, 2, 0, 41, 41, 43, 46, 1, 0, 29, 30, 1, 0, 54, 55, 464, 0,
-		57, 1, 0, 0, 0, 2, 63, 1, 0, 0, 0, 4, 69, 1, 0, 0, 0, 6, 78, 1, 0, 0, 0,
-		8, 92, 1, 0, 0, 0, 10, 101, 1, 0, 0, 0, 12, 110, 1, 0, 0, 0, 14, 116, 1,
-		0, 0, 0, 16, 127, 1, 0, 0, 0, 18, 223, 1, 0, 0, 0, 20, 225, 1, 0, 0, 0,
-		22, 258, 1, 0, 0, 0, 24, 260, 1, 0, 0, 0, 26, 271, 1, 0, 0, 0, 28, 276,
-		1, 0, 0, 0, 30, 285, 1, 0, 0, 0, 32, 288, 1, 0, 0, 0, 34, 291, 1, 0, 0,
-		0, 36, 297, 1, 0, 0, 0, 38, 299, 1, 0, 0, 0, 40, 310, 1, 0, 0, 0, 42, 373,
-		1, 0, 0, 0, 44, 386, 1, 0, 0, 0, 46, 388, 1, 0, 0, 0, 48, 410, 1, 0, 0,
-		0, 50, 412, 1, 0, 0, 0, 52, 414, 1, 0, 0, 0, 54, 426, 1, 0, 0, 0, 56, 58,
-		3, 2, 1, 0, 57, 56, 1, 0, 0, 0, 58, 59, 1, 0, 0, 0, 59, 57, 1, 0, 0, 0,
-		59, 60, 1, 0, 0, 0, 60, 61, 1, 0, 0, 0, 61, 62, 5, 0, 0, 1, 62, 1, 1, 0,
-		0, 0, 63, 65, 3, 4, 2, 0, 64, 66, 3, 8, 4, 0, 65, 64, 1, 0, 0, 0, 65, 66,
-		1, 0, 0, 0, 66, 67, 1, 0, 0, 0, 67, 68, 3, 6, 3, 0, 68, 3, 1, 0, 0, 0,
-		69, 73, 5, 2, 0, 0, 70, 72, 5, 57, 0, 0, 71, 70, 1, 0, 0, 0, 72, 75, 1,
-		0, 0, 0, 73, 71, 1, 0, 0, 0, 73, 74, 1, 0, 0, 0, 74, 76, 1, 0, 0, 0, 75,
-		73, 1, 0, 0, 0, 76, 77, 3, 14, 7, 0, 77, 5, 1, 0, 0, 0, 78, 82, 5, 3, 0,
-		0, 79, 81, 5, 57, 0, 0, 80, 79, 1, 0, 0, 0, 81, 84, 1, 0, 0, 0, 82, 80,
-		1, 0, 0, 0, 82, 83, 1, 0, 0, 0, 83, 85, 1, 0, 0, 0, 84, 82, 1, 0, 0, 0,
-		85, 87, 3, 20, 10, 0, 86, 88, 3, 28, 14, 0, 87, 86, 1, 0, 0, 0, 87, 88,
-		1, 0, 0, 0, 88, 90, 1, 0, 0, 0, 89, 91, 3, 32, 16, 0, 90, 89, 1, 0, 0,
-		0, 90, 91, 1, 0, 0, 0, 91, 7, 1, 0, 0, 0, 92, 96, 5, 4, 0, 0, 93, 95, 5,
-		57, 0, 0, 94, 93, 1, 0, 0, 0, 95, 98, 1, 0, 0, 0, 96, 94, 1, 0, 0, 0, 96,
-		97, 1, 0, 0, 0, 97, 99, 1, 0, 0, 0, 98, 96, 1, 0, 0, 0, 99, 100, 3, 42,
-		21, 0, 100, 9, 1, 0, 0, 0, 101, 105, 5, 53, 0, 0, 102, 104, 5, 57, 0, 0,
-		103, 102, 1, 0, 0, 0, 104, 107, 1, 0, 0, 0, 105, 103, 1, 0, 0, 0, 105,
-		106, 1, 0, 0, 0, 106, 108, 1, 0, 0, 0, 107, 105, 1, 0, 0, 0, 108, 109,
-		5, 54, 0, 0, 109, 11, 1, 0, 0, 0, 110, 111, 5, 6, 0, 0, 111, 112, 5, 56,
-		0, 0, 112, 13, 1, 0, 0, 0, 113, 114, 3, 44, 22, 0, 114, 115, 5, 36, 0,
-		0, 115, 117, 1, 0, 0, 0, 116, 113, 1, 0, 0, 0, 116, 117, 1, 0, 0, 0, 117,
-		118, 1, 0, 0, 0, 118, 124, 3, 16, 8, 0, 119, 120, 3, 18, 9, 0, 120, 121,
-		3, 16, 8, 0, 121, 123, 1, 0, 0, 0, 122, 119, 1, 0, 0, 0, 123, 126, 1, 0,
-		0, 0, 124, 122, 1, 0, 0, 0, 124, 125, 1, 0, 0, 0, 125, 15, 1, 0, 0, 0,
-		126, 124, 1, 0, 0, 0, 127, 129, 5, 16, 0, 0, 128, 130, 3, 44, 22, 0, 129,
-		128, 1, 0, 0, 0, 129, 130, 1, 0, 0, 0, 130, 132, 1, 0, 0, 0, 131, 133,
-		3, 34, 17, 0, 132, 131, 1, 0, 0, 0, 132, 133, 1, 0, 0, 0, 133, 135, 1,
-		0, 0, 0, 134, 136, 3, 38, 19, 0, 135, 134, 1, 0, 0, 0, 135, 136, 1, 0,
-		0, 0, 136, 137, 1, 0, 0, 0, 137, 138, 5, 17, 0, 0, 138, 17, 1, 0, 0, 0,
-		139, 143, 5, 22, 0, 0, 140, 142, 5, 57, 0, 0, 141, 140, 1, 0, 0, 0, 142,
-		145, 1, 0, 0, 0, 143, 141, 1, 0, 0, 0, 143, 144, 1, 0, 0, 0, 144, 146,
-		1, 0, 0, 0, 145, 143, 1, 0, 0, 0, 146, 148, 5, 18, 0, 0, 147, 149, 3, 44,
-		22, 0, 148, 147, 1, 0, 0, 0, 148, 149, 1, 0, 0, 0, 149, 151, 1, 0, 0, 0,
-		150, 152, 3, 46, 23, 0, 151, 150, 1, 0, 0, 0, 151, 152, 1, 0, 0, 0, 152,
-		154, 1, 0, 0, 0, 153, 155, 3, 52, 26, 0, 154, 153, 1, 0, 0, 0, 154, 155,
-		1, 0, 0, 0, 155, 157, 1, 0, 0, 0, 156, 158, 3, 38, 19, 0, 157, 156, 1,
-		0, 0, 0, 157, 158, 1, 0, 0, 0, 158, 159, 1, 0, 0, 0, 159, 163, 5, 19, 0,
-		0, 160, 162, 5, 57, 0, 0, 161, 160, 1, 0, 0, 0, 162, 165, 1, 0, 0, 0, 163,
-		161, 1, 0, 0, 0, 163, 164, 1, 0, 0, 0, 164, 166, 1, 0, 0, 0, 165, 163,
-		1, 0, 0, 0, 166, 224, 5, 11, 0, 0, 167, 171, 5, 10, 0, 0, 168, 170, 5,
-		57, 0, 0, 169, 168, 1, 0, 0, 0, 170, 173, 1, 0, 0, 0, 171, 169, 1, 0, 0,
-		0, 171, 172, 1, 0, 0, 0, 172, 174, 1, 0, 0, 0, 173, 171, 1, 0, 0, 0, 174,
-		176, 5, 18, 0, 0, 175, 177, 3, 44, 22, 0, 176, 175, 1, 0, 0, 0, 176, 177,
-		1, 0, 0, 0, 177, 179, 1, 0, 0, 0, 178, 180, 3, 46, 23, 0, 179, 178, 1,
-		0, 0, 0, 179, 180, 1, 0, 0, 0, 180, 182, 1, 0, 0, 0, 181, 183, 3, 52, 26,
-		0, 182, 181, 1, 0, 0, 0, 182, 183, 1, 0, 0, 0, 183, 185, 1, 0, 0, 0, 184,
-		186, 3, 38, 19, 0, 185, 184, 1, 0, 0, 0, 185, 186, 1, 0, 0, 0, 186, 187,
-		1, 0, 0, 0, 187, 191, 5, 19, 0, 0, 188, 190, 5, 57, 0, 0, 189, 188, 1,
-		0, 0, 0, 190, 193, 1, 0, 0, 0, 191, 189, 1, 0, 0, 0, 191, 192, 1, 0, 0,
-		0, 192, 194, 1, 0, 0, 0, 193, 191, 1, 0, 0, 0, 194, 224, 5, 22, 0, 0, 195,
-		199, 5, 22, 0, 0, 196, 198, 5, 57, 0, 0, 197, 196, 1, 0, 0, 0, 198, 201,
-		1, 0, 0, 0, 199, 197, 1, 0, 0, 0, 199, 200, 1, 0, 0, 0, 200, 202, 1, 0,
-		0, 0, 201, 199, 1, 0, 0, 0, 202, 204, 5, 18, 0, 0, 203, 205, 3, 44, 22,
-		0, 204, 203, 1, 0, 0, 0, 204, 205, 1, 0, 0, 0, 205, 207, 1, 0, 0, 0, 206,
-		208, 3, 46, 23, 0, 207, 206, 1, 0, 0, 0, 207, 208, 1, 0, 0, 0, 208, 210,
-		1, 0, 0, 0, 209, 211, 3, 52, 26, 0, 210, 209, 1, 0, 0, 0, 210, 211, 1,
-		0, 0, 0, 211, 213, 1, 0, 0, 0, 212, 214, 3, 38, 19, 0, 213, 212, 1, 0,
-		0, 0, 213, 214, 1, 0, 0, 0, 214, 215, 1, 0, 0, 0, 215, 219, 5, 19, 0, 0,
-		216, 218, 5, 57, 0, 0, 217, 216, 1, 0, 0, 0, 218, 221, 1, 0, 0, 0, 219,
-		217, 1, 0, 0, 0, 219, 220, 1, 0, 0, 0, 220, 222, 1, 0, 0, 0, 221, 219,
-		1, 0, 0, 0, 222, 224, 5, 22, 0, 0, 223, 139, 1, 0, 0, 0, 223, 167, 1, 0,
-		0, 0, 223, 195, 1, 0, 0, 0, 224, 19, 1, 0, 0, 0, 225, 230, 3, 22, 11, 0,
-		226, 227, 5, 15, 0, 0, 227, 229, 3, 22, 11, 0, 228, 226, 1, 0, 0, 0, 229,
-		232, 1, 0, 0, 0, 230, 228, 1, 0, 0, 0, 230, 231, 1, 0, 0, 0, 231, 21, 1,
-		0, 0, 0, 232, 230, 1, 0, 0, 0, 233, 236, 3, 24, 12, 0, 234, 235, 5, 6,
-		0, 0, 235, 237, 3, 44, 22, 0, 236, 234, 1, 0, 0, 0, 236, 237, 1, 0, 0,
-		0, 237, 259, 1, 0, 0, 0, 238, 241, 3, 48, 24, 0, 239, 240, 5, 6, 0, 0,
-		240, 242, 3, 44, 22, 0, 241, 239, 1, 0, 0, 0, 241, 242, 1, 0, 0, 0, 242,
-		259, 1, 0, 0, 0, 243, 244, 5, 47, 0, 0, 244, 245, 5, 16, 0, 0, 245, 250,
-		3, 48, 24, 0, 246, 247, 5, 15, 0, 0, 247, 249, 3, 48, 24, 0, 248, 246,
-		1, 0, 0, 0, 249, 252, 1, 0, 0, 0, 250, 248, 1, 0, 0, 0, 250, 251, 1, 0,
-		0, 0, 251, 253, 1, 0, 0, 0, 252, 250, 1, 0, 0, 0, 253, 256, 5, 17, 0, 0,
-		254, 255, 5, 6, 0, 0, 255, 257, 3, 44, 22, 0, 256, 254, 1, 0, 0, 0, 256,
-		257, 1, 0, 0, 0, 257, 259, 1, 0, 0, 0, 258, 233, 1, 0, 0, 0, 258, 238,
-		1, 0, 0, 0, 258, 243, 1, 0, 0, 0, 259, 23, 1, 0, 0, 0, 260, 261, 7, 0,
-		0, 0, 261, 267, 5, 16, 0, 0, 262, 268, 5, 24, 0, 0, 263, 265, 5, 5, 0,
-		0, 264, 263, 1, 0, 0, 0, 264, 265, 1, 0, 0, 0, 265, 266, 1, 0, 0, 0, 266,
-		268, 3, 26, 13, 0, 267, 262, 1, 0, 0, 0, 267, 264, 1, 0, 0, 0, 268, 269,
-		1, 0, 0, 0, 269, 270, 5, 17, 0, 0, 270, 25, 1, 0, 0, 0, 271, 274, 5, 56,
-		0, 0, 272, 273, 5, 9, 0, 0, 273, 275, 5, 56, 0, 0, 274, 272, 1, 0, 0, 0,
-		274, 275, 1, 0, 0, 0, 275, 27, 1, 0, 0, 0, 276, 277, 5, 28, 0, 0, 277,
-		282, 3, 30, 15, 0, 278, 279, 5, 15, 0, 0, 279, 281, 3, 30, 15, 0, 280,
-		278, 1, 0, 0, 0, 281, 284, 1, 0, 0, 0, 282, 280, 1, 0, 0, 0, 282, 283,
-		1, 0, 0, 0, 283, 29, 1, 0, 0, 0, 284, 282, 1, 0, 0, 0, 285, 286, 3, 48,
-		24, 0, 286, 287, 7, 1, 0, 0, 287, 31, 1, 0, 0, 0, 288, 289, 5, 31, 0, 0,
-		289, 290, 5, 55, 0, 0, 290, 33, 1, 0, 0, 0, 291, 293, 5, 14, 0, 0, 292,
-		294, 3, 36, 18, 0, 293, 292, 1, 0, 0, 0, 294, 295, 1, 0, 0, 0, 295, 293,
-		1, 0, 0, 0, 295, 296, 1, 0, 0, 0, 296, 35, 1, 0, 0, 0, 297, 298, 5, 56,
-		0, 0, 298, 37, 1, 0, 0, 0, 299, 300, 5, 20, 0, 0, 300, 305, 3, 40, 20,
-		0, 301, 302, 5, 15, 0, 0, 302, 304, 3, 40, 20, 0, 303, 301, 1, 0, 0, 0,
-		304, 307, 1, 0, 0, 0, 305, 303, 1, 0, 0, 0, 305, 306, 1, 0, 0, 0, 306,
-		308, 1, 0, 0, 0, 307, 305, 1, 0, 0, 0, 308, 309, 5, 21, 0, 0, 309, 39,
-		1, 0, 0, 0, 310, 311, 5, 56, 0, 0, 311, 312, 5, 14, 0, 0, 312, 313, 3,
-		50, 25, 0, 313, 41, 1, 0, 0, 0, 314, 315, 6, 21, -1, 0, 315, 316, 5, 16,
-		0, 0, 316, 317, 3, 42, 21, 0, 317, 318, 5, 17, 0, 0, 318, 374, 1, 0, 0,
-		0, 319, 320, 5, 39, 0, 0, 320, 374, 3, 42, 21, 11, 321, 322, 5, 49, 0,
-		0, 322, 323, 5, 16, 0, 0, 323, 324, 3, 44, 22, 0, 324, 325, 5, 48, 0, 0,
-		325, 326, 3, 48, 24, 0, 326, 327, 5, 4, 0, 0, 327, 328, 3, 42, 21, 0, 328,
-		329, 5, 17, 0, 0, 329, 374, 1, 0, 0, 0, 330, 331, 5, 50, 0, 0, 331, 332,
-		5, 16, 0, 0, 332, 333, 3, 44, 22, 0, 333, 334, 5, 48, 0, 0, 334, 335, 3,
-		48, 24, 0, 335, 336, 5, 4, 0, 0, 336, 337, 3, 42, 21, 0, 337, 338, 5, 17,
-		0, 0, 338, 374, 1, 0, 0, 0, 339, 340, 5, 51, 0, 0, 340, 341, 5, 16, 0,
-		0, 341, 342, 3, 44, 22, 0, 342, 343, 5, 48, 0, 0, 343, 344, 3, 48, 24,
-		0, 344, 345, 5, 4, 0, 0, 345, 346, 3, 42, 21, 0, 346, 347, 5, 17, 0, 0,
-		347, 374, 1, 0, 0, 0, 348, 349, 5, 52, 0, 0, 349, 350, 5, 16, 0, 0, 350,
-		351, 3, 44, 22, 0, 351, 352, 5, 48, 0, 0, 352, 353, 3, 48, 24, 0, 353,
-		354, 5, 4, 0, 0, 354, 355, 3, 42, 21, 0, 355, 356, 5, 17, 0, 0, 356, 374,
-		1, 0, 0, 0, 357, 358, 3, 48, 24, 0, 358, 359, 5, 36, 0, 0, 359, 360, 3,
-		50, 25, 0, 360, 374, 1, 0, 0, 0, 361, 362, 3, 48, 24, 0, 362, 363, 5, 8,
-		0, 0, 363, 364, 3, 50, 25, 0, 364, 374, 1, 0, 0, 0, 365, 366, 3, 48, 24,
-		0, 366, 367, 5, 13, 0, 0, 367, 368, 3, 50, 25, 0, 368, 374, 1, 0, 0, 0,
-		369, 370, 3, 48, 24, 0, 370, 371, 5, 12, 0, 0, 371, 372, 3, 50, 25, 0,
-		372, 374, 1, 0, 0, 0, 373, 314, 1, 0, 0, 0, 373, 319, 1, 0, 0, 0, 373,
-		321, 1, 0, 0, 0, 373, 330, 1, 0, 0, 0, 373, 339, 1, 0, 0, 0, 373, 348,
-		1, 0, 0, 0, 373, 357, 1, 0, 0, 0, 373, 361, 1, 0, 0, 0, 373, 365, 1, 0,
-		0, 0, 373, 369, 1, 0, 0, 0, 374, 383, 1, 0, 0, 0, 375, 376, 10, 10, 0,
-		0, 376, 377, 5, 37, 0, 0, 377, 382, 3, 42, 21, 11, 378, 379, 10, 9, 0,
-		0, 379, 380, 5, 38, 0, 0, 380, 382, 3, 42, 21, 10, 381, 375, 1, 0, 0, 0,
-		381, 378, 1, 0, 0, 0, 382, 385, 1, 0, 0, 0, 383, 381, 1, 0, 0, 0, 383,
-		384, 1, 0, 0, 0, 384, 43, 1, 0, 0, 0, 385, 383, 1, 0, 0, 0, 386, 387, 5,
-		56, 0, 0, 387, 45, 1, 0, 0, 0, 388, 389, 5, 14, 0, 0, 389, 394, 5, 56,
-		0, 0, 390, 391, 5, 1, 0, 0, 391, 393, 5, 56, 0, 0, 392, 390, 1, 0, 0, 0,
-		393, 396, 1, 0, 0, 0, 394, 392, 1, 0, 0, 0, 394, 395, 1, 0, 0, 0, 395,
-		47, 1, 0, 0, 0, 396, 394, 1, 0, 0, 0, 397, 402, 5, 56, 0, 0, 398, 399,
-		5, 9, 0, 0, 399, 401, 5, 56, 0, 0, 400, 398, 1, 0, 0, 0, 401, 404, 1, 0,
-		0, 0, 402, 400, 1, 0, 0, 0, 402, 403, 1, 0, 0, 0, 403, 411, 1, 0, 0, 0,
-		404, 402, 1, 0, 0, 0, 405, 406, 5, 56, 0, 0, 406, 407, 5, 16, 0, 0, 407,
-		408, 3, 44, 22, 0, 408, 409, 5, 17, 0, 0, 409, 411, 1, 0, 0, 0, 410, 397,
-		1, 0, 0, 0, 410, 405, 1, 0, 0, 0, 411, 49, 1, 0, 0, 0, 412, 413, 7, 2,
-		0, 0, 413, 51, 1, 0, 0, 0, 414, 416, 5, 24, 0, 0, 415, 417, 3, 54, 27,
-		0, 416, 415, 1, 0, 0, 0, 416, 417, 1, 0, 0, 0, 417, 53, 1, 0, 0, 0, 418,
-		420, 5, 55, 0, 0, 419, 418, 1, 0, 0, 0, 419, 420, 1, 0, 0, 0, 420, 421,
-		1, 0, 0, 0, 421, 423, 5, 25, 0, 0, 422, 424, 5, 55, 0, 0, 423, 422, 1,
-		0, 0, 0, 423, 424, 1, 0, 0, 0, 424, 427, 1, 0, 0, 0, 425, 427, 5, 55, 0,
-		0, 426, 419, 1, 0, 0, 0, 426, 425, 1, 0, 0, 0, 427, 55, 1, 0, 0, 0, 54,
-		59, 65, 73, 82, 87, 90, 96, 105, 116, 124, 129, 132, 135, 143, 148, 151,
-		154, 157, 163, 171, 176, 179, 182, 185, 191, 199, 204, 207, 210, 213, 219,
-		223, 230, 236, 241, 250, 256, 258, 264, 267, 274, 282, 295, 305, 373, 381,
-		383, 394, 402, 410, 416, 419, 423, 426,
+		21, 1, 21, 1, 21, 1, 21, 1, 21, 1, 21, 1, 21, 1, 21, 1, 21, 3, 21, 382,
+		8, 21, 1, 21, 1, 21, 1, 21, 1, 21, 1, 21, 1, 21, 5, 21, 390, 8, 21, 10,
+		21, 12, 21, 393, 9, 21, 1, 22, 1, 22, 1, 23, 1, 23, 1, 23, 1, 23, 5, 23,
+		401, 8, 23, 10, 23, 12, 23, 404, 9, 23, 1, 24, 1, 24, 1, 24, 5, 24, 409,
+		8, 24, 10, 24, 12, 24, 412, 9, 24, 1, 24, 1, 24, 1, 24, 1, 24, 1, 24, 3,
+		24, 419, 8, 24, 1, 25, 1, 25, 1, 26, 1, 26, 3, 26, 425, 8, 26, 1, 27, 3,
+		27, 428, 8, 27, 1, 27, 1, 27, 3, 27, 432, 8, 27, 1, 27, 3, 27, 435, 8,
+		27, 1, 27, 0, 1, 42, 28, 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24,
+		26, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 0, 3, 2, 0,
+		43, 43, 45, 48, 1, 0, 31, 32, 1, 0, 56, 57, 474, 0, 57, 1, 0, 0, 0, 2,
+		63, 1, 0, 0, 0, 4, 69, 1, 0, 0, 0, 6, 78, 1, 0, 0, 0, 8, 92, 1, 0, 0, 0,
+		10, 101, 1, 0, 0, 0, 12, 110, 1, 0, 0, 0, 14, 116, 1, 0, 0, 0, 16, 127,
+		1, 0, 0, 0, 18, 223, 1, 0, 0, 0, 20, 225, 1, 0, 0, 0, 22, 258, 1, 0, 0,
+		0, 24, 260, 1, 0, 0, 0, 26, 271, 1, 0, 0, 0, 28, 276, 1, 0, 0, 0, 30, 285,
+		1, 0, 0, 0, 32, 288, 1, 0, 0, 0, 34, 291, 1, 0, 0, 0, 36, 297, 1, 0, 0,
+		0, 38, 299, 1, 0, 0, 0, 40, 310, 1, 0, 0, 0, 42, 381, 1, 0, 0, 0, 44, 394,
+		1, 0, 0, 0, 46, 396, 1, 0, 0, 0, 48, 418, 1, 0, 0, 0, 50, 420, 1, 0, 0,
+		0, 52, 422, 1, 0, 0, 0, 54, 434, 1, 0, 0, 0, 56, 58, 3, 2, 1, 0, 57, 56,
+		1, 0, 0, 0, 58, 59, 1, 0, 0, 0, 59, 57, 1, 0, 0, 0, 59, 60, 1, 0, 0, 0,
+		60, 61, 1, 0, 0, 0, 61, 62, 5, 0, 0, 1, 62, 1, 1, 0, 0, 0, 63, 65, 3, 4,
+		2, 0, 64, 66, 3, 8, 4, 0, 65, 64, 1, 0, 0, 0, 65, 66, 1, 0, 0, 0, 66, 67,
+		1, 0, 0, 0, 67, 68, 3, 6, 3, 0, 68, 3, 1, 0, 0, 0, 69, 73, 5, 2, 0, 0,
+		70, 72, 5, 59, 0, 0, 71, 70, 1, 0, 0, 0, 72, 75, 1, 0, 0, 0, 73, 71, 1,
+		0, 0, 0, 73, 74, 1, 0, 0, 0, 74, 76, 1, 0, 0, 0, 75, 73, 1, 0, 0, 0, 76,
+		77, 3, 14, 7, 0, 77, 5, 1, 0, 0, 0, 78, 82, 5, 3, 0, 0, 79, 81, 5, 59,
+		0, 0, 80, 79, 1, 0, 0, 0, 81, 84, 1, 0, 0, 0, 82, 80, 1, 0, 0, 0, 82, 83,
+		1, 0, 0, 0, 83, 85, 1, 0, 0, 0, 84, 82, 1, 0, 0, 0, 85, 87, 3, 20, 10,
+		0, 86, 88, 3, 28, 14, 0, 87, 86, 1, 0, 0, 0, 87, 88, 1, 0, 0, 0, 88, 90,
+		1, 0, 0, 0, 89, 91, 3, 32, 16, 0, 90, 89, 1, 0, 0, 0, 90, 91, 1, 0, 0,
+		0, 91, 7, 1, 0, 0, 0, 92, 96, 5, 4, 0, 0, 93, 95, 5, 59, 0, 0, 94, 93,
+		1, 0, 0, 0, 95, 98, 1, 0, 0, 0, 96, 94, 1, 0, 0, 0, 96, 97, 1, 0, 0, 0,
+		97, 99, 1, 0, 0, 0, 98, 96, 1, 0, 0, 0, 99, 100, 3, 42, 21, 0, 100, 9,
+		1, 0, 0, 0, 101, 105, 5, 55, 0, 0, 102, 104, 5, 59, 0, 0, 103, 102, 1,
+		0, 0, 0, 104, 107, 1, 0, 0, 0, 105, 103, 1, 0, 0, 0, 105, 106, 1, 0, 0,
+		0, 106, 108, 1, 0, 0, 0, 107, 105, 1, 0, 0, 0, 108, 109, 5, 56, 0, 0, 109,
+		11, 1, 0, 0, 0, 110, 111, 5, 6, 0, 0, 111, 112, 5, 58, 0, 0, 112, 13, 1,
+		0, 0, 0, 113, 114, 3, 44, 22, 0, 114, 115, 5, 38, 0, 0, 115, 117, 1, 0,
+		0, 0, 116, 113, 1, 0, 0, 0, 116, 117, 1, 0, 0, 0, 117, 118, 1, 0, 0, 0,
+		118, 124, 3, 16, 8, 0, 119, 120, 3, 18, 9, 0, 120, 121, 3, 16, 8, 0, 121,
+		123, 1, 0, 0, 0, 122, 119, 1, 0, 0, 0, 123, 126, 1, 0, 0, 0, 124, 122,
+		1, 0, 0, 0, 124, 125, 1, 0, 0, 0, 125, 15, 1, 0, 0, 0, 126, 124, 1, 0,
+		0, 0, 127, 129, 5, 18, 0, 0, 128, 130, 3, 44, 22, 0, 129, 128, 1, 0, 0,
+		0, 129, 130, 1, 0, 0, 0, 130, 132, 1, 0, 0, 0, 131, 133, 3, 34, 17, 0,
+		132, 131, 1, 0, 0, 0, 132, 133, 1, 0, 0, 0, 133, 135, 1, 0, 0, 0, 134,
+		136, 3, 38, 19, 0, 135, 134, 1, 0, 0, 0, 135, 136, 1, 0, 0, 0, 136, 137,
+		1, 0, 0, 0, 137, 138, 5, 19, 0, 0, 138, 17, 1, 0, 0, 0, 139, 143, 5, 24,
+		0, 0, 140, 142, 5, 59, 0, 0, 141, 140, 1, 0, 0, 0, 142, 145, 1, 0, 0, 0,
+		143, 141, 1, 0, 0, 0, 143, 144, 1, 0, 0, 0, 144, 146, 1, 0, 0, 0, 145,
+		143, 1, 0, 0, 0, 146, 148, 5, 20, 0, 0, 147, 149, 3, 44, 22, 0, 148, 147,
+		1, 0, 0, 0, 148, 149, 1, 0, 0, 0, 149, 151, 1, 0, 0, 0, 150, 152, 3, 46,
+		23, 0, 151, 150, 1, 0, 0, 0, 151, 152, 1, 0, 0, 0, 152, 154, 1, 0, 0, 0,
+		153, 155, 3, 52, 26, 0, 154, 153, 1, 0, 0, 0, 154, 155, 1, 0, 0, 0, 155,
+		157, 1, 0, 0, 0, 156, 158, 3, 38, 19, 0, 157, 156, 1, 0, 0, 0, 157, 158,
+		1, 0, 0, 0, 158, 159, 1, 0, 0, 0, 159, 163, 5, 21, 0, 0, 160, 162, 5, 59,
+		0, 0, 161, 160, 1, 0, 0, 0, 162, 165, 1, 0, 0, 0, 163, 161, 1, 0, 0, 0,
+		163, 164, 1, 0, 0, 0, 164, 166, 1, 0, 0, 0, 165, 163, 1, 0, 0, 0, 166,
+		224, 5, 13, 0, 0, 167, 171, 5, 12, 0, 0, 168, 170, 5, 59, 0, 0, 169, 168,
+		1, 0, 0, 0, 170, 173, 1, 0, 0, 0, 171, 169, 1, 0, 0, 0, 171, 172, 1, 0,
+		0, 0, 172, 174, 1, 0, 0, 0, 173, 171, 1, 0, 0, 0, 174, 176, 5, 20, 0, 0,
+		175, 177, 3, 44, 22, 0, 176, 175, 1, 0, 0, 0, 176, 177, 1, 0, 0, 0, 177,
+		179, 1, 0, 0, 0, 178, 180, 3, 46, 23, 0, 179, 178, 1, 0, 0, 0, 179, 180,
+		1, 0, 0, 0, 180, 182, 1, 0, 0, 0, 181, 183, 3, 52, 26, 0, 182, 181, 1,
+		0, 0, 0, 182, 183, 1, 0, 0, 0, 183, 185, 1, 0, 0, 0, 184, 186, 3, 38, 19,
+		0, 185, 184, 1, 0, 0, 0, 185, 186, 1, 0, 0, 0, 186, 187, 1, 0, 0, 0, 187,
+		191, 5, 21, 0, 0, 188, 190, 5, 59, 0, 0, 189, 188, 1, 0, 0, 0, 190, 193,
+		1, 0, 0, 0, 191, 189, 1, 0, 0, 0, 191, 192, 1, 0, 0, 0, 192, 194, 1, 0,
+		0, 0, 193, 191, 1, 0, 0, 0, 194, 224, 5, 24, 0, 0, 195, 199, 5, 24, 0,
+		0, 196, 198, 5, 59, 0, 0, 197, 196, 1, 0, 0, 0, 198, 201, 1, 0, 0, 0, 199,
+		197, 1, 0, 0, 0, 199, 200, 1, 0, 0, 0, 200, 202, 1, 0, 0, 0, 201, 199,
+		1, 0, 0, 0, 202, 204, 5, 20, 0, 0, 203, 205, 3, 44, 22, 0, 204, 203, 1,
+		0, 0, 0, 204, 205, 1, 0, 0, 0, 205, 207, 1, 0, 0, 0, 206, 208, 3, 46, 23,
+		0, 207, 206, 1, 0, 0, 0, 207, 208, 1, 0, 0, 0, 208, 210, 1, 0, 0, 0, 209,
+		211, 3, 52, 26, 0, 210, 209, 1, 0, 0, 0, 210, 211, 1, 0, 0, 0, 211, 213,
+		1, 0, 0, 0, 212, 214, 3, 38, 19, 0, 213, 212, 1, 0, 0, 0, 213, 214, 1,
+		0, 0, 0, 214, 215, 1, 0, 0, 0, 215, 219, 5, 21, 0, 0, 216, 218, 5, 59,
+		0, 0, 217, 216, 1, 0, 0, 0, 218, 221, 1, 0, 0, 0, 219, 217, 1, 0, 0, 0,
+		219, 220, 1, 0, 0, 0, 220, 222, 1, 0, 0, 0, 221, 219, 1, 0, 0, 0, 222,
+		224, 5, 24, 0, 0, 223, 139, 1, 0, 0, 0, 223, 167, 1, 0, 0, 0, 223, 195,
+		1, 0, 0, 0, 224, 19, 1, 0, 0, 0, 225, 230, 3, 22, 11, 0, 226, 227, 5, 17,
+		0, 0, 227, 229, 3, 22, 11, 0, 228, 226, 1, 0, 0, 0, 229, 232, 1, 0, 0,
+		0, 230, 228, 1, 0, 0, 0, 230, 231, 1, 0, 0, 0, 231, 21, 1, 0, 0, 0, 232,
+		230, 1, 0, 0, 0, 233, 236, 3, 24, 12, 0, 234, 235, 5, 6, 0, 0, 235, 237,
+		3, 44, 22, 0, 236, 234, 1, 0, 0, 0, 236, 237, 1, 0, 0, 0, 237, 259, 1,
+		0, 0, 0, 238, 241, 3, 48, 24, 0, 239, 240, 5, 6, 0, 0, 240, 242, 3, 44,
+		22, 0, 241, 239, 1, 0, 0, 0, 241, 242, 1, 0, 0, 0, 242, 259, 1, 0, 0, 0,
+		243, 244, 5, 49, 0, 0, 244, 245, 5, 18, 0, 0, 245, 250, 3, 48, 24, 0, 246,
+		247, 5, 17, 0, 0, 247, 249, 3, 48, 24, 0, 248, 246, 1, 0, 0, 0, 249, 252,
+		1, 0, 0, 0, 250, 248, 1, 0, 0, 0, 250, 251, 1, 0, 0, 0, 251, 253, 1, 0,
+		0, 0, 252, 250, 1, 0, 0, 0, 253, 256, 5, 19, 0, 0, 254, 255, 5, 6, 0, 0,
+		255, 257, 3, 44, 22, 0, 256, 254, 1, 0, 0, 0, 256, 257, 1, 0, 0, 0, 257,
+		259, 1, 0, 0, 0, 258, 233, 1, 0, 0, 0, 258, 238, 1, 0, 0, 0, 258, 243,
+		1, 0, 0, 0, 259, 23, 1, 0, 0, 0, 260, 261, 7, 0, 0, 0, 261, 267, 5, 18,
+		0, 0, 262, 268, 5, 26, 0, 0, 263, 265, 5, 5, 0, 0, 264, 263, 1, 0, 0, 0,
+		264, 265, 1, 0, 0, 0, 265, 266, 1, 0, 0, 0, 266, 268, 3, 26, 13, 0, 267,
+		262, 1, 0, 0, 0, 267, 264, 1, 0, 0, 0, 268, 269, 1, 0, 0, 0, 269, 270,
+		5, 19, 0, 0, 270, 25, 1, 0, 0, 0, 271, 274, 5, 58, 0, 0, 272, 273, 5, 11,
+		0, 0, 273, 275, 5, 58, 0, 0, 274, 272, 1, 0, 0, 0, 274, 275, 1, 0, 0, 0,
+		275, 27, 1, 0, 0, 0, 276, 277, 5, 30, 0, 0, 277, 282, 3, 30, 15, 0, 278,
+		279, 5, 17, 0, 0, 279, 281, 3, 30, 15, 0, 280, 278, 1, 0, 0, 0, 281, 284,
+		1, 0, 0, 0, 282, 280, 1, 0, 0, 0, 282, 283, 1, 0, 0, 0, 283, 29, 1, 0,
+		0, 0, 284, 282, 1, 0, 0, 0, 285, 286, 3, 48, 24, 0, 286, 287, 7, 1, 0,
+		0, 287, 31, 1, 0, 0, 0, 288, 289, 5, 33, 0, 0, 289, 290, 5, 57, 0, 0, 290,
+		33, 1, 0, 0, 0, 291, 293, 5, 16, 0, 0, 292, 294, 3, 36, 18, 0, 293, 292,
+		1, 0, 0, 0, 294, 295, 1, 0, 0, 0, 295, 293, 1, 0, 0, 0, 295, 296, 1, 0,
+		0, 0, 296, 35, 1, 0, 0, 0, 297, 298, 5, 58, 0, 0, 298, 37, 1, 0, 0, 0,
+		299, 300, 5, 22, 0, 0, 300, 305, 3, 40, 20, 0, 301, 302, 5, 17, 0, 0, 302,
+		304, 3, 40, 20, 0, 303, 301, 1, 0, 0, 0, 304, 307, 1, 0, 0, 0, 305, 303,
+		1, 0, 0, 0, 305, 306, 1, 0, 0, 0, 306, 308, 1, 0, 0, 0, 307, 305, 1, 0,
+		0, 0, 308, 309, 5, 23, 0, 0, 309, 39, 1, 0, 0, 0, 310, 311, 5, 58, 0, 0,
+		311, 312, 5, 16, 0, 0, 312, 313, 3, 50, 25, 0, 313, 41, 1, 0, 0, 0, 314,
+		315, 6, 21, -1, 0, 315, 316, 5, 18, 0, 0, 316, 317, 3, 42, 21, 0, 317,
+		318, 5, 19, 0, 0, 318, 382, 1, 0, 0, 0, 319, 320, 5, 41, 0, 0, 320, 382,
+		3, 42, 21, 13, 321, 322, 5, 51, 0, 0, 322, 323, 5, 18, 0, 0, 323, 324,
+		3, 44, 22, 0, 324, 325, 5, 50, 0, 0, 325, 326, 3, 48, 24, 0, 326, 327,
+		5, 4, 0, 0, 327, 328, 3, 42, 21, 0, 328, 329, 5, 19, 0, 0, 329, 382, 1,
+		0, 0, 0, 330, 331, 5, 52, 0, 0, 331, 332, 5, 18, 0, 0, 332, 333, 3, 44,
+		22, 0, 333, 334, 5, 50, 0, 0, 334, 335, 3, 48, 24, 0, 335, 336, 5, 4, 0,
+		0, 336, 337, 3, 42, 21, 0, 337, 338, 5, 19, 0, 0, 338, 382, 1, 0, 0, 0,
+		339, 340, 5, 53, 0, 0, 340, 341, 5, 18, 0, 0, 341, 342, 3, 44, 22, 0, 342,
+		343, 5, 50, 0, 0, 343, 344, 3, 48, 24, 0, 344, 345, 5, 4, 0, 0, 345, 346,
+		3, 42, 21, 0, 346, 347, 5, 19, 0, 0, 347, 382, 1, 0, 0, 0, 348, 349, 5,
+		54, 0, 0, 349, 350, 5, 18, 0, 0, 350, 351, 3, 44, 22, 0, 351, 352, 5, 50,
+		0, 0, 352, 353, 3, 48, 24, 0, 353, 354, 5, 4, 0, 0, 354, 355, 3, 42, 21,
+		0, 355, 356, 5, 19, 0, 0, 356, 382, 1, 0, 0, 0, 357, 358, 3, 48, 24, 0,
+		358, 359, 5, 38, 0, 0, 359, 360, 3, 50, 25, 0, 360, 382, 1, 0, 0, 0, 361,
+		362, 3, 48, 24, 0, 362, 363, 5, 8, 0, 0, 363, 364, 3, 50, 25, 0, 364, 382,
+		1, 0, 0, 0, 365, 366, 3, 48, 24, 0, 366, 367, 5, 15, 0, 0, 367, 368, 3,
+		50, 25, 0, 368, 382, 1, 0, 0, 0, 369, 370, 3, 48, 24, 0, 370, 371, 5, 14,
+		0, 0, 371, 372, 3, 50, 25, 0, 372, 382, 1, 0, 0, 0, 373, 374, 3, 48, 24,
+		0, 374, 375, 5, 10, 0, 0, 375, 376, 3, 50, 25, 0, 376, 382, 1, 0, 0, 0,
+		377, 378, 3, 48, 24, 0, 378, 379, 5, 9, 0, 0, 379, 380, 3, 50, 25, 0, 380,
+		382, 1, 0, 0, 0, 381, 314, 1, 0, 0, 0, 381, 319, 1, 0, 0, 0, 381, 321,
+		1, 0, 0, 0, 381, 330, 1, 0, 0, 0, 381, 339, 1, 0, 0, 0, 381, 348, 1, 0,
+		0, 0, 381, 357, 1, 0, 0, 0, 381, 361, 1, 0, 0, 0, 381, 365, 1, 0, 0, 0,
+		381, 369, 1, 0, 0, 0, 381, 373, 1, 0, 0, 0, 381, 377, 1, 0, 0, 0, 382,
+		391, 1, 0, 0, 0, 383, 384, 10, 12, 0, 0, 384, 385, 5, 39, 0, 0, 385, 390,
+		3, 42, 21, 13, 386, 387, 10, 11, 0, 0, 387, 388, 5, 40, 0, 0, 388, 390,
+		3, 42, 21, 12, 389, 383, 1, 0, 0, 0, 389, 386, 1, 0, 0, 0, 390, 393, 1,
+		0, 0, 0, 391, 389, 1, 0, 0, 0, 391, 392, 1, 0, 0, 0, 392, 43, 1, 0, 0,
+		0, 393, 391, 1, 0, 0, 0, 394, 395, 5, 58, 0, 0, 395, 45, 1, 0, 0, 0, 396,
+		397, 5, 16, 0, 0, 397, 402, 5, 58, 0, 0, 398, 399, 5, 1, 0, 0, 399, 401,
+		5, 58, 0, 0, 400, 398, 1, 0, 0, 0, 401, 404, 1, 0, 0, 0, 402, 400, 1, 0,
+		0, 0, 402, 403, 1, 0, 0, 0, 403, 47, 1, 0, 0, 0, 404, 402, 1, 0, 0, 0,
+		405, 410, 5, 58, 0, 0, 406, 407, 5, 11, 0, 0, 407, 409, 5, 58, 0, 0, 408,
+		406, 1, 0, 0, 0, 409, 412, 1, 0, 0, 0, 410, 408, 1, 0, 0, 0, 410, 411,
+		1, 0, 0, 0, 411, 419, 1, 0, 0, 0, 412, 410, 1, 0, 0, 0, 413, 414, 5, 58,
+		0, 0, 414, 415, 5, 18, 0, 0, 415, 416, 3, 44, 22, 0, 416, 417, 5, 19, 0,
+		0, 417, 419, 1, 0, 0, 0, 418, 405, 1, 0, 0, 0, 418, 413, 1, 0, 0, 0, 419,
+		49, 1, 0, 0, 0, 420, 421, 7, 2, 0, 0, 421, 51, 1, 0, 0, 0, 422, 424, 5,
+		26, 0, 0, 423, 425, 3, 54, 27, 0, 424, 423, 1, 0, 0, 0, 424, 425, 1, 0,
+		0, 0, 425, 53, 1, 0, 0, 0, 426, 428, 5, 57, 0, 0, 427, 426, 1, 0, 0, 0,
+		427, 428, 1, 0, 0, 0, 428, 429, 1, 0, 0, 0, 429, 431, 5, 27, 0, 0, 430,
+		432, 5, 57, 0, 0, 431, 430, 1, 0, 0, 0, 431, 432, 1, 0, 0, 0, 432, 435,
+		1, 0, 0, 0, 433, 435, 5, 57, 0, 0, 434, 427, 1, 0, 0, 0, 434, 433, 1, 0,
+		0, 0, 435, 55, 1, 0, 0, 0, 54, 59, 65, 73, 82, 87, 90, 96, 105, 116, 124,
+		129, 132, 135, 143, 148, 151, 154, 157, 163, 171, 176, 179, 182, 185, 191,
+		199, 204, 207, 210, 213, 219, 223, 230, 236, 241, 250, 256, 258, 264, 267,
+		274, 282, 295, 305, 381, 389, 391, 402, 410, 418, 424, 427, 431, 434,
 	}
 	deserializer := antlr.NewATNDeserializer(nil)
 	staticData.atn = deserializer.Deserialize(staticData.serializedATN)
@@ -296,55 +299,57 @@ const (
 	CypherParserAS         = 6
 	CypherParserWITH       = 7
 	CypherParserNEQ        = 8
-	CypherParserDOT        = 9
-	CypherParserLARROW     = 10
-	CypherParserRARROW     = 11
-	CypherParserLANGLE     = 12
-	CypherParserRANGLE     = 13
-	CypherParserCOLON      = 14
-	CypherParserCOMMA      = 15
-	CypherParserLPAREN     = 16
-	CypherParserRPAREN     = 17
-	CypherParserLSQUARE    = 18
-	CypherParserRSQUARE    = 19
-	CypherParserLCURLY     = 20
-	CypherParserRCURLY     = 21
-	CypherParserMINUS      = 22
-	CypherParserSQUOTE     = 23
-	CypherParserSTAR       = 24
-	CypherParserDOUBLE_DOT = 25
-	CypherParserCREATE     = 26
-	CypherParserDELETE     = 27
-	CypherParserORDER_BY   = 28
-	CypherParserASC        = 29
-	CypherParserDESC       = 30
-	CypherParserLIMIT      = 31
-	CypherParserOPTIONAL   = 32
-	CypherParserUNWIND     = 33
-	CypherParserFINISH     = 34
-	CypherParserSET        = 35
-	CypherParserEQ         = 36
-	CypherParserAND        = 37
-	CypherParserOR         = 38
-	CypherParserNOT        = 39
-	CypherParserXOR        = 40
-	CypherParserCOUNT      = 41
-	CypherParserREDUCE     = 42
-	CypherParserSUM        = 43
-	CypherParserAVG        = 44
-	CypherParserMIN        = 45
-	CypherParserMAX        = 46
-	CypherParserCOALESCE   = 47
-	CypherParserIN         = 48
-	CypherParserALL        = 49
-	CypherParserANY        = 50
-	CypherParserNONE       = 51
-	CypherParserSINGLE     = 52
-	CypherParserCALL       = 53
-	CypherParserSTRING     = 54
-	CypherParserNUMBER     = 55
-	CypherParserIDENTIFIER = 56
-	CypherParserWS         = 57
+	CypherParserLE         = 9
+	CypherParserGE         = 10
+	CypherParserDOT        = 11
+	CypherParserLARROW     = 12
+	CypherParserRARROW     = 13
+	CypherParserLANGLE     = 14
+	CypherParserRANGLE     = 15
+	CypherParserCOLON      = 16
+	CypherParserCOMMA      = 17
+	CypherParserLPAREN     = 18
+	CypherParserRPAREN     = 19
+	CypherParserLSQUARE    = 20
+	CypherParserRSQUARE    = 21
+	CypherParserLCURLY     = 22
+	CypherParserRCURLY     = 23
+	CypherParserMINUS      = 24
+	CypherParserSQUOTE     = 25
+	CypherParserSTAR       = 26
+	CypherParserDOUBLE_DOT = 27
+	CypherParserCREATE     = 28
+	CypherParserDELETE     = 29
+	CypherParserORDER_BY   = 30
+	CypherParserASC        = 31
+	CypherParserDESC       = 32
+	CypherParserLIMIT      = 33
+	CypherParserOPTIONAL   = 34
+	CypherParserUNWIND     = 35
+	CypherParserFINISH     = 36
+	CypherParserSET        = 37
+	CypherParserEQ         = 38
+	CypherParserAND        = 39
+	CypherParserOR         = 40
+	CypherParserNOT        = 41
+	CypherParserXOR        = 42
+	CypherParserCOUNT      = 43
+	CypherParserREDUCE     = 44
+	CypherParserSUM        = 45
+	CypherParserAVG        = 46
+	CypherParserMIN        = 47
+	CypherParserMAX        = 48
+	CypherParserCOALESCE   = 49
+	CypherParserIN         = 50
+	CypherParserALL        = 51
+	CypherParserANY        = 52
+	CypherParserNONE       = 53
+	CypherParserSINGLE     = 54
+	CypherParserCALL       = 55
+	CypherParserSTRING     = 56
+	CypherParserNUMBER     = 57
+	CypherParserIDENTIFIER = 58
+	CypherParserWS         = 59
 )
 
 // CypherParser rules.
@@ -3187,7 +3192,7 @@ func (p *CypherParser) AggregateFunc() (localctx IAggregateFuncContext) {
 		p.SetState(260)
 		_la = p.GetTokenStream().LA(1)
 
-		if !((int64(_la) & ^0x3f) == 0 && ((int64(1)<<_la)&134140418588672) != 0) {
+		if !((int64(_la) & ^0x3f) == 0 && ((int64(1)<<_la)&536561674354688) != 0) {
 			p.GetErrorHandler().RecoverInline(p)
 		} else {
 			p.GetErrorHandler().ReportMatch(p)
@@ -4534,81 +4539,6 @@ func (s *ConditionAndContext) ExitRule(listener antlr.ParseTreeListener) {
 	}
 }
 
-type ConditionOrContext struct {
-	ConditionContext
-}
-
-func NewConditionOrContext(parser antlr.Parser, ctx antlr.ParserRuleContext) *ConditionOrContext {
-	var p = new(ConditionOrContext)
-
-	InitEmptyConditionContext(&p.ConditionContext)
-	p.parser = parser
-	p.CopyAll(ctx.(*ConditionContext))
-
-	return p
-}
-
-func (s *ConditionOrContext) GetRuleContext() antlr.RuleContext {
-	return s
-}
-
-func (s *ConditionOrContext) AllCondition() []IConditionContext {
-	children := s.GetChildren()
-	len := 0
-	for _, ctx := range children {
-		if _, ok := ctx.(IConditionContext); ok {
-			len++
-		}
-	}
-
-	tst := make([]IConditionContext, len)
-	i := 0
-	for _, ctx := range children {
-		if t, ok := ctx.(IConditionContext); ok {
-			tst[i] = t.(IConditionContext)
-			i++
-		}
-	}
-
-	return tst
-}
-
-func (s *ConditionOrContext) Condition(i int) IConditionContext {
-	var t antlr.RuleContext
-	j := 0
-	for _, ctx := range s.GetChildren() {
-		if _, ok := ctx.(IConditionContext); ok {
-			if j == i {
-				t = ctx.(antlr.RuleContext)
-				break
-			}
-			j++
-		}
-	}
-
-	if t == nil {
-		return nil
-	}
-
-	return t.(IConditionContext)
-}
-
-func (s *ConditionOrContext) OR() antlr.TerminalNode {
-	return s.GetToken(CypherParserOR, 0)
-}
-
-func (s *ConditionOrContext) EnterRule(listener antlr.ParseTreeListener) {
-	if listenerT, ok := listener.(CypherListener); ok {
-		listenerT.EnterConditionOr(s)
-	}
-}
-
-func (s *ConditionOrContext) ExitRule(listener antlr.ParseTreeListener) {
-	if listenerT, ok := listener.(CypherListener); ok {
-		listenerT.ExitConditionOr(s)
-	}
-}
-
 type ConditionNotContext struct {
 	ConditionContext
 }
@@ -4656,256 +4586,6 @@ func (s *ConditionNotContext) EnterRule(listener antlr.ParseTreeListener) {
 func (s *ConditionNotContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(CypherListener); ok {
 		listenerT.ExitConditionNot(s)
-	}
-}
-
-type ConditionParenContext struct {
-	ConditionContext
-}
-
-func NewConditionParenContext(parser antlr.Parser, ctx antlr.ParserRuleContext) *ConditionParenContext {
-	var p = new(ConditionParenContext)
-
-	InitEmptyConditionContext(&p.ConditionContext)
-	p.parser = parser
-	p.CopyAll(ctx.(*ConditionContext))
-
-	return p
-}
-
-func (s *ConditionParenContext) GetRuleContext() antlr.RuleContext {
-	return s
-}
-
-func (s *ConditionParenContext) LPAREN() antlr.TerminalNode {
-	return s.GetToken(CypherParserLPAREN, 0)
-}
-
-func (s *ConditionParenContext) Condition() IConditionContext {
-	var t antlr.RuleContext
-	for _, ctx := range s.GetChildren() {
-		if _, ok := ctx.(IConditionContext); ok {
-			t = ctx.(antlr.RuleContext)
-			break
-		}
-	}
-
-	if t == nil {
-		return nil
-	}
-
-	return t.(IConditionContext)
-}
-
-func (s *ConditionParenContext) RPAREN() antlr.TerminalNode {
-	return s.GetToken(CypherParserRPAREN, 0)
-}
-
-func (s *ConditionParenContext) EnterRule(listener antlr.ParseTreeListener) {
-	if listenerT, ok := listener.(CypherListener); ok {
-		listenerT.EnterConditionParen(s)
-	}
-}
-
-func (s *ConditionParenContext) ExitRule(listener antlr.ParseTreeListener) {
-	if listenerT, ok := listener.(CypherListener); ok {
-		listenerT.ExitConditionParen(s)
-	}
-}
-
-type ConditionNoneContext struct {
-	ConditionContext
-}
-
-func NewConditionNoneContext(parser antlr.Parser, ctx antlr.ParserRuleContext) *ConditionNoneContext {
-	var p = new(ConditionNoneContext)
-
-	InitEmptyConditionContext(&p.ConditionContext)
-	p.parser = parser
-	p.CopyAll(ctx.(*ConditionContext))
-
-	return p
-}
-
-func (s *ConditionNoneContext) GetRuleContext() antlr.RuleContext {
-	return s
-}
-
-func (s *ConditionNoneContext) NONE() antlr.TerminalNode {
-	return s.GetToken(CypherParserNONE, 0)
-}
-
-func (s *ConditionNoneContext) LPAREN() antlr.TerminalNode {
-	return s.GetToken(CypherParserLPAREN, 0)
-}
-
-func (s *ConditionNoneContext) Variable() IVariableContext {
-	var t antlr.RuleContext
-	for _, ctx := range s.GetChildren() {
-		if _, ok := ctx.(IVariableContext); ok {
-			t = ctx.(antlr.RuleContext)
-			break
-		}
-	}
-
-	if t == nil {
-		return nil
-	}
-
-	return t.(IVariableContext)
-}
-
-func (s *ConditionNoneContext) IN() antlr.TerminalNode {
-	return s.GetToken(CypherParserIN, 0)
-}
-
-func (s *ConditionNoneContext) Expression() IExpressionContext {
-	var t antlr.RuleContext
-	for _, ctx := range s.GetChildren() {
-		if _, ok := ctx.(IExpressionContext); ok {
-			t = ctx.(antlr.RuleContext)
-			break
-		}
-	}
-
-	if t == nil {
-		return nil
-	}
-
-	return t.(IExpressionContext)
-}
-
-func (s *ConditionNoneContext) WHERE() antlr.TerminalNode {
-	return s.GetToken(CypherParserWHERE, 0)
-}
-
-func (s *ConditionNoneContext) Condition() IConditionContext {
-	var t antlr.RuleContext
-	for _, ctx := range s.GetChildren() {
-		if _, ok := ctx.(IConditionContext); ok {
-			t = ctx.(antlr.RuleContext)
-			break
-		}
-	}
-
-	if t == nil {
-		return nil
-	}
-
-	return t.(IConditionContext)
-}
-
-func (s *ConditionNoneContext) RPAREN() antlr.TerminalNode {
-	return s.GetToken(CypherParserRPAREN, 0)
-}
-
-func (s *ConditionNoneContext) EnterRule(listener antlr.ParseTreeListener) {
-	if listenerT, ok := listener.(CypherListener); ok {
-		listenerT.EnterConditionNone(s)
-	}
-}
-
-func (s *ConditionNoneContext) ExitRule(listener antlr.ParseTreeListener) {
-	if listenerT, ok := listener.(CypherListener); ok {
-		listenerT.ExitConditionNone(s)
-	}
-}
-
-type ConditionAllContext struct {
-	ConditionContext
-}
-
-func NewConditionAllContext(parser antlr.Parser, ctx antlr.ParserRuleContext) *ConditionAllContext {
-	var p = new(ConditionAllContext)
-
-	InitEmptyConditionContext(&p.ConditionContext)
-	p.parser = parser
-	p.CopyAll(ctx.(*ConditionContext))
-
-	return p
-}
-
-func (s *ConditionAllContext) GetRuleContext() antlr.RuleContext {
-	return s
-}
-
-func (s *ConditionAllContext) ALL() antlr.TerminalNode {
-	return s.GetToken(CypherParserALL, 0)
-}
-
-func (s *ConditionAllContext) LPAREN() antlr.TerminalNode {
-	return s.GetToken(CypherParserLPAREN, 0)
-}
-
-func (s *ConditionAllContext) Variable() IVariableContext {
-	var t antlr.RuleContext
-	for _, ctx := range s.GetChildren() {
-		if _, ok := ctx.(IVariableContext); ok {
-			t = ctx.(antlr.RuleContext)
-			break
-		}
-	}
-
-	if t == nil {
-		return nil
-	}
-
-	return t.(IVariableContext)
-}
-
-func (s *ConditionAllContext) IN() antlr.TerminalNode {
-	return s.GetToken(CypherParserIN, 0)
-}
-
-func (s *ConditionAllContext) Expression() IExpressionContext {
-	var t antlr.RuleContext
-	for _, ctx := range s.GetChildren() {
-		if _, ok := ctx.(IExpressionContext); ok {
-			t = ctx.(antlr.RuleContext)
-			break
-		}
-	}
-
-	if t == nil {
-		return nil
-	}
-
-	return t.(IExpressionContext)
-}
-
-func (s *ConditionAllContext) WHERE() antlr.TerminalNode {
-	return s.GetToken(CypherParserWHERE, 0)
-}
-
-func (s *ConditionAllContext) Condition() IConditionContext {
-	var t antlr.RuleContext
-	for _, ctx := range s.GetChildren() {
-		if _, ok := ctx.(IConditionContext); ok {
-			t = ctx.(antlr.RuleContext)
-			break
-		}
-	}
-
-	if t == nil {
-		return nil
-	}
-
-	return t.(IConditionContext)
-}
-
-func (s *ConditionAllContext) RPAREN() antlr.TerminalNode {
-	return s.GetToken(CypherParserRPAREN, 0)
-}
-
-func (s *ConditionAllContext) EnterRule(listener antlr.ParseTreeListener) {
-	if listenerT, ok := listener.(CypherListener); ok {
-		listenerT.EnterConditionAll(s)
-	}
-}
-
-func (s *ConditionAllContext) ExitRule(listener antlr.ParseTreeListener) {
-	if listenerT, ok := listener.(CypherListener); ok {
-		listenerT.ExitConditionAll(s)
 	}
 }
 
@@ -5070,6 +4750,463 @@ func (s *ConditionAnyContext) EnterRule(listener antlr.ParseTreeListener) {
 func (s *ConditionAnyContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(CypherListener); ok {
 		listenerT.ExitConditionAny(s)
+	}
+}
+
+type ConditionOrContext struct {
+	ConditionContext
+}
+
+func NewConditionOrContext(parser antlr.Parser, ctx antlr.ParserRuleContext) *ConditionOrContext {
+	var p = new(ConditionOrContext)
+
+	InitEmptyConditionContext(&p.ConditionContext)
+	p.parser = parser
+	p.CopyAll(ctx.(*ConditionContext))
+
+	return p
+}
+
+func (s *ConditionOrContext) GetRuleContext() antlr.RuleContext {
+	return s
+}
+
+func (s *ConditionOrContext) AllCondition() []IConditionContext {
+	children := s.GetChildren()
+	len := 0
+	for _, ctx := range children {
+		if _, ok := ctx.(IConditionContext); ok {
+			len++
+		}
+	}
+
+	tst := make([]IConditionContext, len)
+	i := 0
+	for _, ctx := range children {
+		if t, ok := ctx.(IConditionContext); ok {
+			tst[i] = t.(IConditionContext)
+			i++
+		}
+	}
+
+	return tst
+}
+
+func (s *ConditionOrContext) Condition(i int) IConditionContext {
+	var t antlr.RuleContext
+	j := 0
+	for _, ctx := range s.GetChildren() {
+		if _, ok := ctx.(IConditionContext); ok {
+			if j == i {
+				t = ctx.(antlr.RuleContext)
+				break
+			}
+			j++
+		}
+	}
+
+	if t == nil {
+		return nil
+	}
+
+	return t.(IConditionContext)
+}
+
+func (s *ConditionOrContext) OR() antlr.TerminalNode {
+	return s.GetToken(CypherParserOR, 0)
+}
+
+func (s *ConditionOrContext) EnterRule(listener antlr.ParseTreeListener) {
+	if listenerT, ok := listener.(CypherListener); ok {
+		listenerT.EnterConditionOr(s)
+	}
+}
+
+func (s *ConditionOrContext) ExitRule(listener antlr.ParseTreeListener) {
+	if listenerT, ok := listener.(CypherListener); ok {
+		listenerT.ExitConditionOr(s)
+	}
+}
+
+type ConditionParenContext struct {
+	ConditionContext
+}
+
+func NewConditionParenContext(parser antlr.Parser, ctx antlr.ParserRuleContext) *ConditionParenContext {
+	var p = new(ConditionParenContext)
+
+	InitEmptyConditionContext(&p.ConditionContext)
+	p.parser = parser
+	p.CopyAll(ctx.(*ConditionContext))
+
+	return p
+}
+
+func (s *ConditionParenContext) GetRuleContext() antlr.RuleContext {
+	return s
+}
+
+func (s *ConditionParenContext) LPAREN() antlr.TerminalNode {
+	return s.GetToken(CypherParserLPAREN, 0)
+}
+
+func (s *ConditionParenContext) Condition() IConditionContext {
+	var t antlr.RuleContext
+	for _, ctx := range s.GetChildren() {
+		if _, ok := ctx.(IConditionContext); ok {
+			t = ctx.(antlr.RuleContext)
+			break
+		}
+	}
+
+	if t == nil {
+		return nil
+	}
+
+	return t.(IConditionContext)
+}
+
+func (s *ConditionParenContext) RPAREN() antlr.TerminalNode {
+	return s.GetToken(CypherParserRPAREN, 0)
+}
+
+func (s *ConditionParenContext) EnterRule(listener antlr.ParseTreeListener) {
+	if listenerT, ok := listener.(CypherListener); ok {
+		listenerT.EnterConditionParen(s)
+	}
+}
+
+func (s *ConditionParenContext) ExitRule(listener antlr.ParseTreeListener) {
+	if listenerT, ok := listener.(CypherListener); ok {
+		listenerT.ExitConditionParen(s)
+	}
+}
+
+type ConditionLessEqualContext struct {
+	ConditionContext
+}
+
+func NewConditionLessEqualContext(parser antlr.Parser, ctx antlr.ParserRuleContext) *ConditionLessEqualContext {
+	var p = new(ConditionLessEqualContext)
+
+	InitEmptyConditionContext(&p.ConditionContext)
+	p.parser = parser
+	p.CopyAll(ctx.(*ConditionContext))
+
+	return p
+}
+
+func (s *ConditionLessEqualContext) GetRuleContext() antlr.RuleContext {
+	return s
+}
+
+func (s *ConditionLessEqualContext) Expression() IExpressionContext {
+	var t antlr.RuleContext
+	for _, ctx := range s.GetChildren() {
+		if _, ok := ctx.(IExpressionContext); ok {
+			t = ctx.(antlr.RuleContext)
+			break
+		}
+	}
+
+	if t == nil {
+		return nil
+	}
+
+	return t.(IExpressionContext)
+}
+
+func (s *ConditionLessEqualContext) LE() antlr.TerminalNode {
+	return s.GetToken(CypherParserLE, 0)
+}
+
+func (s *ConditionLessEqualContext) Value() IValueContext {
+	var t antlr.RuleContext
+	for _, ctx := range s.GetChildren() {
+		if _, ok := ctx.(IValueContext); ok {
+			t = ctx.(antlr.RuleContext)
+			break
+		}
+	}
+
+	if t == nil {
+		return nil
+	}
+
+	return t.(IValueContext)
+}
+
+func (s *ConditionLessEqualContext) EnterRule(listener antlr.ParseTreeListener) {
+	if listenerT, ok := listener.(CypherListener); ok {
+		listenerT.EnterConditionLessEqual(s)
+	}
+}
+
+func (s *ConditionLessEqualContext) ExitRule(listener antlr.ParseTreeListener) {
+	if listenerT, ok := listener.(CypherListener); ok {
+		listenerT.ExitConditionLessEqual(s)
+	}
+}
+
+type ConditionNoneContext struct {
+	ConditionContext
+}
+
+func NewConditionNoneContext(parser antlr.Parser, ctx antlr.ParserRuleContext) *ConditionNoneContext {
+	var p = new(ConditionNoneContext)
+
+	InitEmptyConditionContext(&p.ConditionContext)
+	p.parser = parser
+	p.CopyAll(ctx.(*ConditionContext))
+
+	return p
+}
+
+func (s *ConditionNoneContext) GetRuleContext() antlr.RuleContext {
+	return s
+}
+
+func (s *ConditionNoneContext) NONE() antlr.TerminalNode {
+	return s.GetToken(CypherParserNONE, 0)
+}
+
+func (s *ConditionNoneContext) LPAREN() antlr.TerminalNode {
+	return s.GetToken(CypherParserLPAREN, 0)
+}
+
+func (s *ConditionNoneContext) Variable() IVariableContext {
+	var t antlr.RuleContext
+	for _, ctx := range s.GetChildren() {
+		if _, ok := ctx.(IVariableContext); ok {
+			t = ctx.(antlr.RuleContext)
+			break
+		}
+	}
+
+	if t == nil {
+		return nil
+	}
+
+	return t.(IVariableContext)
+}
+
+func (s *ConditionNoneContext) IN() antlr.TerminalNode {
+	return s.GetToken(CypherParserIN, 0)
+}
+
+func (s *ConditionNoneContext) Expression() IExpressionContext {
+	var t antlr.RuleContext
+	for _, ctx := range s.GetChildren() {
+		if _, ok := ctx.(IExpressionContext); ok {
+			t = ctx.(antlr.RuleContext)
+			break
+		}
+	}
+
+	if t == nil {
+		return nil
+	}
+
+	return t.(IExpressionContext)
+}
+
+func (s *ConditionNoneContext) WHERE() antlr.TerminalNode {
+	return s.GetToken(CypherParserWHERE, 0)
+}
+
+func (s *ConditionNoneContext) Condition() IConditionContext {
+	var t antlr.RuleContext
+	for _, ctx := range s.GetChildren() {
+		if _, ok := ctx.(IConditionContext); ok {
+			t = ctx.(antlr.RuleContext)
+			break
+		}
+	}
+
+	if t == nil {
+		return nil
+	}
+
+	return t.(IConditionContext)
+}
+
+func (s *ConditionNoneContext) RPAREN() antlr.TerminalNode {
+	return s.GetToken(CypherParserRPAREN, 0)
+}
+
+func (s *ConditionNoneContext) EnterRule(listener antlr.ParseTreeListener) {
+	if listenerT, ok := listener.(CypherListener); ok {
+		listenerT.EnterConditionNone(s)
+	}
+}
+
+func (s *ConditionNoneContext) ExitRule(listener antlr.ParseTreeListener) {
+	if listenerT, ok := listener.(CypherListener); ok {
+		listenerT.ExitConditionNone(s)
+	}
+}
+
+type ConditionGreaterEqualContext struct {
+	ConditionContext
+}
+
+func NewConditionGreaterEqualContext(parser antlr.Parser, ctx antlr.ParserRuleContext) *ConditionGreaterEqualContext {
+	var p = new(ConditionGreaterEqualContext)
+
+	InitEmptyConditionContext(&p.ConditionContext)
+	p.parser = parser
+	p.CopyAll(ctx.(*ConditionContext))
+
+	return p
+}
+
+func (s *ConditionGreaterEqualContext) GetRuleContext() antlr.RuleContext {
+	return s
+}
+
+func (s *ConditionGreaterEqualContext) Expression() IExpressionContext {
+	var t antlr.RuleContext
+	for _, ctx := range s.GetChildren() {
+		if _, ok := ctx.(IExpressionContext); ok {
+			t = ctx.(antlr.RuleContext)
+			break
+		}
+	}
+
+	if t == nil {
+		return nil
+	}
+
+	return t.(IExpressionContext)
+}
+
+func (s *ConditionGreaterEqualContext) GE() antlr.TerminalNode {
+	return s.GetToken(CypherParserGE, 0)
+}
+
+func (s *ConditionGreaterEqualContext) Value() IValueContext {
+	var t antlr.RuleContext
+	for _, ctx := range s.GetChildren() {
+		if _, ok := ctx.(IValueContext); ok {
+			t = ctx.(antlr.RuleContext)
+			break
+		}
+	}
+
+	if t == nil {
+		return nil
+	}
+
+	return t.(IValueContext)
+}
+
+func (s *ConditionGreaterEqualContext) EnterRule(listener antlr.ParseTreeListener) {
+	if listenerT, ok := listener.(CypherListener); ok {
+		listenerT.EnterConditionGreaterEqual(s)
+	}
+}
+
+func (s *ConditionGreaterEqualContext) ExitRule(listener antlr.ParseTreeListener) {
+	if listenerT, ok := listener.(CypherListener); ok {
+		listenerT.ExitConditionGreaterEqual(s)
+	}
+}
+
+type ConditionAllContext struct {
+	ConditionContext
+}
+
+func NewConditionAllContext(parser antlr.Parser, ctx antlr.ParserRuleContext) *ConditionAllContext {
+	var p = new(ConditionAllContext)
+
+	InitEmptyConditionContext(&p.ConditionContext)
+	p.parser = parser
+	p.CopyAll(ctx.(*ConditionContext))
+
+	return p
+}
+
+func (s *ConditionAllContext) GetRuleContext() antlr.RuleContext {
+	return s
+}
+
+func (s *ConditionAllContext) ALL() antlr.TerminalNode {
+	return s.GetToken(CypherParserALL, 0)
+}
+
+func (s *ConditionAllContext) LPAREN() antlr.TerminalNode {
+	return s.GetToken(CypherParserLPAREN, 0)
+}
+
+func (s *ConditionAllContext) Variable() IVariableContext {
+	var t antlr.RuleContext
+	for _, ctx := range s.GetChildren() {
+		if _, ok := ctx.(IVariableContext); ok {
+			t = ctx.(antlr.RuleContext)
+			break
+		}
+	}
+
+	if t == nil {
+		return nil
+	}
+
+	return t.(IVariableContext)
+}
+
+func (s *ConditionAllContext) IN() antlr.TerminalNode {
+	return s.GetToken(CypherParserIN, 0)
+}
+
+func (s *ConditionAllContext) Expression() IExpressionContext {
+	var t antlr.RuleContext
+	for _, ctx := range s.GetChildren() {
+		if _, ok := ctx.(IExpressionContext); ok {
+			t = ctx.(antlr.RuleContext)
+			break
+		}
+	}
+
+	if t == nil {
+		return nil
+	}
+
+	return t.(IExpressionContext)
+}
+
+func (s *ConditionAllContext) WHERE() antlr.TerminalNode {
+	return s.GetToken(CypherParserWHERE, 0)
+}
+
+func (s *ConditionAllContext) Condition() IConditionContext {
+	var t antlr.RuleContext
+	for _, ctx := range s.GetChildren() {
+		if _, ok := ctx.(IConditionContext); ok {
+			t = ctx.(antlr.RuleContext)
+			break
+		}
+	}
+
+	if t == nil {
+		return nil
+	}
+
+	return t.(IConditionContext)
+}
+
+func (s *ConditionAllContext) RPAREN() antlr.TerminalNode {
+	return s.GetToken(CypherParserRPAREN, 0)
+}
+
+func (s *ConditionAllContext) EnterRule(listener antlr.ParseTreeListener) {
+	if listenerT, ok := listener.(CypherListener); ok {
+		listenerT.EnterConditionAll(s)
+	}
+}
+
+func (s *ConditionAllContext) ExitRule(listener antlr.ParseTreeListener) {
+	if listenerT, ok := listener.(CypherListener); ok {
+		listenerT.ExitConditionAll(s)
 	}
 }
 
@@ -5385,7 +5522,7 @@ func (p *CypherParser) condition(_p int) (localctx IConditionContext) {
 	var _alt int
 
 	p.EnterOuterAlt(localctx, 1)
-	p.SetState(373)
+	p.SetState(381)
 	p.GetErrorHandler().Sync(p)
 	if p.HasError() {
 		goto errorExit
@@ -5432,7 +5569,7 @@ func (p *CypherParser) condition(_p int) (localctx IConditionContext) {
 		}
 		{
 			p.SetState(320)
-			p.condition(11)
+			p.condition(13)
 		}
 
 	case 3:
@@ -5747,11 +5884,53 @@ func (p *CypherParser) condition(_p int) (localctx IConditionContext) {
 			p.Value()
 		}
 
+	case 11:
+		localctx = NewConditionGreaterEqualContext(p, localctx)
+		p.SetParserRuleContext(localctx)
+		_prevctx = localctx
+		{
+			p.SetState(373)
+			p.Expression()
+		}
+		{
+			p.SetState(374)
+			p.Match(CypherParserGE)
+			if p.HasError() {
+				// Recognition error - abort rule
+				goto errorExit
+			}
+		}
+		{
+			p.SetState(375)
+			p.Value()
+		}
+
+	case 12:
+		localctx = NewConditionLessEqualContext(p, localctx)
+		p.SetParserRuleContext(localctx)
+		_prevctx = localctx
+		{
+			p.SetState(377)
+			p.Expression()
+		}
+		{
+			p.SetState(378)
+			p.Match(CypherParserLE)
+			if p.HasError() {
+				// Recognition error - abort rule
+				goto errorExit
+			}
+		}
+		{
+			p.SetState(379)
+			p.Value()
+		}
+
 	case antlr.ATNInvalidAltNumber:
 		goto errorExit
 	}
 	p.GetParserRuleContext().SetStop(p.GetTokenStream().LT(-1))
-	p.SetState(383)
+	p.SetState(391)
 	p.GetErrorHandler().Sync(p)
 	if p.HasError() {
 		goto errorExit
@@ -5766,7 +5945,7 @@ func (p *CypherParser) condition(_p int) (localctx IConditionContext) {
 				p.TriggerExitRuleEvent()
 			}
 			_prevctx = localctx
-			p.SetState(381)
+			p.SetState(389)
 			p.GetErrorHandler().Sync(p)
 			if p.HasError() {
 				goto errorExit
@@ -5776,14 +5955,14 @@ func (p *CypherParser) condition(_p int) (localctx IConditionContext) {
 			case 1:
 				localctx = NewConditionAndContext(p, NewConditionContext(p, _parentctx, _parentState))
 				p.PushNewRecursionContext(localctx, _startState, CypherParserRULE_condition)
-				p.SetState(375)
+				p.SetState(383)
 
-				if !(p.Precpred(p.GetParserRuleContext(), 10)) {
-					p.SetError(antlr.NewFailedPredicateException(p, "p.Precpred(p.GetParserRuleContext(), 10)", ""))
+				if !(p.Precpred(p.GetParserRuleContext(), 12)) {
+					p.SetError(antlr.NewFailedPredicateException(p, "p.Precpred(p.GetParserRuleContext(), 12)", ""))
 					goto errorExit
 				}
 				{
-					p.SetState(376)
+					p.SetState(384)
 					p.Match(CypherParserAND)
 					if p.HasError() {
 						// Recognition error - abort rule
@@ -5791,21 +5970,21 @@ func (p *CypherParser) condition(_p int) (localctx IConditionContext) {
 					}
 				}
 				{
-					p.SetState(377)
-					p.condition(11)
+					p.SetState(385)
+					p.condition(13)
 				}
 
 			case 2:
 				localctx = NewConditionOrContext(p, NewConditionContext(p, _parentctx, _parentState))
 				p.PushNewRecursionContext(localctx, _startState, CypherParserRULE_condition)
-				p.SetState(378)
+				p.SetState(386)
 
-				if !(p.Precpred(p.GetParserRuleContext(), 9)) {
-					p.SetError(antlr.NewFailedPredicateException(p, "p.Precpred(p.GetParserRuleContext(), 9)", ""))
+				if !(p.Precpred(p.GetParserRuleContext(), 11)) {
+					p.SetError(antlr.NewFailedPredicateException(p, "p.Precpred(p.GetParserRuleContext(), 11)", ""))
 					goto errorExit
 				}
 				{
-					p.SetState(379)
+					p.SetState(387)
 					p.Match(CypherParserOR)
 					if p.HasError() {
 						// Recognition error - abort rule
@@ -5813,8 +5992,8 @@ func (p *CypherParser) condition(_p int) (localctx IConditionContext) {
 					}
 				}
 				{
-					p.SetState(380)
-					p.condition(10)
+					p.SetState(388)
+					p.condition(12)
 				}
 
 			case antlr.ATNInvalidAltNumber:
@@ -5822,7 +6001,7 @@ func (p *CypherParser) condition(_p int) (localctx IConditionContext) {
 			}
 
 		}
-		p.SetState(385)
+		p.SetState(393)
 		p.GetErrorHandler().Sync(p)
 		if p.HasError() {
 			goto errorExit
@@ -5921,7 +6100,7 @@ func (p *CypherParser) Variable() (localctx IVariableContext) {
 	p.EnterRule(localctx, 44, CypherParserRULE_variable)
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(386)
+		p.SetState(394)
 		p.Match(CypherParserIDENTIFIER)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -6029,7 +6208,7 @@ func (p *CypherParser) Types() (localctx ITypesContext) {
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(388)
+		p.SetState(396)
 		p.Match(CypherParserCOLON)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -6037,14 +6216,14 @@ func (p *CypherParser) Types() (localctx ITypesContext) {
 		}
 	}
 	{
-		p.SetState(389)
+		p.SetState(397)
 		p.Match(CypherParserIDENTIFIER)
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
 	}
-	p.SetState(394)
+	p.SetState(402)
 	p.GetErrorHandler().Sync(p)
 	if p.HasError() {
 		goto errorExit
@@ -6053,7 +6232,7 @@ func (p *CypherParser) Types() (localctx ITypesContext) {
 
 	for _la == CypherParserT__0 {
 		{
-			p.SetState(390)
+			p.SetState(398)
 			p.Match(CypherParserT__0)
 			if p.HasError() {
 				// Recognition error - abort rule
@@ -6061,7 +6240,7 @@ func (p *CypherParser) Types() (localctx ITypesContext) {
 			}
 		}
 		{
-			p.SetState(391)
+			p.SetState(399)
 			p.Match(CypherParserIDENTIFIER)
 			if p.HasError() {
 				// Recognition error - abort rule
@@ -6069,7 +6248,7 @@ func (p *CypherParser) Types() (localctx ITypesContext) {
 			}
 		}
 
-		p.SetState(396)
+		p.SetState(404)
 		p.GetErrorHandler().Sync(p)
 		if p.HasError() {
 			goto errorExit
@@ -6207,7 +6386,7 @@ func (p *CypherParser) Expression() (localctx IExpressionContext) {
 	p.EnterRule(localctx, 48, CypherParserRULE_expression)
 	var _la int
 
-	p.SetState(410)
+	p.SetState(418)
 	p.GetErrorHandler().Sync(p)
 	if p.HasError() {
 		goto errorExit
@@ -6217,14 +6396,14 @@ func (p *CypherParser) Expression() (localctx IExpressionContext) {
 	case 1:
 		p.EnterOuterAlt(localctx, 1)
 		{
-			p.SetState(397)
+			p.SetState(405)
 			p.Match(CypherParserIDENTIFIER)
 			if p.HasError() {
 				// Recognition error - abort rule
 				goto errorExit
 			}
 		}
-		p.SetState(402)
+		p.SetState(410)
 		p.GetErrorHandler().Sync(p)
 		if p.HasError() {
 			goto errorExit
@@ -6233,7 +6412,7 @@ func (p *CypherParser) Expression() (localctx IExpressionContext) {
 
 		for _la == CypherParserDOT {
 			{
-				p.SetState(398)
+				p.SetState(406)
 				p.Match(CypherParserDOT)
 				if p.HasError() {
 					// Recognition error - abort rule
@@ -6241,7 +6420,7 @@ func (p *CypherParser) Expression() (localctx IExpressionContext) {
 				}
 			}
 			{
-				p.SetState(399)
+				p.SetState(407)
 				p.Match(CypherParserIDENTIFIER)
 				if p.HasError() {
 					// Recognition error - abort rule
@@ -6249,7 +6428,7 @@ func (p *CypherParser) Expression() (localctx IExpressionContext) {
 				}
 			}
 
-			p.SetState(404)
+			p.SetState(412)
 			p.GetErrorHandler().Sync(p)
 			if p.HasError() {
 				goto errorExit
@@ -6260,7 +6439,7 @@ func (p *CypherParser) Expression() (localctx IExpressionContext) {
 	case 2:
 		p.EnterOuterAlt(localctx, 2)
 		{
-			p.SetState(405)
+			p.SetState(413)
 			p.Match(CypherParserIDENTIFIER)
 			if p.HasError() {
 				// Recognition error - abort rule
@@ -6268,7 +6447,7 @@ func (p *CypherParser) Expression() (localctx IExpressionContext) {
 			}
 		}
 		{
-			p.SetState(406)
+			p.SetState(414)
 			p.Match(CypherParserLPAREN)
 			if p.HasError() {
 				// Recognition error - abort rule
@@ -6276,11 +6455,11 @@ func (p *CypherParser) Expression() (localctx IExpressionContext) {
 			}
 		}
 		{
-			p.SetState(407)
+			p.SetState(415)
 			p.Variable()
 		}
 		{
-			p.SetState(408)
+			p.SetState(416)
 			p.Match(CypherParserRPAREN)
 			if p.HasError() {
 				// Recognition error - abort rule
@@ -6387,7 +6566,7 @@ func (p *CypherParser) Value() (localctx IValueContext) {
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(412)
+		p.SetState(420)
 		_la = p.GetTokenStream().LA(1)
 
 		if !(_la == CypherParserSTRING || _la == CypherParserNUMBER) {
@@ -6505,14 +6684,14 @@ func (p *CypherParser) Range_() (localctx IRangeContext) {
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(414)
+		p.SetState(422)
 		p.Match(CypherParserSTAR)
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
 	}
-	p.SetState(416)
+	p.SetState(424)
 	p.GetErrorHandler().Sync(p)
 	if p.HasError() {
 		goto errorExit
@@ -6521,7 +6700,7 @@ func (p *CypherParser) Range_() (localctx IRangeContext) {
 
 	if _la == CypherParserDOUBLE_DOT || _la == CypherParserNUMBER {
 		{
-			p.SetState(415)
+			p.SetState(423)
 			p.RangeLiteral()
 		}
 
@@ -6625,7 +6804,7 @@ func (p *CypherParser) RangeLiteral() (localctx IRangeLiteralContext) {
 	p.EnterRule(localctx, 54, CypherParserRULE_rangeLiteral)
 	var _la int
 
-	p.SetState(426)
+	p.SetState(434)
 	p.GetErrorHandler().Sync(p)
 	if p.HasError() {
 		goto errorExit
@@ -6634,7 +6813,7 @@ func (p *CypherParser) RangeLiteral() (localctx IRangeLiteralContext) {
 	switch p.GetInterpreter().AdaptivePredict(p.BaseParser, p.GetTokenStream(), 53, p.GetParserRuleContext()) {
 	case 1:
 		p.EnterOuterAlt(localctx, 1)
-		p.SetState(419)
+		p.SetState(427)
 		p.GetErrorHandler().Sync(p)
 		if p.HasError() {
 			goto errorExit
@@ -6643,7 +6822,7 @@ func (p *CypherParser) RangeLiteral() (localctx IRangeLiteralContext) {
 
 		if _la == CypherParserNUMBER {
 			{
-				p.SetState(418)
+				p.SetState(426)
 				p.Match(CypherParserNUMBER)
 				if p.HasError() {
 					// Recognition error - abort rule
@@ -6653,14 +6832,14 @@ func (p *CypherParser) RangeLiteral() (localctx IRangeLiteralContext) {
 
 		}
 		{
-			p.SetState(421)
+			p.SetState(429)
 			p.Match(CypherParserDOUBLE_DOT)
 			if p.HasError() {
 				// Recognition error - abort rule
 				goto errorExit
 			}
 		}
-		p.SetState(423)
+		p.SetState(431)
 		p.GetErrorHandler().Sync(p)
 		if p.HasError() {
 			goto errorExit
@@ -6669,7 +6848,7 @@ func (p *CypherParser) RangeLiteral() (localctx IRangeLiteralContext) {
 
 		if _la == CypherParserNUMBER {
 			{
-				p.SetState(422)
+				p.SetState(430)
 				p.Match(CypherParserNUMBER)
 				if p.HasError() {
 					// Recognition error - abort rule
@@ -6682,7 +6861,7 @@ func (p *CypherParser) RangeLiteral() (localctx IRangeLiteralContext) {
 	case 2:
 		p.EnterOuterAlt(localctx, 2)
 		{
-			p.SetState(425)
+			p.SetState(433)
 			p.Match(CypherParserNUMBER)
 			if p.HasError() {
 				// Recognition error - abort rule
@@ -6724,10 +6903,10 @@ func (p *CypherParser) Sempred(localctx antlr.RuleContext, ruleIndex, predIndex 
 func (p *CypherParser) Condition_Sempred(localctx antlr.RuleContext, predIndex int) bool {
 	switch predIndex {
 	case 0:
-		return p.Precpred(p.GetParserRuleContext(), 10)
+		return p.Precpred(p.GetParserRuleContext(), 12)
 
 	case 1:
-		return p.Precpred(p.GetParserRuleContext(), 9)
+		return p.Precpred(p.GetParserRuleContext(), 11)
 
 	default:
 		panic("No predicate with index: " + fmt.Sprint(predIndex))

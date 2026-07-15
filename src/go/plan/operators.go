@@ -2,7 +2,6 @@ package plan
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 )
 
@@ -174,63 +173,108 @@ func (e *VarLengthExpand) String() string {
 func (e *VarLengthExpand) Children() []PlanNode { return []PlanNode{e.Input} }
 
 type Projection struct {
-	InputAlias []string // for Interim results
+	InputAlias []string
+	InputSlot  SlotTable
 
-	InputSlot SlotTable
-
-	Items      []ReturnItem
-	OrderItems []OrderItem
-	Limit      int
-	Input      PlanNode
-
+	Input PlanNode
 	Units []ProjectionUnit
 }
 
 func (p *Projection) String() string {
-	// 1. Return Items の構築
-	var items []string
-	for _, item := range p.Items {
-		items = append(items, item.Name)
-	}
-
-	// 2. Order Items の構築
-	var orders []string
-	for _, o := range p.OrderItems {
-		dir := "ASC"
-		if o.Direction == OrderDesc {
-			dir = "DESC"
-		}
-		orders = append(orders, fmt.Sprintf("%s.%s %s", o.Alias, o.Prop, dir))
-	}
-	orderStr := "None"
-	if len(orders) > 0 {
-		orderStr = strings.Join(orders, ", ")
-	}
-
-	// 3. Fetch Plan (ProjectionUnit) の詳細
 	var unitDetails []string
 	for _, u := range p.Units {
 		var fetchInfos []string
 		for _, f := range u.Fetches {
-			// 例: relational[id, name]
 			fetchInfos = append(fetchInfos, fmt.Sprintf("%s%v", f.Store, f.Props))
 		}
 		unitDetails = append(unitDetails, fmt.Sprintf("%s(%s)", u.Alias, strings.Join(fetchInfos, ", ")))
 	}
-
-	// 4. Limit の処理
-	limitStr := "None"
-	if p.Limit > 0 {
-		limitStr = strconv.Itoa(p.Limit)
-	}
-
-	return fmt.Sprintf("Projection(input:%s, slot:%v) [Return: %s, OrderBy: %s, FetchPlan: %s, Limit: %s]",
-		strings.Join(p.InputAlias, ","),
-		p.InputSlot.VarToSlot,
-		strings.Join(items, ", "),
-		orderStr,
-		strings.Join(unitDetails, " | "),
-		limitStr)
+	return fmt.Sprintf("Projection(input:%s, slot:%v) [Materialize: %s]",
+		strings.Join(p.InputAlias, ","), p.InputSlot.VarToSlot, strings.Join(unitDetails, " | "))
 }
 
 func (p *Projection) Children() []PlanNode { return []PlanNode{p.Input} }
+
+type Aggregate struct {
+	InputAlias []string
+	InputSlot  SlotTable
+
+	GroupKeys []GroupKey
+	Aggs      []AggregateItem
+	Input     PlanNode
+}
+
+func (a *Aggregate) Children() []PlanNode { return []PlanNode{a.Input} }
+
+func (a *Aggregate) String() string {
+	var groups []string
+	for _, g := range a.GroupKeys {
+		groups = append(groups, g.Alias+"."+g.Prop)
+	}
+	groupStr := "∅"
+	if len(groups) > 0 {
+		groupStr = strings.Join(groups, ", ")
+	}
+	var aggs []string
+	for _, ag := range a.Aggs {
+		arg := "*"
+		if ag.Alias != "" {
+			arg = ag.Alias
+			if ag.Prop != "" {
+				arg += "." + ag.Prop
+			}
+		}
+		dist := ""
+		if ag.Distinct {
+			dist = "DISTINCT "
+		}
+		aggs = append(aggs, fmt.Sprintf("%s(%s%s) AS %s", ag.Func, dist, arg, ag.OutName))
+	}
+	return fmt.Sprintf("Aggregate[group: %s | %s]", groupStr, strings.Join(aggs, ", "))
+}
+
+type Sort struct {
+	OrderItems []OrderItem
+	Input      PlanNode
+}
+
+func (s *Sort) Children() []PlanNode { return []PlanNode{s.Input} }
+
+func (s *Sort) String() string {
+	var orders []string
+	for _, o := range s.OrderItems {
+		dir := "ASC"
+		if o.Direction == OrderDesc {
+			dir = "DESC"
+		}
+		key := o.Key
+		if key == "" {
+			key = o.Alias + "." + o.Prop
+		}
+		orders = append(orders, fmt.Sprintf("%s %s", key, dir))
+	}
+	return fmt.Sprintf("Sort[%s]", strings.Join(orders, ", "))
+}
+
+type Limit struct {
+	Count int
+	Input PlanNode
+}
+
+func (l *Limit) Children() []PlanNode { return []PlanNode{l.Input} }
+func (l *Limit) String() string       { return fmt.Sprintf("Limit[%d]", l.Count) }
+
+type Return struct {
+	Items []ReturnItem
+	Input PlanNode
+}
+
+func (r *Return) Children() []PlanNode { return []PlanNode{r.Input} }
+
+func (r *Return) String() string {
+	var items []string
+	for _, it := range r.Items {
+		items = append(items, it.Name)
+	}
+	return fmt.Sprintf("Return[%s]", strings.Join(items, ", "))
+}

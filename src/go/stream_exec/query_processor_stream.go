@@ -24,6 +24,8 @@ type Record struct {
 	Slots []string
 }
 
+type Row = map[string]interface{}
+
 type QueryProcessor struct {
 	records   []Record
 	slotTable *plan.SlotTable
@@ -223,13 +225,21 @@ func (qp *QueryProcessor) Reset() {
 
 func (qp *QueryProcessor) ProcessQueryStream(op plan.PlanNode) ([]map[string]interface{}, error) {
 	var wg sync.WaitGroup
-	// rootquery := ParseQuery(cypher)
 	counter := 0
-	_, err := ExecuteOperatorStream(qp, op, &counter, &wg)
-
+	rowCh, err := executeRowStream(qp, op, &counter, &wg)
+	if err != nil {
+		wg.Wait()
+		return nil, err
+	}
+	var results []map[string]interface{}
+	if rowCh != nil {
+		for batch := range rowCh {
+			results = append(results, batch...)
+		}
+	}
 	wg.Wait()
-
-	return qp.results, err
+	qp.results = results
+	return qp.results, nil
 }
 
 func ExecuteOperatorStream(qp *QueryProcessor, op plan.PlanNode, counter *int, wg *sync.WaitGroup) (chan []Record, error) {
@@ -280,11 +290,6 @@ func ExecuteOperatorStream(qp *QueryProcessor, op plan.PlanNode, counter *int, w
 		case *plan.Filter:
 			opType = "Filter"
 			rowCount, err = filterByStore(qp, o, inputStream, outputStream)
-		case *plan.Projection:
-			opType = "Projection"
-			err = streamProjection(qp, o, inputStream)
-
-			rowCount = len(qp.results)
 
 		default:
 			fmt.Printf("Unknown operator: %T\n", o)

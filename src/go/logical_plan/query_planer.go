@@ -148,79 +148,94 @@ func (l *QueryPlannerListener) BuildPlan() error {
 	root = l.buildOperatorTree(startEnt.alias, root, visitedEnt, visitedRel)
 
 	// --- ProjectionUnit の構築 ---
+	// --- Materialize の収集列（union）と tail 演算子の構築 ---
 	unitMap := make(map[string]*plan.ProjectionUnit)
 
-	for _, item := range l.returnItems {
-		unit, ok := unitMap[item.Alias]
-		if !ok {
-			var labels []string
-			var objType plan.ObjectType
-			if idx, exists := l.symbolEntTable[item.Alias]; exists {
-				labels = l.entityInfo[idx].labels
-				objType = plan.Entity
-			} else if idx, exists := l.symbolRelTable[item.Alias]; exists {
-				labels = []string{l.relInfo[idx].label}
-				objType = plan.Relationship
-			}
-
-			unit = &plan.ProjectionUnit{
-				Alias:   item.Alias,
-				ObjType: objType,
-				Labels:  labels,
-				Fetches: []plan.FetchPlan{},
-			}
-			unitMap[item.Alias] = unit
+	ensureUnit := func(alias string) *plan.ProjectionUnit {
+		if unit, ok := unitMap[alias]; ok {
+			return unit
 		}
-
-		// itemが持つ各プロパティに対して FetchPlan を構成
-		for _, propName := range item.Props {
-
-			targetLabel := ""
-			if len(unit.Labels) > 0 {
-				targetLabel = unit.Labels[0]
-			}
-
-			store, dType, err := l.mappingDictionary.LookupMappingDictionary(unit.ObjType, targetLabel, propName)
-			if err != nil {
-
-			}
-
-			foundStore := false
-			for i := range unit.Fetches {
-				if unit.Fetches[i].Store == store {
-					unit.Fetches[i].Props = append(unit.Fetches[i].Props, propName)
-					unit.Fetches[i].TypeMap[propName] = dType
-					foundStore = true
-					break
-				}
-			}
-
-			if !foundStore {
-				unit.Fetches = append(unit.Fetches, plan.FetchPlan{
-					Store:   store,
-					Props:   []string{propName},
-					TypeMap: map[string]string{propName: dType},
-				})
-			}
+		var labels []string
+		var objType plan.ObjectType
+		if idx, exists := l.symbolEntTable[alias]; exists {
+			labels = l.entityInfo[idx].labels
+			objType = plan.Entity
+		} else if idx, exists := l.symbolRelTable[alias]; exists {
+			labels = []string{l.relInfo[idx].label}
+			objType = plan.Relationship
 		}
+		unit := &plan.ProjectionUnit{Alias: alias, ObjType: objType, Labels: labels, Fetches: []plan.FetchPlan{}}
+		unitMap[alias] = unit
+		return unit
 	}
 
-	// マップからスライスに変換
+	addColumn := func(alias, prop string) {
+		if alias == "" || prop == "" {
+			return
+		}
+		unit := ensureUnit(alias)
+		targetLabel := ""
+		if len(unit.Labels) > 0 {
+			targetLabel = unit.Labels[0]
+		}
+		store, dType, _ := l.mappingDictionary.LookupMappingDictionary(unit.ObjType, targetLabel, prop)
+		for i := range unit.Fetches {
+			if unit.Fetches[i].Store == store {
+				for _, p := range unit.Fetches[i].Props {
+					if p == prop {
+						return
+					}
+				}
+				unit.Fetches[i].Props = append(unit.Fetches[i].Props, prop)
+				unit.Fetches[i].TypeMap[prop] = dType
+				return
+			}
+		}
+		unit.Fetches = append(unit.Fetches, plan.FetchPlan{Store: store, Props: []string{prop}, TypeMap: map[string]string{prop: dType}})
+	}
+
+	var groupKeys []plan.GroupKey
+	var aggs []plan.AggregateItem
+	hasAgg := false
+	for _, item := range l.returnItems {
+		if item.IsAggregate {
+			hasAgg = true
+			aggs = append(aggs, *item.Agg)
+			addColumn(item.Agg.Alias, item.Agg.Prop) // Prop=="" は no-op
+			continue
+		}
+		for _, p := range item.Props {
+			addColumn(item.Alias, p)
+		}
+		firstProp := ""
+		if len(item.Props) > 0 {
+			firstProp = item.Props[0]
+		}
+		groupKeys = append(groupKeys, plan.GroupKey{Alias: item.Alias, Prop: firstProp, OutName: item.Name})
+	}
+	for _, oi := range l.orderItems {
+		addColumn(oi.Alias, oi.Prop) // 集約別名の order は Alias/Prop 空で no-op
+	}
+
 	projectionUnits := make([]plan.ProjectionUnit, 0, len(unitMap))
 	for _, u := range unitMap {
 		projectionUnits = append(projectionUnits, *u)
 	}
 
-	// 3. 最終的な Projection を適用
-	l.planRoot = &plan.Projection{
-		Input:      root,
-		Items:      l.returnItems,
-		OrderItems: l.orderItems,
-		Limit:      l.limitNum,
-
-		Units: projectionUnits,
+	// tail: Projection → (Aggregate) → (Sort) → (Limit) → Return
+	var tail plan.PlanNode = &plan.Projection{Input: root, Units: projectionUnits}
+	if hasAgg {
+		tail = &plan.Aggregate{Input: tail, GroupKeys: groupKeys, Aggs: aggs}
 	}
+	if len(l.orderItems) > 0 {
+		tail = &plan.Sort{Input: tail, OrderItems: l.orderItems}
+	}
+	if l.limitNum > 0 {
+		tail = &plan.Limit{Input: tail, Count: l.limitNum}
+	}
+	tail = &plan.Return{Input: tail, Items: l.returnItems}
 
+	l.planRoot = tail
 	return nil
 }
 
@@ -235,7 +250,7 @@ func (l *QueryPlannerListener) fillConditionMetadata(node *plan.ConditionNode) {
 		l.fillConditionMetadata(node.Right)
 	case plan.CondNot, plan.CondParen, plan.CondAll, plan.CondAny, plan.CondSingle, plan.CondNone:
 		l.fillConditionMetadata(node.Child)
-	case plan.CondEq, plan.CondNeq, plan.CondLess, plan.CondGreater:
+	case plan.CondEq, plan.CondNeq, plan.CondLess, plan.CondGreater, plan.CondLessEq, plan.CondGreaterEq:
 		break
 	default:
 		fmt.Println("Unknown Condition Type")
@@ -404,13 +419,39 @@ func (l *QueryPlannerListener) RefinePlan() {
 
 	for op != nil {
 		switch currentOp := op.(type) {
-		case *plan.Projection:
-
+		case *plan.Return:
 			for _, item := range currentOp.Items {
-				requiredNext.Insert(item.Alias)
+				if item.Alias != "" {
+					requiredNext.Insert(item.Alias)
+				}
+			}
+
+		case *plan.Aggregate:
+			for _, gk := range currentOp.GroupKeys {
+				if gk.Alias != "" {
+					requiredNext.Insert(gk.Alias)
+				}
+			}
+			for _, a := range currentOp.Aggs {
+				if a.Alias != "" {
+					requiredNext.Insert(a.Alias)
+				}
 			}
 			currentOp.InputAlias = requiredNext.ConvertSlice()
+			currentOp.InputSlot = buildSlotTable(currentOp.InputAlias)
 
+		case *plan.Sort:
+			for _, oi := range currentOp.OrderItems {
+				if oi.Alias != "" {
+					requiredNext.Insert(oi.Alias)
+				}
+			}
+
+		case *plan.Limit:
+			// no-op
+
+		case *plan.Projection:
+			currentOp.InputAlias = requiredNext.ConvertSlice()
 			currentOp.InputSlot = buildSlotTable(currentOp.InputAlias)
 			nextInputSlot = currentOp.InputSlot
 

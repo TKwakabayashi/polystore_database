@@ -113,10 +113,12 @@ const (
 type ConditionType int
 
 const (
-	CondEq      ConditionType = iota // =
-	CondNeq                          // !=
-	CondGreater                      // >
-	CondLess                         // <
+	CondEq        ConditionType = iota // =
+	CondNeq                            // !=
+	CondGreater                        // >
+	CondLess                           // <
+	CondGreaterEq                      // >=
+	CondLessEq                         // <=
 
 	CondAnd   // &&
 	CondOr    // ||
@@ -128,6 +130,33 @@ const (
 	CondAny    //
 	CondSingle //
 )
+
+type AggFunc int
+
+const (
+	AggCount AggFunc = iota
+	AggSum
+	AggAvg
+	AggMin
+	AggMax
+)
+
+func (a AggFunc) String() string {
+	switch a {
+	case AggCount:
+		return "count"
+	case AggSum:
+		return "sum"
+	case AggAvg:
+		return "avg"
+	case AggMin:
+		return "min"
+	case AggMax:
+		return "max"
+	default:
+		return "unknown"
+	}
+}
 
 type OrderDir int
 

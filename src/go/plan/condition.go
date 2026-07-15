@@ -42,6 +42,10 @@ func (n *ConditionNode) Print() string {
 		return fmt.Sprintf("%s.%s > %s", n.Alias, n.Property, n.Value)
 	case CondLess:
 		return fmt.Sprintf("%s.%s < %s", n.Alias, n.Property, n.Value)
+	case CondGreaterEq:
+		return fmt.Sprintf("%s.%s >= %s", n.Alias, n.Property, n.Value)
+	case CondLessEq:
+		return fmt.Sprintf("%s.%s <= %s", n.Alias, n.Property, n.Value)
 	case CondNot:
 		return fmt.Sprintf("NOT %s", n.Child.Print())
 	case CondParen:

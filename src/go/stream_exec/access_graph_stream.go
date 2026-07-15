@@ -41,6 +41,10 @@ func ScanGraphStream(qp *QueryProcessor,
 			operator = ">"
 		case plan.CondLess:
 			operator = "<"
+		case plan.CondGreaterEq:
+			operator = ">="
+		case plan.CondLessEq:
+			operator = "<="
 		default:
 			return 0, fmt.Errorf("unknown operator")
 		}
@@ -130,6 +134,10 @@ func streamFilterGraph(qp *QueryProcessor, o *plan.Filter, inputStream <-chan []
 			operator = ">"
 		case plan.CondLess:
 			operator = "<"
+		case plan.CondGreaterEq:
+			operator = ">="
+		case plan.CondLessEq:
+			operator = "<="
 		}
 		paramName := fmt.Sprintf("val%d", i)
 		whereClauses = append(whereClauses, fmt.Sprintf("%s.%s %s $%s", targetVar, cond.Property, operator, paramName))

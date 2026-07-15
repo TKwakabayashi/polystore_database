@@ -21,16 +21,17 @@ type workloadDef func(migrator.MigrationMode, bool) (string, map[string]string, 
 // Registry は名前引きできるワークロード一覧（データセット依存）。
 // 別データセットのワークロードを新ファイルに足したら、ここに登録する。
 var Registry = map[string]workloadDef{
-	"Q2":  DefineWorkloadQ2,
-	"Q8":  DefineWorkloadQ8,
-	"Q9":  DefineWorkloadQ9,
-	"Q11": DefineWorkloadQ11,
-	"IS1": DefineWorkloadIS1,
-	"IS2": DefineWorkloadIS2,
-	"IS3": DefineWorkloadIS3,
-	"IS4": DefineWorkloadIS4,
-	"IS5": DefineWorkloadIS5,
-	"IS6": DefineWorkloadIS6,
+	"Q2":   DefineWorkloadQ2,
+	"Q8":   DefineWorkloadQ8,
+	"Q9":   DefineWorkloadQ9,
+	"Q11":  DefineWorkloadQ11,
+	"IS1":  DefineWorkloadIS1,
+	"IS2":  DefineWorkloadIS2,
+	"IS3":  DefineWorkloadIS3,
+	"IS4":  DefineWorkloadIS4,
+	"IS5":  DefineWorkloadIS5,
+	"IS6":  DefineWorkloadIS6,
+	"AGG1": DefineWorkloadAGG1,
 }
 
 // AvailableWorkloads は登録済みワークロード名をソートして返す。
@@ -215,6 +216,26 @@ func DefineWorkloadIS5(mode migrator.MigrationMode, isMigration bool) (string, m
 	var migs []migrator.MigrationConfig
 	if isMigration {
 		migs = []migrator.MigrationConfig{ // 導出:要確認
+			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id", "firstName", "lastName"}, Mode: mode},
+		}
+	}
+	return cypher, params, migs
+}
+
+// AGG1: 集約(count) + 暗黙GROUP BY + ORDER BY(集約別名) + LIMIT の検証用。
+// あるPersonのMessageへ返信したComment作者ごとの返信数を集計する（LDBC IC風）。
+func DefineWorkloadAGG1(mode migrator.MigrationMode, isMigration bool) (string, map[string]string, []migrator.MigrationConfig) {
+	cypher := "MATCH (p:Person {id: $personId})<-[:HAS_CREATOR]-(m:Message)\n" +
+		"      <-[:REPLY_OF]-(comment:Comment)-[:HAS_CREATOR]->(author:Person)\n" +
+		"RETURN author.id, author.firstName, author.lastName, count(comment) AS replyCount\n" +
+		"ORDER BY replyCount DESC, author.id ASC\n" +
+		"LIMIT 20"
+	params := map[string]string{
+		"personId": "15393162799448",
+	}
+	var migs []migrator.MigrationConfig
+	if isMigration {
+		migs = []migrator.MigrationConfig{
 			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id", "firstName", "lastName"}, Mode: mode},
 		}
 	}

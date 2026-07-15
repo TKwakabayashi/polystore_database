@@ -73,26 +73,32 @@ type CypherListener interface {
 	// EnterConditionAnd is called when entering the ConditionAnd production.
 	EnterConditionAnd(c *ConditionAndContext)
 
-	// EnterConditionOr is called when entering the ConditionOr production.
-	EnterConditionOr(c *ConditionOrContext)
-
 	// EnterConditionNot is called when entering the ConditionNot production.
 	EnterConditionNot(c *ConditionNotContext)
-
-	// EnterConditionParen is called when entering the conditionParen production.
-	EnterConditionParen(c *ConditionParenContext)
-
-	// EnterConditionNone is called when entering the ConditionNone production.
-	EnterConditionNone(c *ConditionNoneContext)
-
-	// EnterConditionAll is called when entering the ConditionAll production.
-	EnterConditionAll(c *ConditionAllContext)
 
 	// EnterConditionGreater is called when entering the ConditionGreater production.
 	EnterConditionGreater(c *ConditionGreaterContext)
 
 	// EnterConditionAny is called when entering the ConditionAny production.
 	EnterConditionAny(c *ConditionAnyContext)
+
+	// EnterConditionOr is called when entering the ConditionOr production.
+	EnterConditionOr(c *ConditionOrContext)
+
+	// EnterConditionParen is called when entering the conditionParen production.
+	EnterConditionParen(c *ConditionParenContext)
+
+	// EnterConditionLessEqual is called when entering the ConditionLessEqual production.
+	EnterConditionLessEqual(c *ConditionLessEqualContext)
+
+	// EnterConditionNone is called when entering the ConditionNone production.
+	EnterConditionNone(c *ConditionNoneContext)
+
+	// EnterConditionGreaterEqual is called when entering the ConditionGreaterEqual production.
+	EnterConditionGreaterEqual(c *ConditionGreaterEqualContext)
+
+	// EnterConditionAll is called when entering the ConditionAll production.
+	EnterConditionAll(c *ConditionAllContext)
 
 	// EnterConditionNotEquality is called when entering the ConditionNotEquality production.
 	EnterConditionNotEquality(c *ConditionNotEqualityContext)
@@ -190,26 +196,32 @@ type CypherListener interface {
 	// ExitConditionAnd is called when exiting the ConditionAnd production.
 	ExitConditionAnd(c *ConditionAndContext)
 
-	// ExitConditionOr is called when exiting the ConditionOr production.
-	ExitConditionOr(c *ConditionOrContext)
-
 	// ExitConditionNot is called when exiting the ConditionNot production.
 	ExitConditionNot(c *ConditionNotContext)
-
-	// ExitConditionParen is called when exiting the conditionParen production.
-	ExitConditionParen(c *ConditionParenContext)
-
-	// ExitConditionNone is called when exiting the ConditionNone production.
-	ExitConditionNone(c *ConditionNoneContext)
-
-	// ExitConditionAll is called when exiting the ConditionAll production.
-	ExitConditionAll(c *ConditionAllContext)
 
 	// ExitConditionGreater is called when exiting the ConditionGreater production.
 	ExitConditionGreater(c *ConditionGreaterContext)
 
 	// ExitConditionAny is called when exiting the ConditionAny production.
 	ExitConditionAny(c *ConditionAnyContext)
+
+	// ExitConditionOr is called when exiting the ConditionOr production.
+	ExitConditionOr(c *ConditionOrContext)
+
+	// ExitConditionParen is called when exiting the conditionParen production.
+	ExitConditionParen(c *ConditionParenContext)
+
+	// ExitConditionLessEqual is called when exiting the ConditionLessEqual production.
+	ExitConditionLessEqual(c *ConditionLessEqualContext)
+
+	// ExitConditionNone is called when exiting the ConditionNone production.
+	ExitConditionNone(c *ConditionNoneContext)
+
+	// ExitConditionGreaterEqual is called when exiting the ConditionGreaterEqual production.
+	ExitConditionGreaterEqual(c *ConditionGreaterEqualContext)
+
+	// ExitConditionAll is called when exiting the ConditionAll production.
+	ExitConditionAll(c *ConditionAllContext)
 
 	// ExitConditionNotEquality is called when exiting the ConditionNotEquality production.
 	ExitConditionNotEquality(c *ConditionNotEqualityContext)

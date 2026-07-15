@@ -120,16 +120,33 @@ func (l *QueryPlannerListener) EnterRelationship(ctx *parser.RelationshipContext
 
 // EnterReturnItem is called when production returnItem is entered.
 func (l *QueryPlannerListener) EnterReturnItem(ctx *parser.ReturnItemContext) {
+	asName := ""
+	if ctx.AS() != nil && ctx.Variable() != nil {
+		asName = ctx.Variable().GetText()
+	}
+
+	// 1) 集約関数 count/sum/avg/min/max
+	if agg := ctx.AggregateFunc(); agg != nil {
+		item := l.parseAggregate(agg.(*parser.AggregateFuncContext))
+		if asName != "" {
+			item.OutName = asName
+		}
+		l.returnItems = append(l.returnItems, plan.ReturnItem{
+			Name:        item.OutName,
+			Alias:       item.Alias,
+			IsAggregate: true,
+			Agg:         &item,
+		})
+		return
+	}
+
+	// 2) coalesce(...)
 	if ctx.COALESCE() != nil {
 		var props []string
 		var alias string
-
-		// 全ての引数からプロパティ名を抽出
 		for _, exprCtx := range ctx.AllExpression() {
 			if exprCtx != nil {
-				txt := exprCtx.GetText()
-				parts := strings.Split(txt, ".")
-
+				parts := strings.Split(exprCtx.GetText(), ".")
 				if len(parts) == 2 {
 					if alias == "" {
 						alias = parts[0]
@@ -138,23 +155,62 @@ func (l *QueryPlannerListener) EnterReturnItem(ctx *parser.ReturnItemContext) {
 				}
 			}
 		}
-		l.returnItems = append(l.returnItems, plan.ReturnItem{Name: ctx.GetText(), Alias: alias, Props: props, IsCoalesce: true})
-
-	} else {
-		// propertyは一つだけ
-		exprCtx := ctx.Expression(0)
-		if exprCtx != nil {
-			txt := exprCtx.GetText()
-			parts := strings.Split(txt, ".")
-			if len(parts) == 2 {
-				l.returnItems = append(l.returnItems, plan.ReturnItem{Name: txt, Alias: parts[0], Props: []string{parts[1]}, IsCoalesce: false})
-			} else {
-				// 今回はない
-				l.returnItems = append(l.returnItems, plan.ReturnItem{Name: txt, Alias: parts[0], Props: []string{""}, IsCoalesce: false})
-			}
+		name := ctx.GetText()
+		if asName != "" {
+			name = asName
 		}
+		l.returnItems = append(l.returnItems, plan.ReturnItem{Name: name, Alias: alias, Props: props, IsCoalesce: true})
+		return
 	}
 
+	// 3) 通常の式 alias.prop
+	exprCtx := ctx.Expression(0)
+	if exprCtx != nil {
+		txt := exprCtx.GetText()
+		parts := strings.Split(txt, ".")
+		name := txt
+		if asName != "" {
+			name = asName
+		}
+		if len(parts) == 2 {
+			l.returnItems = append(l.returnItems, plan.ReturnItem{Name: name, Alias: parts[0], Props: []string{parts[1]}, IsCoalesce: false})
+		} else {
+			l.returnItems = append(l.returnItems, plan.ReturnItem{Name: name, Alias: parts[0], Props: []string{""}, IsCoalesce: false})
+		}
+	}
+}
+
+func (l *QueryPlannerListener) parseAggregate(ctx *parser.AggregateFuncContext) plan.AggregateItem {
+	var fn plan.AggFunc
+	switch {
+	case ctx.COUNT() != nil:
+		fn = plan.AggCount
+	case ctx.SUM() != nil:
+		fn = plan.AggSum
+	case ctx.AVG() != nil:
+		fn = plan.AggAvg
+	case ctx.MIN() != nil:
+		fn = plan.AggMin
+	case ctx.MAX() != nil:
+		fn = plan.AggMax
+	}
+
+	item := plan.AggregateItem{Func: fn, Distinct: ctx.DISTINCT() != nil, OutName: ctx.GetText()}
+
+	if ctx.STAR() != nil {
+		return item // count(*)
+	}
+	if arg := ctx.AggArg(); arg != nil {
+		ac := arg.(*parser.AggArgContext)
+		idents := ac.AllIDENTIFIER()
+		if len(idents) > 0 {
+			item.Alias = idents[0].GetText()
+		}
+		if len(idents) > 1 {
+			item.Prop = idents[1].GetText()
+		}
+	}
+	return item
 }
 
 // EnterOrderItems is called when production orderItems is entered.
@@ -168,15 +224,16 @@ func (l *QueryPlannerListener) EnterOrderItem(ctx *parser.OrderItemContext) {
 	} else {
 		fmt.Println("invalid order direction")
 	}
-
-	if exprCtx != nil {
-		txt := exprCtx.GetText()
-		parts := strings.Split(txt, ".")
-		if len(parts) == 2 {
-			l.orderItems = append(l.orderItems, plan.OrderItem{Alias: parts[0], Prop: parts[1], Direction: dir})
-		} else {
-			fmt.Println("parser error: cannot sort complex data structure")
-		}
+	if exprCtx == nil {
+		return
+	}
+	txt := exprCtx.GetText()
+	parts := strings.Split(txt, ".")
+	if len(parts) == 2 {
+		l.orderItems = append(l.orderItems, plan.OrderItem{Alias: parts[0], Prop: parts[1], Direction: dir, Key: parts[0] + "." + parts[1]})
+	} else {
+		// 集約別名など単一トークンでの並べ替え
+		l.orderItems = append(l.orderItems, plan.OrderItem{Key: txt, Direction: dir})
 	}
 }
 
@@ -235,6 +292,34 @@ func (l *QueryPlannerListener) ExitConditionLess(ctx *parser.ConditionLessContex
 	alias, prop := l.parseExpression(expr)
 	c := &plan.ConditionNode{
 		Type:     plan.CondLess,
+		Alias:    alias,
+		Labels:   l.entityInfo[l.symbolEntTable[alias]].labels,
+		Property: prop,
+		Value:    l.parseValue(val),
+	}
+	l.pushCond(c)
+}
+
+func (l *QueryPlannerListener) ExitConditionGreaterEqual(ctx *parser.ConditionGreaterEqualContext) {
+	expr := ctx.Expression()
+	val := ctx.Value()
+	alias, prop := l.parseExpression(expr)
+	c := &plan.ConditionNode{
+		Type:     plan.CondGreaterEq,
+		Alias:    alias,
+		Labels:   l.entityInfo[l.symbolEntTable[alias]].labels,
+		Property: prop,
+		Value:    l.parseValue(val),
+	}
+	l.pushCond(c)
+}
+
+func (l *QueryPlannerListener) ExitConditionLessEqual(ctx *parser.ConditionLessEqualContext) {
+	expr := ctx.Expression()
+	val := ctx.Value()
+	alias, prop := l.parseExpression(expr)
+	c := &plan.ConditionNode{
+		Type:     plan.CondLessEq,
 		Alias:    alias,
 		Labels:   l.entityInfo[l.symbolEntTable[alias]].labels,
 		Property: prop,

@@ -10,6 +10,8 @@ AS: [aA][sS];
 WITH: 'WITH';
 
 NEQ: '<>';
+LE: '<=';
+GE: '>=';
 
 DOT: '.';
 LARROW: '<-';
@@ -121,8 +123,10 @@ condition:
     | SINGLE LPAREN variable IN expression WHERE condition RPAREN #ConditionSingle
     | expression EQ value # ConditionEquality 
     | expression NEQ value # ConditionNotEquality 
-    | expression RANGLE value # ConditionGreater 
-    | expression LANGLE value # ConditionLess;
+    | expression RANGLE value # ConditionGreater
+    | expression LANGLE value # ConditionLess
+    | expression GE value # ConditionGreaterEqual
+    | expression LE value # ConditionLessEqual;
 
 
 variable: IDENTIFIER;

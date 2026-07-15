@@ -18,6 +18,10 @@ func mongoOp(t plan.ConditionType) string {
 		return "$gt"
 	case plan.CondLess:
 		return "$lt"
+	case plan.CondGreaterEq:
+		return "$gte"
+	case plan.CondLessEq:
+		return "$lte"
 	default:
 		return "$eq"
 	}

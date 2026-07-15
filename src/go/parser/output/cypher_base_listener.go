@@ -152,35 +152,11 @@ func (s *BaseCypherListener) EnterConditionAnd(ctx *ConditionAndContext) {}
 // ExitConditionAnd is called when production ConditionAnd is exited.
 func (s *BaseCypherListener) ExitConditionAnd(ctx *ConditionAndContext) {}
 
-// EnterConditionOr is called when production ConditionOr is entered.
-func (s *BaseCypherListener) EnterConditionOr(ctx *ConditionOrContext) {}
-
-// ExitConditionOr is called when production ConditionOr is exited.
-func (s *BaseCypherListener) ExitConditionOr(ctx *ConditionOrContext) {}
-
 // EnterConditionNot is called when production ConditionNot is entered.
 func (s *BaseCypherListener) EnterConditionNot(ctx *ConditionNotContext) {}
 
 // ExitConditionNot is called when production ConditionNot is exited.
 func (s *BaseCypherListener) ExitConditionNot(ctx *ConditionNotContext) {}
-
-// EnterConditionParen is called when production conditionParen is entered.
-func (s *BaseCypherListener) EnterConditionParen(ctx *ConditionParenContext) {}
-
-// ExitConditionParen is called when production conditionParen is exited.
-func (s *BaseCypherListener) ExitConditionParen(ctx *ConditionParenContext) {}
-
-// EnterConditionNone is called when production ConditionNone is entered.
-func (s *BaseCypherListener) EnterConditionNone(ctx *ConditionNoneContext) {}
-
-// ExitConditionNone is called when production ConditionNone is exited.
-func (s *BaseCypherListener) ExitConditionNone(ctx *ConditionNoneContext) {}
-
-// EnterConditionAll is called when production ConditionAll is entered.
-func (s *BaseCypherListener) EnterConditionAll(ctx *ConditionAllContext) {}
-
-// ExitConditionAll is called when production ConditionAll is exited.
-func (s *BaseCypherListener) ExitConditionAll(ctx *ConditionAllContext) {}
 
 // EnterConditionGreater is called when production ConditionGreater is entered.
 func (s *BaseCypherListener) EnterConditionGreater(ctx *ConditionGreaterContext) {}
@@ -193,6 +169,42 @@ func (s *BaseCypherListener) EnterConditionAny(ctx *ConditionAnyContext) {}
 
 // ExitConditionAny is called when production ConditionAny is exited.
 func (s *BaseCypherListener) ExitConditionAny(ctx *ConditionAnyContext) {}
+
+// EnterConditionOr is called when production ConditionOr is entered.
+func (s *BaseCypherListener) EnterConditionOr(ctx *ConditionOrContext) {}
+
+// ExitConditionOr is called when production ConditionOr is exited.
+func (s *BaseCypherListener) ExitConditionOr(ctx *ConditionOrContext) {}
+
+// EnterConditionParen is called when production conditionParen is entered.
+func (s *BaseCypherListener) EnterConditionParen(ctx *ConditionParenContext) {}
+
+// ExitConditionParen is called when production conditionParen is exited.
+func (s *BaseCypherListener) ExitConditionParen(ctx *ConditionParenContext) {}
+
+// EnterConditionLessEqual is called when production ConditionLessEqual is entered.
+func (s *BaseCypherListener) EnterConditionLessEqual(ctx *ConditionLessEqualContext) {}
+
+// ExitConditionLessEqual is called when production ConditionLessEqual is exited.
+func (s *BaseCypherListener) ExitConditionLessEqual(ctx *ConditionLessEqualContext) {}
+
+// EnterConditionNone is called when production ConditionNone is entered.
+func (s *BaseCypherListener) EnterConditionNone(ctx *ConditionNoneContext) {}
+
+// ExitConditionNone is called when production ConditionNone is exited.
+func (s *BaseCypherListener) ExitConditionNone(ctx *ConditionNoneContext) {}
+
+// EnterConditionGreaterEqual is called when production ConditionGreaterEqual is entered.
+func (s *BaseCypherListener) EnterConditionGreaterEqual(ctx *ConditionGreaterEqualContext) {}
+
+// ExitConditionGreaterEqual is called when production ConditionGreaterEqual is exited.
+func (s *BaseCypherListener) ExitConditionGreaterEqual(ctx *ConditionGreaterEqualContext) {}
+
+// EnterConditionAll is called when production ConditionAll is entered.
+func (s *BaseCypherListener) EnterConditionAll(ctx *ConditionAllContext) {}
+
+// ExitConditionAll is called when production ConditionAll is exited.
+func (s *BaseCypherListener) ExitConditionAll(ctx *ConditionAllContext) {}
 
 // EnterConditionNotEquality is called when production ConditionNotEquality is entered.
 func (s *BaseCypherListener) EnterConditionNotEquality(ctx *ConditionNotEqualityContext) {}
