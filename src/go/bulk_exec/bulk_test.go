@@ -6,56 +6,49 @@ import (
 	"polystore_database/src/go/plan"
 )
 
-func TestUniqueSlot(t *testing.T) {
-	in := []Record{{"a"}, {"b"}, {"a"}, {"c"}, {"b"}}
-	got := uniqueSlot(in, 0)
-	want := []string{"a", "b", "c"}
-	if len(got) != len(want) {
-		t.Fatalf("uniqueSlot len = %d, want %d (%v)", len(got), len(want), got)
+func TestCompareValues(t *testing.T) {
+	if compareValues(1, 2) >= 0 {
+		t.Errorf("compareValues(1,2) は負であるべき")
 	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Errorf("uniqueSlot[%d] = %q, want %q", i, got[i], want[i])
-		}
+	if compareValues("b", "a") <= 0 {
+		t.Errorf("compareValues(\"b\",\"a\") は正であるべき")
 	}
-}
-
-func TestUniqueSlotShortRow(t *testing.T) {
-	// idx が行長を超える行はスキップされる。
-	in := []Record{{"x", "y"}, {"z"}}
-	got := uniqueSlot(in, 1)
-	if len(got) != 1 || got[0] != "y" {
-		t.Errorf("uniqueSlot short row = %v, want [y]", got)
+	if compareValues(nil, 1) != -1 {
+		t.Errorf("compareValues(nil,1) は -1 であるべき")
+	}
+	if compareValues(nil, nil) != 0 {
+		t.Errorf("compareValues(nil,nil) は 0 であるべき")
 	}
 }
 
-func TestRemap(t *testing.T) {
-	inSlot := plan.SlotTable{VarToSlot: map[string]int{"a": 0, "b": 1}}
-	outSlot := plan.SlotTable{VarToSlot: map[string]int{"b": 0, "a": 1}}
-	got := remap([]string{"va", "vb"}, inSlot, outSlot)
-	if len(got) != 2 || got[0] != "vb" || got[1] != "va" {
-		t.Errorf("remap = %v, want [vb va]", got)
+func TestToInt64(t *testing.T) {
+	if toInt64(int32(5)) != 5 || toInt64(int64(7)) != 7 || toInt64(9) != 9 {
+		t.Errorf("toInt64 の変換が不正")
 	}
 }
 
-func TestRemapDropsUnmappedAlias(t *testing.T) {
-	// 出力に無い alias は落ち、入力に無い alias は空文字のまま。
-	inSlot := plan.SlotTable{VarToSlot: map[string]int{"a": 0, "b": 1}}
-	outSlot := plan.SlotTable{VarToSlot: map[string]int{"a": 0, "c": 1}}
-	got := remap([]string{"va", "vb"}, inSlot, outSlot)
-	if len(got) != 2 || got[0] != "va" || got[1] != "" {
-		t.Errorf("remap = %v, want [va \"\"]", got)
+func TestProjectRow(t *testing.T) {
+	r := Record{Slots: []string{"u1"}}
+	items := []plan.ReturnItem{{Name: "name", Alias: "a", Props: []string{"name"}}}
+	aliasToSlot := map[string]int{"a": 0}
+	cache := map[string]map[string]map[string]interface{}{
+		"a": {"u1": {"name": "Alice"}},
+	}
+	row := ProjectRow(r, items, aliasToSlot, cache)
+	if row["name"] != "Alice" {
+		t.Errorf("ProjectRow = %v, want name=Alice", row)
 	}
 }
 
-func TestMaterializeRaw(t *testing.T) {
-	p := &Processor{}
-	recs := []Record{{"u1", "u2"}}
-	out := p.materializeRaw(recs)
-	if len(out) != 1 {
-		t.Fatalf("materializeRaw len = %d, want 1", len(out))
+func TestProjectRowCoalesce(t *testing.T) {
+	r := Record{Slots: []string{"u1"}}
+	items := []plan.ReturnItem{{Name: "v", Alias: "a", Props: []string{"x", "y"}, IsCoalesce: true}}
+	aliasToSlot := map[string]int{"a": 0}
+	cache := map[string]map[string]map[string]interface{}{
+		"a": {"u1": {"y": 42}},
 	}
-	if out[0]["slot0"] != "u1" || out[0]["slot1"] != "u2" {
-		t.Errorf("materializeRaw row = %v", out[0])
+	row := ProjectRow(r, items, aliasToSlot, cache)
+	if row["v"] != 42 {
+		t.Errorf("ProjectRow coalesce = %v, want v=42", row)
 	}
 }

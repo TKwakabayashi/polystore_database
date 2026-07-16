@@ -11,10 +11,9 @@ import (
 
 // Result は 1 クエリ実行の結果と計測。
 type Result struct {
-	Rows       []map[string]interface{}
-	Latency    time.Duration // Trials 平均
-	RoundTrips int64         // 最終試行の DB 往復回数
-	Steps      []Metrics     // 最終試行の演算子別計測
+	Rows    []map[string]interface{}
+	Latency time.Duration // Trials 平均
+	Steps   []Metrics     // 最終試行の演算子別計測
 }
 
 // RowCount は結果行数。
@@ -25,7 +24,7 @@ func RunBulk(ctx context.Context, cfg storage.Config, cypher string, params map[
 	if trials < 1 {
 		trials = 1
 	}
-	qp, err := NewProcessor(ctx, cfg)
+	qp, err := NewQueryProcessorWithConfig(ctx, cfg)
 	if err != nil {
 		return Result{}, err
 	}
@@ -42,17 +41,16 @@ func RunBulk(ctx context.Context, cfg storage.Config, cypher string, params map[
 			return Result{}, fmt.Errorf("プラン構築に失敗: %w", err)
 		}
 		start := time.Now()
-		rows, err := qp.Run(op)
+		rows, err := qp.ProcessQueryBulk(op)
 		elapsed := time.Since(start)
 		if err != nil {
 			return Result{}, fmt.Errorf("クエリ実行に失敗: %w", err)
 		}
 		sum += elapsed
 		last = Result{
-			Rows:       rows,
-			Latency:    elapsed,
-			RoundTrips: qp.RoundTrips(),
-			Steps:      qp.StepMetrics(),
+			Rows:    rows,
+			Latency: elapsed,
+			Steps:   qp.StepMetrics(),
 		}
 	}
 	last.Latency = sum / time.Duration(trials)
@@ -64,12 +62,11 @@ func PrintResult(title string, r Result) {
 	fmt.Printf("[%s]\n", title)
 	fmt.Printf("  - モデル            : Bulk (全件マテリアライズ)\n")
 	fmt.Printf("  - 全体実行時間      : %v\n", r.Latency)
-	fmt.Printf("  - DB 往復回数       : %d\n", r.RoundTrips)
 	fmt.Printf("  - 最終結果数        : %d\n", r.RowCount())
 	if len(r.Steps) > 0 {
 		fmt.Println("  - 演算子別:")
 		for _, s := range r.Steps {
-			fmt.Printf("      %-16s in=%-8d out=%-8d time=%v\n", s.OpType, s.InRows, s.OutRows, s.Duration)
+			fmt.Printf("      %-16s in=%-8d out=%-8d time=%v\n", s.OpType, s.InRows, s.RowCount, s.Duration)
 		}
 	}
 	fmt.Println()
