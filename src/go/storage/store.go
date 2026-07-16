@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gocql/gocql"
@@ -94,6 +95,15 @@ type CassandraStore struct{ session *gocql.Session }
 func openCassandra(_ context.Context, c CassandraConfig) (*CassandraStore, error) {
 	cluster := gocql.NewCluster(c.Hosts...)
 	cluster.Keyspace = c.Keyspace
+	// 大規模一括 upsert（Message 約286万行など）でのタイムアウト回避:
+	//   - 既定 600ms は高負荷書き込みに短すぎるため延長
+	//   - 一過性タイムアウトは再試行
+	//   - 単一ノード想定のため書き込みは One（レイテンシ低減）
+	cluster.Timeout = 30 * time.Second
+	cluster.ConnectTimeout = 30 * time.Second
+	cluster.Consistency = gocql.One
+	cluster.NumConns = 4
+	cluster.RetryPolicy = &gocql.SimpleRetryPolicy{NumRetries: 5}
 	sess, err := cluster.CreateSession()
 	if err != nil {
 		return nil, fmt.Errorf("cassandra session: %w", err)

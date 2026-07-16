@@ -32,16 +32,26 @@ var Registry = map[string]workloadDef{
 	"IS5":  DefineWorkloadIS5,
 	"IS6":  DefineWorkloadIS6,
 	"AGG1": DefineWorkloadAGG1,
+	"AGG2": DefineWorkloadAGG2,
+	"AGG3": DefineWorkloadAGG3,
+	"AGG4": DefineWorkloadAGG4,
+	"AGG5": DefineWorkloadAGG5,
+	"AGG6": DefineWorkloadAGG6,
 }
 
 // AvailableWorkloads は登録済みワークロード名をソートして返す。
 func AvailableWorkloads() string {
+	return strings.Join(AllWorkloadNames(), ", ")
+}
+
+// AllWorkloadNames は登録済みワークロード名をソート済みスライスで返す。
+func AllWorkloadNames() []string {
 	names := make([]string, 0, len(Registry))
 	for n := range Registry {
 		names = append(names, n)
 	}
 	sort.Strings(names)
-	return strings.Join(names, ", ")
+	return names
 }
 
 // =====================================================================
@@ -237,6 +247,104 @@ func DefineWorkloadAGG1(mode migrator.MigrationMode, isMigration bool) (string, 
 	if isMigration {
 		migs = []migrator.MigrationConfig{
 			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id", "firstName", "lastName"}, Mode: mode},
+		}
+	}
+	return cypher, params, migs
+}
+
+// AGG2: グループ集約（count + avg + max）+ ORDER BY(集約別名) + LIMIT。
+// 友人ごとのメッセージ数と本文長の平均・最大を集計する。
+// Comment/Post は :Message ラベルで書けばマルチラベルで一緒にマッチし、
+// プロパティも Message 定義で解決される（type=NULL のため type 条件は使わない）。
+func DefineWorkloadAGG2(mode migrator.MigrationMode, isMigration bool) (string, map[string]string, []migrator.MigrationConfig) {
+	cypher := "MATCH (p:Person {id: $personId})-[:KNOWS]-(friend:Person)<-[:HAS_CREATOR]-(m:Message)\n" +
+		"RETURN friend.id, friend.firstName, count(m) AS msgCount, avg(m.length) AS avgLen, max(m.length) AS maxLen\n" +
+		"ORDER BY msgCount DESC, friend.id ASC\n" +
+		"LIMIT 20"
+	params := map[string]string{
+		"personId": "15393162799448",
+	}
+	var migs []migrator.MigrationConfig
+	if isMigration {
+		migs = []migrator.MigrationConfig{
+			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id", "firstName"}, Mode: mode},
+			{ObjType: plan.Entity, Entity: "Message", Properties: []string{"length"}, Mode: mode},
+		}
+	}
+	return cypher, params, migs
+}
+
+// AGG3: 全体集約（GROUP BY なし）。count(*) / count(DISTINCT ...) / sum / avg / min / max を網羅。
+func DefineWorkloadAGG3(mode migrator.MigrationMode, isMigration bool) (string, map[string]string, []migrator.MigrationConfig) {
+	cypher := "MATCH (p:Person {id: $personId})-[:KNOWS]-(friend:Person)<-[:HAS_CREATOR]-(m:Message)\n" +
+		"RETURN count(*) AS total, count(DISTINCT friend.id) AS friends,\n" +
+		"       sum(m.length) AS totLen, avg(m.length) AS avgLen, min(m.length) AS minLen, max(m.length) AS maxLen"
+	params := map[string]string{
+		"personId": "15393162799448",
+	}
+	var migs []migrator.MigrationConfig
+	if isMigration {
+		migs = []migrator.MigrationConfig{
+			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id"}, Mode: mode},
+			{ObjType: plan.Entity, Entity: "Message", Properties: []string{"length"}, Mode: mode},
+		}
+	}
+	return cypher, params, migs
+}
+
+// AGG4: 新規文法 >= / <= の範囲フィルタ（集約なし）+ ORDER BY + LIMIT。
+// 数値プロパティ m.length を使う（creationDate は graph に文字列格納されており、
+// マッピングの datetime 型と不一致で比較が 0 件になるため範囲検証には不適）。
+func DefineWorkloadAGG4(mode migrator.MigrationMode, isMigration bool) (string, map[string]string, []migrator.MigrationConfig) {
+	cypher := "MATCH (p:Person {id: $personId})<-[:HAS_CREATOR]-(m:Message)\n" +
+		"WHERE m.length >= $minLen AND m.length <= $maxLen\n" +
+		"RETURN m.id, m.length\n" +
+		"ORDER BY m.length DESC, m.id ASC\n" +
+		"LIMIT 20"
+	params := map[string]string{
+		"personId": "15393162799448",
+		"minLen":   "50",
+		"maxLen":   "200",
+	}
+	var migs []migrator.MigrationConfig
+	if isMigration {
+		migs = []migrator.MigrationConfig{
+			{ObjType: plan.Entity, Entity: "Message", Properties: []string{"id", "length"}, Mode: mode},
+		}
+	}
+	return cypher, params, migs
+}
+
+// AGG5: traversal 無しの単一エンティティ全体集約。非graph 単一ストア pushdown の検証用。
+// Organisation.id を対象ストアへ migrate すると、RDB/Document/Columnar いずれもネイティブ集約へ委譲される。
+func DefineWorkloadAGG5(mode migrator.MigrationMode, isMigration bool) (string, map[string]string, []migrator.MigrationConfig) {
+	cypher := "MATCH (o:Organisation)\n" +
+		"WHERE o.id >= $minId AND o.id <= $maxId\n" +
+		"RETURN count(*) AS cnt, min(o.id) AS mn, max(o.id) AS mx, sum(o.id) AS sm, avg(o.id) AS av"
+	params := map[string]string{
+		"minId": "100",
+		"maxId": "5000",
+	}
+	var migs []migrator.MigrationConfig
+	if isMigration {
+		migs = []migrator.MigrationConfig{
+			{ObjType: plan.Entity, Entity: "Organisation", Properties: []string{"id"}, Mode: mode},
+		}
+	}
+	return cypher, params, migs
+}
+
+// AGG6: traversal 無しのグループ集約（GROUP BY o.type）+ ORDER BY。
+// RDB/Document は GROUP BY 対応でネイティブ委譲、Columnar(CQL) は非対応でエンジンへフォールバック。
+func DefineWorkloadAGG6(mode migrator.MigrationMode, isMigration bool) (string, map[string]string, []migrator.MigrationConfig) {
+	cypher := "MATCH (o:Organisation)\n" +
+		"RETURN o.type, count(*) AS cnt, min(o.id) AS mn, max(o.id) AS mx\n" +
+		"ORDER BY cnt DESC"
+	params := map[string]string{}
+	var migs []migrator.MigrationConfig
+	if isMigration {
+		migs = []migrator.MigrationConfig{
+			{ObjType: plan.Entity, Entity: "Organisation", Properties: []string{"type", "id"}, Mode: mode},
 		}
 	}
 	return cypher, params, migs

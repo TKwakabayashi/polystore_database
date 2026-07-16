@@ -14,3 +14,8 @@ docs/
 
 # Rust build artifacts
 target/
+# benchmark output
+bench_results.csv
+src/go/bench_results.csv
+bench_results_wide.csv
+src/go/bench_results_wide.csv

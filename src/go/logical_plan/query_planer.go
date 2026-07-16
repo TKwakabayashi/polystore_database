@@ -559,7 +559,9 @@ func ParseQuery(query string, mappingPath string, params map[string]string) (pla
 
 	planner.RefinePlan()
 
-	return planner.planRoot, nil
+	// 集約 pushdown 判定: 単一ストアに解決できればそのストアへ委譲、散在ならコーディネータ木。
+	// graph 委譲は baseline と同一の「原クエリ＋params」を session.Run で発行するため両者を渡す。
+	return planner.MaybePushdown(query, params), nil
 }
 
 func replaceParameters(query string, params map[string]string) (string, error) {

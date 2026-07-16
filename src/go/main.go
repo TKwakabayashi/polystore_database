@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"log"
+	"strings"
 
 	"polystore_database/src/go/data_setup"
 	"polystore_database/src/go/migrator"
@@ -13,11 +14,14 @@ import (
 
 func main() {
 	var (
-		mode       = flag.String("mode", "run", "実行モード: setup | migrate | run | workflow | verify-migrate")
-		workload   = flag.String("workload", "Q11", "ワークロード名")
+		mode       = flag.String("mode", "run", "実行モード: setup | migrate | run | workflow | verify-migrate | bench")
+		workload   = flag.String("workload", "Q11", "ワークロード名（bench はカンマ区切り複数 or all）")
 		configPath = flag.String("config", "../../config/config.json", "設定ファイル(JSON)")
 		migMode    = flag.String("migmode", "graph_to_rdb", "移行モード（a_to_b）: migrate / workflow / verify-migrate で使用")
 		deleteSrc  = flag.Bool("delete", true, "移行成功後にソース側の該当データを削除する（migrate / workflow）")
+		outPath    = flag.String("out", "bench_results.csv", "bench: 結果CSVの出力先（追記）")
+		placements = flag.String("placements", "graph", "bench: データ配置（カンマ区切り）graph,rdb,doc,col")
+		pushdowns  = flag.String("pushdowns", "auto,engine", "bench: pushdown方針（カンマ区切り）auto,engine")
 	)
 	flag.Parse()
 
@@ -77,10 +81,32 @@ func main() {
 		// 【一時】migrator の動作確認（非破壊ラウンドトリップ検証）
 		workloads.RunMigrationVerify(ctx, cfg, *workload, migrator.MigrationMode(*migMode))
 
+	case "bench":
+		// baseline(Neo4j直) と placement×pushdown の自作システムを計測し CSV へ追記。最後に graph へ戻す。
+		wls := workloads.AllWorkloadNames()
+		if *workload != "all" && *workload != "" {
+			wls = splitCSV(*workload)
+		}
+		if err := workloads.RunBenchmark(ctx, cfg, wls, splitCSV(*placements), splitCSV(*pushdowns), *outPath); err != nil {
+			log.Fatalf("bench に失敗: %v", err)
+		}
+
 	default: // "run"
 		// クエリ実行のみ（SelectedTarget/SelectedFormat に従う）
 		workloads.RunWorkloadByName(ctx, *workload, cfg)
 	}
+}
+
+// splitCSV はカンマ区切り文字列を空白トリムしてスライス化する（空要素は除外）。
+func splitCSV(s string) []string {
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if t := strings.TrimSpace(p); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 func lookup(name string) func(migrator.MigrationMode, bool) (string, map[string]string, []migrator.MigrationConfig) {

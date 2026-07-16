@@ -101,29 +101,31 @@ func RunNeo4j(ctx context.Context, cfg storage.Neo4jConfig, cypher string, param
 	// cypher = "CYPHER runtime=parallel\n" + cypher
 	return average(func() (ExecResult, error) {
 		start := time.Now()
-		rowsAny, err := session.ExecuteRead(ctx, func(tx neo4j.ManagedTransaction) (interface{}, error) {
-			res, err := tx.Run(ctx, cypher, params)
-			if err != nil {
-				return nil, err
-			}
-			var rows []map[string]interface{}
-			for res.Next(ctx) {
-				rec := res.Record()
-				row := make(map[string]interface{}, len(rec.Keys))
-				for i, key := range rec.Keys {
-					row[key] = rec.Values[i]
-				}
-				rows = append(rows, row)
-			}
-			return rows, res.Err()
-		})
+		// pushdown 経路（runGraphPushdown）と同じオートコミット session.Run に揃える。
+		// 管理トランザクション(ExecuteRead)のオーバーヘッドを両者から除き、公平に比較する。
+		res, err := session.Run(ctx, cypher, params)
 		if err != nil {
 			return ExecResult{}, err
 		}
-		rows, _ := rowsAny.([]map[string]interface{})
+		var rows []map[string]interface{}
+		for res.Next(ctx) {
+			rec := res.Record()
+			row := make(map[string]interface{}, len(rec.Keys))
+			for i, key := range rec.Keys {
+				row[key] = rec.Values[i]
+			}
+			rows = append(rows, row)
+		}
+		if err := res.Err(); err != nil {
+			return ExecResult{}, err
+		}
 		return ExecResult{Rows: rows, TotalLatency: time.Since(start)}, nil
 	})
 }
+
+// ProfileCustomRun が true のとき RunCustom は pprof（cpu/heap/block/mutex）を採取する。
+// ベンチマークなど多数回実行では block/mutex プロファイルの overhead が計測を歪めるため false にする。
+var ProfileCustomRun = true
 
 // RunCustom は自作システムで parse＋ストリーム実行する。Trials 回の平均。
 func RunCustom(ctx context.Context, cfg storage.Config, cypher string, params map[string]string) (ExecResult, error) {
@@ -132,26 +134,29 @@ func RunCustom(ctx context.Context, cfg storage.Config, cypher string, params ma
 		return ExecResult{}, fmt.Errorf("QueryProcessor の初期化に失敗（DB は全て起動済みですか？）: %w", err)
 	}
 	defer qp.Close()
-	// --- ここからプロファイル（接続確立後・計測対象だけを囲む）---
-	fcpu, _ := os.Create("cpu.prof")
-	pprof.StartCPUProfile(fcpu)
-	runtime.SetBlockProfileRate(1) // 1ns = 全ブロックイベント記録
-	runtime.SetMutexProfileFraction(1)
-	defer func() {
-		pprof.StopCPUProfile()
-		fcpu.Close()
 
-		dump := func(name string) {
-			f, _ := os.Create(name + ".prof")
-			defer f.Close()
-			pprof.Lookup(name).WriteTo(f, 0)
-		}
-		runtime.GC() // heap のライブ集合を正確に
-		dump("heap")
-		dump("allocs")
-		dump("block")
-		dump("mutex")
-	}()
+	// --- プロファイル（接続確立後・計測対象だけを囲む）。ベンチ時は無効化。---
+	if ProfileCustomRun {
+		fcpu, _ := os.Create("cpu.prof")
+		pprof.StartCPUProfile(fcpu)
+		runtime.SetBlockProfileRate(1) // 1ns = 全ブロックイベント記録
+		runtime.SetMutexProfileFraction(1)
+		defer func() {
+			pprof.StopCPUProfile()
+			fcpu.Close()
+
+			dump := func(name string) {
+				f, _ := os.Create(name + ".prof")
+				defer f.Close()
+				pprof.Lookup(name).WriteTo(f, 0)
+			}
+			runtime.GC() // heap のライブ集合を正確に
+			dump("heap")
+			dump("allocs")
+			dump("block")
+			dump("mutex")
+		}()
+	}
 	return average(func() (ExecResult, error) {
 		qp.Reset() // 試行ごとに中間状態をクリア
 
