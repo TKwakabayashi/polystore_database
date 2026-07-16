@@ -201,11 +201,3 @@ func (p *Processor) drainRaw(it Iterator) ([]map[string]interface{}, error) {
 	}
 	return out, nil
 }
-
-// newReadSession は Neo4j の読み取りセッションを生成する。
-func (p *Processor) newReadSession() neo4j.SessionWithContext {
-	return p.neoDriver.NewSession(p.ctx, neo4j.SessionConfig{
-		AccessMode: neo4j.AccessModeRead,
-		FetchSize:  neo4j.FetchAll,
-	})
-}
