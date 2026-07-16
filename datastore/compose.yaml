@@ -1,0 +1,125 @@
+# データセット切り替え可能な polystore スタック。
+# 対応データセット: ldbc_sf1 / openalex / amazon_reviewdata2023 / movielens
+#
+#   docker compose --env-file env/ldbc_sf1.env up -d
+#   docker compose --env-file env/openalex.env up -d
+#
+# --env-file を省略すると ./.env（既定は ldbc_sf1）が使われる。
+# プロジェクト名とボリューム名に ${DATASET} を含めるので、データセットごとに
+# 独立したコンテナ／ボリュームになり、切り替えても再ロード不要。
+# ポートは共通なので同時に up できるのは 1 データセットだけ。
+#
+# Neo4j は全データセット neo4j:5（Community, GPLv3）で動作確認済み。
+# DB 名／メモリはデータセットごとに env/*.env で指定する。
+# dump を作った Neo4j のメジャーバージョンとイメージは一致させること
+# （ストアはバージョン間で互換が無く、ダウングレードもできない）。
+#
+# dump の復元（neo4j を止めてから）:
+#   docker compose --env-file env/openalex.env --profile load run --rm neo4j-load
+#
+# 初回のみ Cassandra の keyspace 作成が必要:
+#   docker compose --env-file env/openalex.env --profile init run --rm cassandra-init
+
+name: polystore-${DATASET:-ldbc_sf1}
+
+services:
+  neo4j:
+    image: ${NEO4J_IMAGE:-neo4j:5}
+    ports:
+      - "${NEO4J_BOLT_PORT:-7687}:7687"   # bolt
+      - "${NEO4J_HTTP_PORT:-7474}:7474"   # browser
+    environment:
+      NEO4J_AUTH: ${NEO4J_AUTH:-neo4j/password123}
+      # Community では無視される。enterprise イメージに切り替えたときのみ効く
+      # （移行前の 2025-enterprise 製 dump を読む場合など）。
+      NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes"
+      NEO4J_PLUGINS: '["apoc"]'
+      # dump のファイル名＝データベース名なので、既定 DB をデータセットごとに合わせる
+      # （ldbc_sf1 は neo4j.dump なので neo4j のまま）。
+      NEO4J_initial_dbms_default__database: ${NEO4J_DATABASE:-neo4j}
+      # 大きな中間結果（例: Q9 の KNOWS*1..2）で OOM しないようヒープ／トランザクションメモリを増強。
+      # heap+pagecache が Docker VM の物理メモリ(現状 7.7G)を超えると起動を拒否される。
+      # データセット規模に応じて env/*.env で上書きする。
+      NEO4J_server_memory_heap_initial__size: ${NEO4J_HEAP_INITIAL:-2G}
+      NEO4J_server_memory_heap_max__size: ${NEO4J_HEAP_MAX:-4G}
+      NEO4J_server_memory_pagecache_size: ${NEO4J_PAGECACHE:-1G}
+      NEO4J_dbms_memory_transaction_total_max: ${NEO4J_TX_TOTAL_MAX:-4G}
+      # APOC の CSV import/export。既定 off。
+      # 例: NEO4J_APOC_EXPORT=true docker compose --env-file env/ldbc_sf1.env up -d neo4j
+      # （migrate_ldbc_to_neo4j5.sh の export はこれを有効化して実行する）
+      NEO4J_apoc_export_file_enabled: ${NEO4J_APOC_EXPORT:-false}
+      NEO4J_apoc_import_file_enabled: ${NEO4J_APOC_IMPORT:-false}
+    volumes:
+      - neo4j_data:/data
+      - neo4j_import:/var/lib/neo4j/import
+
+  # dump 復元用のワンショット。neo4j 停止中に実行する。
+  # /dumps は選択中データセットの snapshots ディレクトリ。
+  neo4j-load:
+    image: ${NEO4J_IMAGE:-neo4j:5}
+    profiles: ["load"]
+    environment:
+      NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes"
+    volumes:
+      - neo4j_data:/data
+      - ./snapshots/${DATASET:-ldbc_sf1}/neo4j:/dumps
+    entrypoint: ["neo4j-admin"]
+    command:
+      - database
+      - load
+      - ${NEO4J_DATABASE:-neo4j}
+      - --from-path=/dumps
+      - --overwrite-destination
+
+  mongo:
+    image: ${MONGO_IMAGE:-mongo:7}
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  mysql:
+    image: ${MYSQL_IMAGE:-mysql:8}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-polystore_relational}
+      MYSQL_USER: ${MYSQL_USER:-user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-pass}
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  cassandra:
+    image: ${CASSANDRA_IMAGE:-cassandra:4}
+    ports:
+      - "${CASSANDRA_PORT:-9042}:9042"
+    environment:
+      MAX_HEAP_SIZE: ${CASSANDRA_HEAP:-1G}
+      HEAP_NEWSIZE: ${CASSANDRA_HEAP_NEW:-200M}
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+
+  # keyspace を作るコードがアプリ側に無いので、初回だけこれを流す。
+  #   docker compose --env-file env/openalex.env --profile init run --rm cassandra-init
+  cassandra-init:
+    image: ${CASSANDRA_IMAGE:-cassandra:4}
+    profiles: ["init"]
+    depends_on:
+      - cassandra
+    entrypoint: ["cqlsh", "cassandra", "9042", "-e"]
+    command:
+      - "CREATE KEYSPACE IF NOT EXISTS ${CASSANDRA_KEYSPACE:-polystore_columnar} WITH replication={'class':'SimpleStrategy','replication_factor':1};"
+
+volumes:
+  # 実ボリューム名に ${DATASET} を入れることでデータセットごとに分離する。
+  neo4j_data:
+    name: polystore_${DATASET:-ldbc_sf1}_neo4j_data
+  neo4j_import:
+    name: polystore_${DATASET:-ldbc_sf1}_neo4j_import
+  mongo_data:
+    name: polystore_${DATASET:-ldbc_sf1}_mongo_data
+  mysql_data:
+    name: polystore_${DATASET:-ldbc_sf1}_mysql_data
+  cassandra_data:
+    name: polystore_${DATASET:-ldbc_sf1}_cassandra_data

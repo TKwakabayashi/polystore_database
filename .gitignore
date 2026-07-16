@@ -1,7 +1,12 @@
 # Ignore database actual data
 config/config.json
-datastore/
 src/go/storage/config.go
+
+# datastore/ のうち実データだけを無視する。
+# compose.yaml / env / scripts は環境再現に必要なので追跡する。
+# （env のパスワードは開発用ローカル固定値）
+datastore/snapshots/
+datastore/runtime/
 
 # Ignore dump files
 *.dump

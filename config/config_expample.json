@@ -10,7 +10,7 @@
     "dbname": ""
   },
   "leveldb": {
-    "path": "../datastore/data/polystore_kvs"
+    "path": "../datastore/runtime/polystore_kvs"
   },
   "mysql": {
     "dsn": ""
