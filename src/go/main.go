@@ -14,14 +14,16 @@ import (
 
 func main() {
 	var (
-		mode       = flag.String("mode", "run", "実行モード: setup | migrate | run | workflow | verify-migrate | bench")
+		mode       = flag.String("mode", "run", "実行モード: setup | migrate | run | workflow | verify-migrate | bench | bench-models")
 		workload   = flag.String("workload", "Q11", "ワークロード名（bench はカンマ区切り複数 or all）")
 		configPath = flag.String("config", "../../config/config.json", "設定ファイル(JSON)")
 		migMode    = flag.String("migmode", "graph_to_rdb", "移行モード（a_to_b）: migrate / workflow / verify-migrate で使用")
 		deleteSrc  = flag.Bool("delete", true, "移行成功後にソース側の該当データを削除する（migrate / workflow）")
 		outPath    = flag.String("out", "bench_results.csv", "bench: 結果CSVの出力先（追記）")
-		placements = flag.String("placements", "graph", "bench: データ配置（カンマ区切り）graph,rdb,doc,col")
+		placements = flag.String("placements", "graph", "bench: データ配置（カンマ区切り）graph,rdb,doc,col,kvs")
 		pushdowns  = flag.String("pushdowns", "auto,engine", "bench: pushdown方針（カンマ区切り）auto,engine")
+		models     = flag.String("models", "stream,bulk,volcano,vectorized", "bench-models: 実行モデル（カンマ区切り）stream,bulk,volcano,vectorized")
+		vectorSize = flag.Int("vector", 1024, "bench-models: vectorized モードのベクトル長")
 	)
 	flag.Parse()
 
@@ -89,6 +91,18 @@ func main() {
 		}
 		if err := workloads.RunBenchmark(ctx, cfg, wls, splitCSV(*placements), splitCSV(*pushdowns), *outPath); err != nil {
 			log.Fatalf("bench に失敗: %v", err)
+		}
+
+	case "bench-models":
+		// baseline(Neo4j直) と placement×実行モデルの自作システムを計測し long 形式 CSV へ追記。
+		// 例: -mode bench-models -workload Q9 -placements graph,rdb,doc,col,kvs
+		//     -models stream,bulk,volcano,vectorized -vector 1024 -out q9_models.csv
+		wls := workloads.AllWorkloadNames()
+		if *workload != "all" && *workload != "" {
+			wls = splitCSV(*workload)
+		}
+		if err := workloads.RunModelBenchmark(ctx, cfg, wls, splitCSV(*placements), splitCSV(*models), *vectorSize, *outPath); err != nil {
+			log.Fatalf("bench-models に失敗: %v", err)
 		}
 
 	default: // "run"

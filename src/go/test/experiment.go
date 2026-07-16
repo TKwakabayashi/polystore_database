@@ -109,7 +109,9 @@ func DefineWorkloadQ9(mode migrator.MigrationMode, isMigration bool) (string, ma
 		"ORDER BY m.creationDate DESC, m.id ASC\n" +
 		"LIMIT 20"
 	params := map[string]string{
-		"personId": "15393162799448",
+		// 現行ダンプの実在Person。KNOWS*1..2 の 2ホップで HAS_CREATOR メッセージ約76万件に到達する高次数ノード。
+		// maxDate でフィルタすると約7.2万件（数万〜数十万イメージ）に絞り込まれる。
+		"personId": "17592186049378",
 		"maxDate":  "2011-06-16T00:00:00.000Z",
 	}
 	var migs []migrator.MigrationConfig

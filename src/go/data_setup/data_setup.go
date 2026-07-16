@@ -270,7 +270,9 @@ func cleanCassandra(hosts []string, keyspace string) error {
 	}
 
 	for tableName := range keyspaceMetadata.Tables {
-		if err := session.Query(fmt.Sprintf("TRUNCATE %s.%s", keyspace, tableName)).Exec(); err != nil {
+		// テーブル名はクォート付きの大文字混じり（"Message" 等）で作成されているため、
+		// TRUNCATE でもクォートしないと Cassandra が小文字化して「table place does not exist」で落ちる。
+		if err := session.Query(fmt.Sprintf("TRUNCATE %s.%q", keyspace, tableName)).Exec(); err != nil {
 			return fmt.Errorf("failed to truncate table %s: %w", tableName, err)
 		}
 	}
