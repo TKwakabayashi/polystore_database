@@ -1,310 +1,216 @@
+// Package bulk_executor は、演算子間で中間結果を全件マテリアライズする最も単純な
+// 逐次実行モデルを提供する。各演算子は全行に対し 1 回だけ実行され、「何件に対して」
+// 「どれだけの時間」かかったかを演算子単位でクリーンに計測する。
+//
+// ストリーミング（channel / goroutine / ExecPolicy）を排し、中間結果 []Record を
+// そのまま return で受け渡す逐次版。既存 stream_exec / plan / logical_plan / storage /
 package bulk_executor
 
-/*
 import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
-	"os"
-	"runtime/pprof"
-	"strings"
 	"time"
+
+	"polystore_database/src/go/plan"
+	"polystore_database/src/go/storage"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gocql/gocql"
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"github.com/syndtr/goleveldb/leveldb"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-
-	planner "polystore_database/src/go/logical_plan"
-	"polystore_database/src/go/plan"
 )
 
 type Record struct {
 	Slots []string
 }
 
-
 type QueryProcessor struct {
-	records   []Record
-	slotTable *SlotTable
-	results   []map[string]interface{}
-	metrics   map[int]Metrics
-	counts    map[string]int
+	results []map[string]interface{}
+	metrics map[int]Metrics
 
 	neoDriver neo4j.DriverWithContext
-	neoSes    neo4j.SessionWithContext
 	mDb       *mongo.Database
 	ldb       *leveldb.DB
 	sqlDb     *sql.DB
 	cqlSes    *gocql.Session
 	ctx       context.Context
-}
 
-func NewSlotTable() *SlotTable {
-	return &SlotTable{
-		VarToSlot: make(map[string]int),
-	}
+	rg *storage.Registry
 }
 
 type Metrics struct {
-	StepNum  int           // 実行順序
+	StepNum  int           // 実行順序（葉→根）
 	OpType   string        // オペレーター種別
-	Duration time.Duration // 実行時間
-	RowCount int           // そのステップでの結果数
+	Duration time.Duration // その演算子が自身の処理に費やした時間（子の実行は除外）
+	InRows   int           // その演算子への入力行数（EntityScan は 0）
+	RowCount int           // その演算子が出力した行数
 }
 
 func NewQueryProcessor(ctx context.Context) (*QueryProcessor, error) {
-	st := &SlotTable{
-		VarToSlot: make(map[string]int),
-		SlotToVar: []string{},
-	}
+	cfg, _ := storage.LoadConfig("")
+	return NewQueryProcessorWithConfig(ctx, cfg)
+}
 
+func NewQueryProcessorWithConfig(ctx context.Context, cfg storage.Config) (*QueryProcessor, error) {
 	qp := &QueryProcessor{
-		records:   []Record{},
-		slotTable: st,
-		results:   []map[string]interface{}{},
-		metrics:   make(map[int]Metrics),
-		counts:    make(map[string]int),
-		ctx:       ctx,
+		results: []map[string]interface{}{},
+		metrics: make(map[int]Metrics),
+		ctx:     ctx,
 	}
 
-	// 各種データベースの初期化
-
-	// Neo4j の設定
-	neoUri := "bolt://localhost:7690"
-	neoUser := "neo4j"
-	neoPass := "password"
-	neoDriver, err := neo4j.NewDriverWithContext(neoUri, neo4j.BasicAuth(neoUser, neoPass, ""))
+	rg, err := storage.NewRegistry(ctx, cfg)
 	if err != nil {
-		return nil, fmt.Errorf("neo4j driver error: %w", err)
+		return nil, fmt.Errorf("%w", err)
 	}
-	qp.neoDriver = neoDriver
-	qp.neoSes = neoDriver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead})
+	qp.rg = rg
 
-	// MongoDB の設定
-	mongoUri := "mongodb://localhost:27017"
-	mClient, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoUri))
-	if err != nil {
-		return nil, fmt.Errorf("mongodb connect error: %w", err)
+	if d, ok := rg.Neo4j(); ok {
+		qp.neoDriver = d
 	}
-	qp.mDb = mClient.Database("polystore_doc")
-
-	// LevelDB の設定
-	ldbPath := "./polystore_kvs"
-	ldb, err := leveldb.OpenFile(ldbPath, nil)
-	if err != nil {
-		return nil, fmt.Errorf("leveldb open error: %w", err)
+	if d, ok := rg.Mongo(); ok {
+		qp.mDb = d
 	}
-	qp.ldb = ldb
-
-	// SQL (MySQL/PostgreSQL等) の設定
-	sqlDb, err := sql.Open("mysql", "user:pass@tcp(127.0.0.1:3306)/polystore_relational")
-	if err != nil {
-		return nil, fmt.Errorf("sql open error: %w", err)
+	if d, ok := rg.LevelDB(); ok {
+		qp.ldb = d
 	}
-	qp.sqlDb = sqlDb
-
-	// Cassandra (gocql) の設定
-
-	cluster := gocql.NewCluster("127.0.0.1")
-	cluster.Keyspace = "polystore_columnar"
-	cqlSes, err := cluster.CreateSession()
-	if err != nil {
-		return nil, fmt.Errorf("cassandra session error: %w", err)
+	if d, ok := rg.MySQL(); ok {
+		qp.sqlDb = d
 	}
-	qp.cqlSes = cqlSes
-
+	if s, ok := rg.Cassandra(); ok {
+		qp.cqlSes = s
+	}
 	return qp, nil
 }
 
 func (qp *QueryProcessor) Close() error {
-	var errs []string
-
-	// 1. Neo4j Session
-	if qp.neoSes != nil {
-		if err := qp.neoSes.Close(qp.ctx); err != nil {
-			errs = append(errs, fmt.Sprintf("neo4j close error: %v", err))
-		}
+	if qp.rg == nil {
+		return nil
 	}
-
-	// 2. MongoDB (Clientの切断が必要)
-	if qp.mDb != nil {
-		if err := qp.mDb.Client().Disconnect(qp.ctx); err != nil {
-			errs = append(errs, fmt.Sprintf("mongodb disconnect error: %v", err))
-		}
-	}
-
-	// 3. LevelDB
-	if qp.ldb != nil {
-		if err := qp.ldb.Close(); err != nil {
-			errs = append(errs, fmt.Sprintf("leveldb close error: %v", err))
-		}
-	}
-
-	// 4. SQL (MySQL/PostgreSQL)
-	if qp.sqlDb != nil {
-		if err := qp.sqlDb.Close(); err != nil {
-			errs = append(errs, fmt.Sprintf("sql close error: %v", err))
-		}
-	}
-
-	// 5. Cassandra (gocql)
-	if qp.cqlSes != nil {
-		qp.cqlSes.Close()
-	}
-
-	// 複数のエラーが発生した場合はまとめて返す
-	if len(errs) > 0 {
-		return fmt.Errorf("errors occurred during close: %s", strings.Join(errs, "; "))
-	}
-
-	return nil
+	return qp.rg.Close(qp.ctx)
 }
 
 func (qp *QueryProcessor) Reset() {
-	// 中間レコードのクリア
-	qp.records = []Record{}
-
-	// スロットテーブルの初期化（変数の割り当て情報をクリア）
-	qp.slotTable = &SlotTable{
-		VarToSlot: make(map[string]int),
-		SlotToVar: []string{},
-	}
-
-	// 最終結果のクリア
 	qp.results = []map[string]interface{}{}
-
-	// メトリクス（実行時間など）のクリア
 	qp.metrics = make(map[int]Metrics)
-
-	// カウント情報のクリア
-	qp.counts = make(map[string]int)
 }
 
-func (qp *QueryProcessor) ProcessQuery(op plan.PlanNode) ([]map[string]interface{}, error) {
-
-	// rootquery := ParseQuery(cypher)
-	counter := 0
-	cpuFile, errl := os.Create("cpu.prof")
-	if errl != nil {
-		log.Fatal(errl)
+// StepMetrics は StepNum 昇順の演算子計測一覧を返す。
+func (qp *QueryProcessor) StepMetrics() []Metrics {
+	out := make([]Metrics, 0, len(qp.metrics))
+	for step := 1; step <= len(qp.metrics); step++ {
+		if m, ok := qp.metrics[step]; ok {
+			out = append(out, m)
+		}
 	}
-	pprof.StartCPUProfile(cpuFile)
-	defer pprof.StopCPUProfile()
+	return out
+}
 
-	err := ExecuteOperator(qp, op, &counter)
+// ProcessQueryBulk は plan ツリーを全件マテリアライズ実行し、最終結果行を返す。
+func (qp *QueryProcessor) ProcessQueryBulk(op plan.PlanNode) ([]map[string]interface{}, error) {
+	counter := 0
+	_, err := ExecuteOperatorBulk(qp, op, &counter)
 	return qp.results, err
 }
 
-func ExecuteOperator(qp *QueryProcessor, op planner.Operator, counter *int) error {
-
+// ExecuteOperatorBulk は上流（子）を先に全件実行してから自演算子を全件処理し、
+// 出力 []Record を返す。演算子ごとに step 番号（葉→根）・入出力件数・時間を記録する。
+func ExecuteOperatorBulk(qp *QueryProcessor, op plan.PlanNode, counter *int) ([]Record, error) {
 	if op == nil {
-		return fmt.Errorf("Empty Operator Passed")
+		return nil, fmt.Errorf("Empty Operator Passed")
 	}
 
+	// 1. 再帰的に上流（Child）を全件実行（この時間は計測に含めない）
+	var input []Record
 	if len(op.Children()) > 0 {
-		err := ExecuteOperator(qp, op.Children()[0], counter)
+		var err error
+		input, err = ExecuteOperatorBulk(qp, op.Children()[0], counter)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	*counter++
 	currentStep := *counter
-	var opType string
-	var duration time.Duration
 
+	var (
+		opType string
+		output []Record
+		err    error
+	)
+	inRows := len(input)
+
+	// 2. 自演算子を全件処理（この区間だけ計測）
+	start := time.Now()
 	switch o := op.(type) {
 	case *plan.EntityScan:
 		opType = "EntityScan"
-		start := time.Now()
-		var Ids []string
-		var err error
-		switch o.DataStore {
-		case "graph":
-			Ids, err = scanGraph(qp, o)
-			if err != nil {
-				fmt.Println(err)
-			}
-		case "document":
-			Ids, _ = scanDocument(qp, o)
-		case "kvs":
-			Ids, _ = scanKVS(qp, o)
-		case "relational":
-			Ids, _ = scanRelational(qp, o)
-		case "columnar":
-			Ids, _ = scanColumnar(qp, o)
-		}
-		finalizeScan(qp, o.Alias, Ids)
-
-		duration = time.Since(start)
-
-	case *planner.Expand:
+		output, err = scanByStore(qp, o)
+	case *plan.Expand:
 		opType = "Expand"
-		start := time.Now()
-
-		expandGraph(qp, o)
-
-		duration = time.Since(start)
-
-	case *planner.VarLengthExpand:
+		output, err = ExpandGraphBulk(qp, o, input)
+	case *plan.VarLengthExpand:
 		opType = "VarLengthExpand"
-		start := time.Now()
-
-		ProcessVarLengthExpand(qp, o)
-
-		duration = time.Since(start)
-
-	case *planner.Filter:
+		output, err = bulkVarLengthExpand(qp, o, input)
+	case *plan.Filter:
 		opType = "Filter"
-		start := time.Now()
-
-		var validIDs []string
-		switch o.DataStore {
-		case "graph":
-			validIDs, _ = filterGraph(qp, o)
-		case "document":
-			validIDs, _ = filterDocument(qp, o)
-		case "kvs":
-			validIDs, _ = filterKVS(qp, o)
-		case "relational":
-			validIDs, _ = filterRelational(qp, o)
-		case "columnar":
-			validIDs, _ = filterColumnar(qp, o)
-		}
-		applyFilter(qp, o, validIDs)
-		duration = time.Since(start)
-
+		output, err = filterByStore(qp, o, input)
 	case *plan.Projection:
 		opType = "Projection"
-		start := time.Now()
-
-		projectMulti(qp, o)
-
-		duration = time.Since(start)
+		err = bulkProjection(qp, o, input)
+	default:
+		return nil, fmt.Errorf("Unknown operator: %T", op)
+	}
+	duration := time.Since(start)
+	if err != nil {
+		return nil, err
 	}
 
-	var rowcount int
+	rowCount := len(output)
 	if opType == "Projection" {
-		rowcount = len(qp.results)
-	} else {
-		rowcount = len(qp.records)
+		rowCount = len(qp.results)
 	}
-
 	qp.metrics[currentStep] = Metrics{
 		StepNum:  currentStep,
 		OpType:   opType,
 		Duration: duration,
-		RowCount: rowcount,
+		InRows:   inRows,
+		RowCount: rowCount,
 	}
-	return nil
+	return output, nil
 }
 
-// また今度
-func ProcessRelationshipScan() {
-
+func scanByStore(qp *QueryProcessor, o *plan.EntityScan) ([]Record, error) {
+	switch o.DataStore {
+	case "graph", "", "unknown":
+		return ScanGraphBulk(qp, o)
+	case "document":
+		return ScanDocBulk(qp, o)
+	case "kvs":
+		return ScanKvsBulk(qp, o)
+	case "relational":
+		return ScanRdbBulk(qp, o)
+	case "columnar":
+		return ScanColBulk(qp, o)
+	default:
+		return nil, fmt.Errorf("unknown datastore for scan: %s", o.DataStore)
+	}
 }
-*/
+
+func filterByStore(qp *QueryProcessor, o *plan.Filter, in []Record) ([]Record, error) {
+	switch o.DataStore {
+	case "graph", "", "unknown":
+		return bulkFilterGraph(qp, o, in)
+	case "document":
+		return FilterDocBulk(qp, o, in)
+	case "kvs":
+		return FilterKvsBulk(qp, o, in)
+	case "relational":
+		return FilterRdbBulk(qp, o, in)
+	case "columnar":
+		return FilterColBulk(qp, o, in)
+	default:
+		return nil, fmt.Errorf("unknown datastore for filter: %s", o.DataStore)
+	}
+}
