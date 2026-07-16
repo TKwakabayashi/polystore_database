@@ -218,6 +218,10 @@ func compareOrderedKVS[T cmp.Ordered](a, b T, op plan.ConditionType) bool {
 		return a > b
 	case plan.CondLess:
 		return a < b
+	case plan.CondGreaterEq:
+		return a >= b
+	case plan.CondLessEq:
+		return a <= b
 	default:
 		return false
 	}
@@ -233,6 +237,10 @@ func compareTimeKVS(a, b time.Time, op plan.ConditionType) bool {
 		return a.After(b)
 	case plan.CondLess:
 		return a.Before(b)
+	case plan.CondGreaterEq:
+		return !a.Before(b)
+	case plan.CondLessEq:
+		return !a.After(b)
 	default:
 		return false
 	}

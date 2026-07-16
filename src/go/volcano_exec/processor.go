@@ -116,23 +116,28 @@ func (p *Processor) Mode() Mode { return p.mode }
 // VectorWidth は現在のベクトル長を返す。
 func (p *Processor) VectorWidth() int { return p.vectorWidth }
 
+// newStep は演算子へ step 番号を採番する（葉→根で加算）。
+func (p *Processor) newStep() int {
+	p.nextStep++
+	return p.nextStep
+}
+
 // Run は plan ツリーを pull 実行し、最終結果行を返す。
+// 現行 IR の root は tail 演算子（Return/Limit/Sort/Aggregate/Projection/StorePushdown）。
 func (p *Processor) Run(op plan.PlanNode) ([]map[string]interface{}, error) {
 	if op == nil {
 		return nil, fmt.Errorf("nil plan node")
 	}
-	switch o := op.(type) {
-	case *plan.Projection:
-		child, err := p.build(o.Input)
+	switch op.(type) {
+	case *plan.StorePushdown, *plan.Projection, *plan.Aggregate, *plan.Sort, *plan.Limit, *plan.Return:
+		rows, err := p.runRow(op)
 		if err != nil {
 			return nil, err
 		}
-		if err := child.Open(p.ctx); err != nil {
-			return nil, err
-		}
-		defer child.Close(p.ctx)
-		return p.runProjection(o, child)
+		p.results = rows
+		return rows, nil
 	default:
+		// tail の無いプラン（補助経路）。
 		it, err := p.build(op)
 		if err != nil {
 			return nil, err

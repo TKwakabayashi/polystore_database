@@ -18,6 +18,10 @@ func sqlOp(t plan.ConditionType) string {
 		return ">"
 	case plan.CondLess:
 		return "<"
+	case plan.CondGreaterEq:
+		return ">="
+	case plan.CondLessEq:
+		return "<="
 	default:
 		return "="
 	}

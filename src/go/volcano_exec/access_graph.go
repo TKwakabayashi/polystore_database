@@ -29,6 +29,10 @@ func cypherOp(t plan.ConditionType) (string, error) {
 		return ">", nil
 	case plan.CondLess:
 		return "<", nil
+	case plan.CondGreaterEq:
+		return ">=", nil
+	case plan.CondLessEq:
+		return "<=", nil
 	default:
 		return "", fmt.Errorf("unknown operator")
 	}
