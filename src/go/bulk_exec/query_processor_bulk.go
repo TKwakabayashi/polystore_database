@@ -26,6 +26,8 @@ type Record struct {
 	Slots []string
 }
 
+type Row = map[string]interface{}
+
 type QueryProcessor struct {
 	results []map[string]interface{}
 	metrics map[int]Metrics
@@ -108,14 +110,21 @@ func (qp *QueryProcessor) StepMetrics() []Metrics {
 }
 
 // ProcessQueryBulk は plan ツリーを全件マテリアライズ実行し、最終結果行を返す。
+// tail（Projection/Aggregate/Sort/Limit/Return/StorePushdown）は row ストリームで、
+// record パイプライン（EntityScan/Filter/Expand）は []Record で実行する。
 func (qp *QueryProcessor) ProcessQueryBulk(op plan.PlanNode) ([]map[string]interface{}, error) {
 	counter := 0
-	_, err := ExecuteOperatorBulk(qp, op, &counter)
-	return qp.results, err
+	rows, err := executeRowBulk(qp, op, &counter)
+	if err != nil {
+		return nil, err
+	}
+	qp.results = rows
+	return qp.results, nil
 }
 
-// ExecuteOperatorBulk は上流（子）を先に全件実行してから自演算子を全件処理し、
-// 出力 []Record を返す。演算子ごとに step 番号（葉→根）・入出力件数・時間を記録する。
+// ExecuteOperatorBulk は record パイプライン（EntityScan/Filter/Expand/VarLengthExpand）を
+// 全件マテリアライズ実行する。上流（子）を先に全件実行してから自演算子を処理し、出力 []Record を
+// 返す。演算子ごとに step 番号（葉→根）・入出力件数・時間を記録する。
 func ExecuteOperatorBulk(qp *QueryProcessor, op plan.PlanNode, counter *int) ([]Record, error) {
 	if op == nil {
 		return nil, fmt.Errorf("Empty Operator Passed")
@@ -156,11 +165,8 @@ func ExecuteOperatorBulk(qp *QueryProcessor, op plan.PlanNode, counter *int) ([]
 	case *plan.Filter:
 		opType = "Filter"
 		output, err = filterByStore(qp, o, input)
-	case *plan.Projection:
-		opType = "Projection"
-		err = bulkProjection(qp, o, input)
 	default:
-		return nil, fmt.Errorf("Unknown operator: %T", op)
+		return nil, fmt.Errorf("unexpected record operator: %T", op)
 	}
 	duration := time.Since(start)
 	if err != nil {
@@ -168,9 +174,6 @@ func ExecuteOperatorBulk(qp *QueryProcessor, op plan.PlanNode, counter *int) ([]
 	}
 
 	rowCount := len(output)
-	if opType == "Projection" {
-		rowCount = len(qp.results)
-	}
 	qp.metrics[currentStep] = Metrics{
 		StepNum:  currentStep,
 		OpType:   opType,
