@@ -1,0 +1,197 @@
+package stream
+
+import (
+	"fmt"
+	"polystore_database/src/go/plan"
+	"strings"
+
+	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
+)
+
+type PathResult struct {
+	OriginID string   // 探索開始ノードのUUID
+	TargetID string   // 到着ノードのUUID
+	RelIDs   []string // パス上の関係IDリスト
+	NodeIDs  []string // パス上のノードUUIDリスト（ターゲット含む）
+	HopLen   int
+}
+
+type VarPathResult struct {
+	TargetID string
+	// RelIDs   []string // 必要に応じて保持
+}
+
+func ExpandGraphStream(qp *QueryProcessor, o *plan.Expand, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
+	srcIdx := o.InputSlot.VarToSlot[o.SourceEntity]
+	relIdxOut, hasRel := o.OutputSlot.VarToSlot[o.Alias]
+	tgtIdxOut, hasTarget := o.OutputSlot.VarToSlot[o.TargetEntity]
+	newSlotCount := len(o.OutputSlot.VarToSlot)
+
+	returns := "src.uuid AS sid"
+	if hasRel {
+		returns += fmt.Sprintf(", %s.uuid AS rid", o.Alias)
+	}
+	if hasTarget {
+		returns += ", tgt.uuid AS tid"
+	}
+
+	relConstraint := ""
+	if o.RelLabel != "" {
+		relConstraint = ":" + o.RelLabel
+	}
+	tgtConstraint := ""
+	if len(o.TargetLabels) > 0 {
+		tgtConstraint = ":" + strings.Join(o.TargetLabels, "|:")
+	}
+	relDef := fmt.Sprintf("[%s%s]", o.Alias, relConstraint)
+	var pattern string
+	switch o.Dir {
+	case plan.Outgoing:
+		pattern = fmt.Sprintf("(src:Entity)-%s->(tgt%s)", relDef, tgtConstraint)
+	case plan.Incoming:
+		pattern = fmt.Sprintf("(src:Entity)<-%s-(tgt%s)", relDef, tgtConstraint)
+	case plan.Bidirectional:
+		pattern = fmt.Sprintf("(src:Entity)-%s-(tgt%s)", relDef, tgtConstraint)
+	default:
+		pattern = fmt.Sprintf("(src:Entity)-%s->(tgt%s)", relDef, tgtConstraint)
+	}
+	finalQuery := fmt.Sprintf("MATCH %s WHERE src.uuid IN $ids RETURN %s", pattern, returns)
+
+	return runBatches(
+		qp.ctx, qp.exec, qp.sem, OpExpand, inputStream, outputStream,
+		qp.newReadSession, qp.closeSession,
+		func(sess neo4j.SessionWithContext, batch []Record) ([]Record, error) {
+			srcIds := make([]string, 0, len(batch))
+			recordMap := make(map[string][]Record)
+			for _, r := range batch {
+				id := r.Slots[srcIdx]
+				if _, exists := recordMap[id]; !exists {
+					srcIds = append(srcIds, id)
+				}
+				recordMap[id] = append(recordMap[id], r)
+			}
+
+			res, err := sess.Run(qp.ctx, finalQuery, map[string]interface{}{"ids": srcIds})
+			if err != nil {
+				return nil, err
+			}
+
+			out := make([]Record, 0, len(batch))
+			for res.Next(qp.ctx) {
+				dbRec := res.Record()
+				sidStr := dbRec.Values[0].(string)
+				for _, originalRec := range recordMap[sidStr] {
+					newSlots := make([]string, newSlotCount)
+					for alias, outIdx := range o.OutputSlot.VarToSlot {
+						if inIdx, exists := o.InputSlot.VarToSlot[alias]; exists {
+							newSlots[outIdx] = originalRec.Slots[inIdx]
+						}
+					}
+					if hasRel {
+						if rid, ok := dbRec.Get("rid"); ok && rid != nil {
+							newSlots[relIdxOut] = rid.(string)
+						}
+					}
+					if hasTarget {
+						if tid, ok := dbRec.Get("tid"); ok && tid != nil {
+							newSlots[tgtIdxOut] = tid.(string)
+						}
+					}
+					out = append(out, Record{Slots: newSlots})
+				}
+			}
+			return out, res.Err()
+		},
+	)
+}
+
+func streamVarLengthExpand(qp *QueryProcessor, o *plan.VarLengthExpand, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
+	srcIdxIn := o.InputSlot.VarToSlot[o.SourceEntity]
+	tgtIdxOut, hasTarget := o.OutputSlot.VarToSlot[o.TargetEntity]
+	newSlotCount := len(o.OutputSlot.VarToSlot)
+
+	relLabel := ""
+	if o.RelLabel != "" {
+		relLabel = ":" + o.RelLabel
+	}
+	relContent := fmt.Sprintf("[%s%s*%d..%d]", o.Alias, relLabel, o.MinHops, o.MaxHops)
+	var relPattern string
+	switch o.Dir {
+	case plan.Incoming:
+		relPattern = fmt.Sprintf("<-%s-", relContent)
+	case plan.Bidirectional:
+		relPattern = fmt.Sprintf("-%s-", relContent)
+	default:
+		relPattern = fmt.Sprintf("-%s->", relContent)
+	}
+	tgtConstraint := ""
+	if len(o.TargetLabels) > 0 {
+		tgtConstraint = ":" + strings.Join(o.TargetLabels, "|:")
+	}
+	finalQuery := fmt.Sprintf(`
+		MATCH (src:Entity)%s(tgt%s) 
+		WHERE src.uuid IN $ids 
+		RETURN DISTINCT src.uuid AS sid, tgt.uuid AS tid`,
+		relPattern, tgtConstraint,
+	)
+
+	return runBatches(
+		qp.ctx, qp.exec, qp.sem, OpVarLengthExpand, inputStream, outputStream,
+		qp.newReadSession, qp.closeSession,
+		func(sess neo4j.SessionWithContext, batch []Record) ([]Record, error) {
+			srcIds := make([]string, 0, len(batch))
+			recordMap := make(map[string][]Record)
+			for _, r := range batch {
+				id := r.Slots[srcIdxIn]
+				if _, exists := recordMap[id]; !exists {
+					srcIds = append(srcIds, id)
+				}
+				recordMap[id] = append(recordMap[id], r)
+			}
+
+			res, err := sess.Run(qp.ctx, finalQuery, map[string]interface{}{"ids": srcIds})
+			if err != nil {
+				return nil, err
+			}
+
+			out := make([]Record, 0, len(batch))
+			reachedSids := make(map[string]struct{})
+			carry := func(originalRec Record, targetID string) {
+				newSlots := make([]string, newSlotCount)
+				for alias, outIdx := range o.OutputSlot.VarToSlot {
+					if inIdx, exists := o.InputSlot.VarToSlot[alias]; exists {
+						newSlots[outIdx] = originalRec.Slots[inIdx]
+					}
+				}
+				if hasTarget {
+					newSlots[tgtIdxOut] = targetID
+				}
+				out = append(out, Record{Slots: newSlots})
+			}
+
+			for res.Next(qp.ctx) {
+				rec := res.Record()
+				sid := rec.Values[0].(string)
+				tid := rec.Values[1].(string)
+				reachedSids[sid] = struct{}{}
+				for _, originalRec := range recordMap[sid] {
+					carry(originalRec, tid)
+				}
+			}
+
+			// 0ホップ（自分自身）
+			if o.MinHops == 0 {
+				for _, sid := range srcIds {
+					if _, ok := reachedSids[sid]; ok {
+						continue
+					}
+					for _, originalRec := range recordMap[sid] {
+						carry(originalRec, sid)
+					}
+				}
+			}
+
+			return out, res.Err()
+		},
+	)
+}

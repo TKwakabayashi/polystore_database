@@ -24,3 +24,6 @@ bench_results.csv
 src/go/bench_results.csv
 bench_results_wide.csv
 src/go/bench_results_wide.csv
+
+# generated outputs (bench CSV / pprof / trace / baseline) — kept local, not tracked
+results/
