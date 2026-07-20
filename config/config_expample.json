@@ -1,5 +1,5 @@
 {
-  "mapping_path": "../catalog/mapping.json",
+  "mapping_path": "../../catalog/mapping.json",
   "neo4j": {
     "uri": "",
     "user": "",
@@ -10,7 +10,7 @@
     "dbname": ""
   },
   "leveldb": {
-    "path": "../datastore/runtime/polystore_kvs"
+    "path": "../../datastore/runtime/polystore_kvs"
   },
   "mysql": {
     "dsn": ""
