@@ -2,26 +2,17 @@ package planner
 
 import (
 	"polystore_database/src/go/plan"
+	"polystore_database/src/go/settings"
 )
 
-// PushdownMode は集約 pushdown の方針。ソース上で SelectedPushdown を書き換えて切替える。
-type PushdownMode int
-
-const (
-	PushdownAuto        PushdownMode = iota // 単一ストアに解決できれば委譲、散在ならエンジン
-	PushdownForceEngine                     // 常にコーディネータ（自作エンジン）
-)
-
-// ★ ここを書き換えて pushdown 方針を切替える（実験用）。
-// ベンチマーク等から実行時に上書きも可能（var）。
-var SelectedPushdown = PushdownAuto
+// pushdown 方針は settings.Pushdown で切り替える（型・定数も settings に集約）。
 
 // MaybePushdown は、集約クエリの参照プロパティが単一ストアに解決できる場合に
 // そのストアへ委譲する StorePushdown を返す。できなければ既存のコーディネータ木を返す。
 //   - 判定はマッピング依存なので、migrate でプロパティ配置を変えると自動でフォールバックへ切替わる。
 //   - 集約が無いクエリは対象外（baseline 比較のため既存挙動を維持）。
 func (l *QueryPlannerListener) MaybePushdown(query string, params map[string]string) plan.PlanNode {
-	if SelectedPushdown == PushdownForceEngine {
+	if settings.Pushdown == settings.PushdownForceEngine {
 		return l.planRoot
 	}
 

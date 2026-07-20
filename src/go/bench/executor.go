@@ -3,36 +3,29 @@ package bench
 import (
 	"context"
 	"fmt"
-	"os"
 	executor "polystore_database/src/go/engine/stream"
 	planner "polystore_database/src/go/planner"
+	"polystore_database/src/go/profile"
+	"polystore_database/src/go/settings"
 	"polystore_database/src/go/storage"
-	"runtime"
-	"runtime/pprof"
 	"strconv"
 	"time"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
-// ベンチ計測の回数（マクロ定数。手動で切り替え）。
-//   - Warmup: 計測から除外する先頭ウォームアップ回数（キャッシュ/JIT 等の暖機）
-//   - Trials: Warmup の後に実行し、平均を取る計測回数
-const (
-	Warmup = 3
-	Trials = 10
-)
+// 計測回数は settings.Warmup / settings.Trials で切り替える。
 
 // average は exec を Warmup 回（結果は破棄）→ Trials 回 実行し、
 // 後半 Trials 回の TotalLatency（と Steps）を平均した ExecResult を返す。
 // Rows は最後の試行のものを保持する（件数は試行間で一定の前提）。
 func average(exec func() (ExecResult, error)) (ExecResult, error) {
-	if Trials <= 0 {
+	if settings.Trials <= 0 {
 		return ExecResult{}, fmt.Errorf("Trials must be >= 1")
 	}
 
 	// ウォームアップ（計測に含めない）
-	for i := 0; i < Warmup; i++ {
+	for i := 0; i < settings.Warmup; i++ {
 		if _, err := exec(); err != nil {
 			return ExecResult{}, err
 		}
@@ -46,7 +39,7 @@ func average(exec func() (ExecResult, error)) (ExecResult, error) {
 		stepRows   []int
 	)
 
-	for i := 0; i < Trials; i++ {
+	for i := 0; i < settings.Trials; i++ {
 		r, err := exec()
 		if err != nil {
 			return ExecResult{}, err
@@ -73,14 +66,14 @@ func average(exec func() (ExecResult, error)) (ExecResult, error) {
 
 	avg := ExecResult{
 		Rows:         last.Rows,
-		TotalLatency: sumLatency / time.Duration(Trials),
+		TotalLatency: sumLatency / time.Duration(settings.Trials),
 	}
 	if sumSteps != nil {
 		avg.Steps = make([]StepMetric, len(sumSteps))
 		for j := range sumSteps {
 			avg.Steps[j] = StepMetric{
 				Name:     stepNames[j],
-				Duration: sumSteps[j] / time.Duration(Trials),
+				Duration: sumSteps[j] / time.Duration(settings.Trials),
 				Rows:     stepRows[j],
 			}
 		}
@@ -123,10 +116,6 @@ func RunNeo4j(ctx context.Context, cfg storage.Neo4jConfig, cypher string, param
 	})
 }
 
-// ProfileCustomRun が true のとき RunCustom は pprof（cpu/heap/block/mutex）を採取する。
-// ベンチマークなど多数回実行では block/mutex プロファイルの overhead が計測を歪めるため false にする。
-var ProfileCustomRun = true
-
 // RunCustom は自作システムで parse＋ストリーム実行する。Trials 回の平均。
 func RunCustom(ctx context.Context, cfg storage.Config, cypher string, params map[string]string) (ExecResult, error) {
 	qp, err := executor.NewQueryProcessorWithConfig(ctx, cfg)
@@ -135,28 +124,10 @@ func RunCustom(ctx context.Context, cfg storage.Config, cypher string, params ma
 	}
 	defer qp.Close()
 
-	// --- プロファイル（接続確立後・計測対象だけを囲む）。ベンチ時は無効化。---
-	if ProfileCustomRun {
-		fcpu, _ := os.Create("cpu.prof")
-		pprof.StartCPUProfile(fcpu)
-		runtime.SetBlockProfileRate(1) // 1ns = 全ブロックイベント記録
-		runtime.SetMutexProfileFraction(1)
-		defer func() {
-			pprof.StopCPUProfile()
-			fcpu.Close()
+	// プロファイル（接続確立後・計測対象だけを囲む）。ScopeEngine が有効なときだけ採取。
+	// bench 実行系は ScopeEngine を一時的に無効化するので、この場合 no-op になる。
+	defer profile.Start(settings.ScopeEngine, "custom").Stop()
 
-			dump := func(name string) {
-				f, _ := os.Create(name + ".prof")
-				defer f.Close()
-				pprof.Lookup(name).WriteTo(f, 0)
-			}
-			runtime.GC() // heap のライブ集合を正確に
-			dump("heap")
-			dump("allocs")
-			dump("block")
-			dump("mutex")
-		}()
-	}
 	return average(func() (ExecResult, error) {
 		qp.Reset() // 試行ごとに中間状態をクリア
 

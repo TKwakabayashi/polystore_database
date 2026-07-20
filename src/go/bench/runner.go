@@ -6,33 +6,12 @@ import (
 	"log"
 
 	"polystore_database/src/go/migrator"
+	"polystore_database/src/go/settings"
 	"polystore_database/src/go/storage"
 	"polystore_database/src/go/workload"
 )
 
-// 出力形式（手動で切り替え）
-type OutputFormat string
-
-const (
-	FormatRows   OutputFormat = "rows"   // 結果を1件ずつ
-	FormatTiming OutputFormat = "timing" // 全体実行時間+件数
-	FormatDetail OutputFormat = "detail" // 演算子ごとの時間・中間件数（bulk用）
-)
-
-// 実行対象（手動で切り替え）
-type Target string
-
-const (
-	TargetCustom Target = "custom" // 自作システムのみ
-	TargetNeo4j  Target = "neo4j"  // Neo4j のみ
-	TargetBoth   Target = "both"   // 両方（比較）
-)
-
-// ★ ここを書き換えて 出力形式 / 実行対象 を切り替える
-const (
-	SelectedFormat = FormatTiming
-	SelectedTarget = TargetCustom
-)
+// 出力形式・実行対象は settings.Format / settings.RunTarget で切り替える（型・定数も settings）。
 
 // RunWorkloadByName は名前でワークロードを引き、data_setup 後に実行して出力する。
 func RunWorkloadByName(ctx context.Context, name string, cfg storage.Config) {
@@ -47,7 +26,7 @@ func RunWorkloadByName(ctx context.Context, name string, cfg storage.Config) {
 	// 注意: ここでは data_setup を呼ばない（呼ぶと他4ストアが初期化され、
 	// 直前に移行したデータが消えてしまう）。ベースライン初期化は `-mode setup` で明示的に行う。
 
-	if SelectedTarget == TargetCustom || SelectedTarget == TargetBoth {
+	if settings.RunTarget == settings.TargetCustom || settings.RunTarget == settings.TargetBoth {
 		r, err := RunCustom(ctx, cfg, cypher, params)
 		if err != nil {
 			log.Fatalf("%v", err)
@@ -55,7 +34,7 @@ func RunWorkloadByName(ctx context.Context, name string, cfg storage.Config) {
 		output("Custom System", r)
 	}
 
-	if SelectedTarget == TargetNeo4j || SelectedTarget == TargetBoth {
+	if settings.RunTarget == settings.TargetNeo4j || settings.RunTarget == settings.TargetBoth {
 		if cfg.Neo4j == nil {
 			log.Printf("Neo4j 設定が無いためスキップ")
 		} else if r, err := RunNeo4j(ctx, *cfg.Neo4j, cypher, toValuedParams(params)); err != nil {
@@ -98,12 +77,12 @@ func RunWorkflow(ctx context.Context, name string, cfg storage.Config, cypher st
 	}
 }
 
-// output は SelectedFormat に従って結果を出力する（既存/自作の両方に適用）。
+// output は settings.Format に従って結果を出力する（既存/自作の両方に適用）。
 func output(title string, r ExecResult) {
-	switch SelectedFormat {
-	case FormatTiming:
+	switch settings.Format {
+	case settings.FormatTiming:
 		PrintTiming(title, r)
-	case FormatDetail:
+	case settings.FormatDetail:
 		PrintTiming(title, r)
 		PrintDetail(title, r)
 	default: // FormatRows

@@ -5,13 +5,14 @@ import (
 	"encoding/csv"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
 	bulk "polystore_database/src/go/engine/bulk"
 	volcano "polystore_database/src/go/engine/volcano"
 	"polystore_database/src/go/migrator"
-	planner "polystore_database/src/go/planner"
+	"polystore_database/src/go/settings"
 	"polystore_database/src/go/storage"
 	"polystore_database/src/go/workload"
 )
@@ -37,20 +38,24 @@ var modelOrder = []string{"stream", "bulk", "volcano", "vectorized"}
 //   - bulk/volcano/vectorized は Warmup 回を捨ててから Trials 回の平均を測る。
 //   - pushdown は engine に固定（Q9 等の非集約クエリでは元々 no-op だが明示）。
 //   - pprof（block/mutex 記録）は計測歪みを避けるため無効化。
-func RunModelBenchmark(ctx context.Context, cfg storage.Config, workloads, placements, models []string, vectorSize int, out string) (err error) {
+func RunModelBenchmark(ctx context.Context, cfg storage.Config, workloads []string, out string) (err error) {
+	// 配置・実行モデル・ベクトル長は settings から取得（旧 -placements/-models/-vector フラグ）。
+	placements := settings.BenchPlacements
+	models := settings.BenchModels
+	vectorSize := settings.VectorSize
 	if vectorSize < 1 {
 		vectorSize = 1
 	}
 
-	// pprof の block/mutex 記録は計測を歪めるため無効化。
-	prevProfile := ProfileCustomRun
-	ProfileCustomRun = false
-	defer func() { ProfileCustomRun = prevProfile }()
+	// pprof の block/mutex 記録は計測を歪めるため、bench 中は engine スコープを無効化。
+	prevProfile := settings.ProfileScopes[settings.ScopeEngine]
+	settings.ProfileScopes[settings.ScopeEngine] = false
+	defer func() { settings.ProfileScopes[settings.ScopeEngine] = prevProfile }()
 
 	// pushdown は engine に固定（非集約クエリでは no-op だが実験の再現性のため明示）。
-	prevPushdown := planner.SelectedPushdown
-	planner.SelectedPushdown = planner.PushdownForceEngine
-	defer func() { planner.SelectedPushdown = prevPushdown }()
+	prevPushdown := settings.Pushdown
+	settings.Pushdown = settings.PushdownForceEngine
+	defer func() { settings.Pushdown = prevPushdown }()
 
 	// mapping スナップショット（graph 状態）。各 placement 後と実験終了時に復元する。
 	snapshot, rerr := os.ReadFile(cfg.MappingPath)
@@ -153,36 +158,36 @@ func runModelOnce(ctx context.Context, cfg storage.Config, model, cypher string,
 		return r.RowCount(), toMs(r), nil
 
 	case "bulk":
-		if Warmup > 0 {
-			if _, err := bulk.RunBulk(ctx, cfg, cypher, params, Warmup); err != nil {
+		if settings.Warmup > 0 {
+			if _, err := bulk.RunBulk(ctx, cfg, cypher, params, settings.Warmup); err != nil {
 				return 0, 0, err
 			}
 		}
-		r, err := bulk.RunBulk(ctx, cfg, cypher, params, Trials)
+		r, err := bulk.RunBulk(ctx, cfg, cypher, params, settings.Trials)
 		if err != nil {
 			return 0, 0, err
 		}
 		return r.RowCount(), durToMs(r.Latency), nil
 
 	case "volcano":
-		if Warmup > 0 {
-			if _, err := volcano.RunVolcano(ctx, cfg, cypher, params, Warmup); err != nil {
+		if settings.Warmup > 0 {
+			if _, err := volcano.RunVolcano(ctx, cfg, cypher, params, settings.Warmup); err != nil {
 				return 0, 0, err
 			}
 		}
-		r, err := volcano.RunVolcano(ctx, cfg, cypher, params, Trials)
+		r, err := volcano.RunVolcano(ctx, cfg, cypher, params, settings.Trials)
 		if err != nil {
 			return 0, 0, err
 		}
 		return r.RowCount(), durToMs(r.Latency), nil
 
 	case "vectorized":
-		if Warmup > 0 {
-			if _, err := volcano.RunVectorized(ctx, cfg, cypher, params, vectorSize, Warmup); err != nil {
+		if settings.Warmup > 0 {
+			if _, err := volcano.RunVectorized(ctx, cfg, cypher, params, vectorSize, settings.Warmup); err != nil {
 				return 0, 0, err
 			}
 		}
-		r, err := volcano.RunVectorized(ctx, cfg, cypher, params, vectorSize, Trials)
+		r, err := volcano.RunVectorized(ctx, cfg, cypher, params, vectorSize, settings.Trials)
 		if err != nil {
 			return 0, 0, err
 		}
@@ -195,6 +200,9 @@ func runModelOnce(ctx context.Context, cfg storage.Config, model, cypher string,
 
 // openModelCSV は追記モードで開き、新規ファイルなら long 形式のヘッダを書く。
 func openModelCSV(path string) (*csv.Writer, func(), error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return nil, nil, fmt.Errorf("出力ディレクトリ作成失敗: %w", err)
+	}
 	needHeader := false
 	if fi, err := os.Stat(path); err != nil || fi.Size() == 0 {
 		needHeader = true

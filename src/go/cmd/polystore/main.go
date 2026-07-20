@@ -8,23 +8,22 @@ import (
 
 	bench "polystore_database/src/go/bench"
 	"polystore_database/src/go/migrator"
+	"polystore_database/src/go/settings"
 	"polystore_database/src/go/setup"
 	"polystore_database/src/go/storage"
 	workloads "polystore_database/src/go/workload"
 )
 
+// CLI は「何を実行するか」だけを受け取る。実行モデル・pushdown 方針・配置/実行モデルの
+// スイープ軸・ベクトル長・ソース削除・出力形式・プロファイル等の「内部挙動」は settings
+// パッケージ（編集→再ビルド）で切り替える。
 func main() {
 	var (
 		mode       = flag.String("mode", "run", "実行モード: setup | migrate | run | workflow | verify-migrate | bench | bench-models")
 		workload   = flag.String("workload", "Q11", "ワークロード名（bench はカンマ区切り複数 or all）")
 		configPath = flag.String("config", "../../config/config.json", "設定ファイル(JSON)")
 		migMode    = flag.String("migmode", "graph_to_rdb", "移行モード（a_to_b）: migrate / workflow / verify-migrate で使用")
-		deleteSrc  = flag.Bool("delete", true, "移行成功後にソース側の該当データを削除する（migrate / workflow）")
-		outPath    = flag.String("out", "bench_results.csv", "bench: 結果CSVの出力先（追記）")
-		placements = flag.String("placements", "graph", "bench: データ配置（カンマ区切り）graph,rdb,doc,col,kvs")
-		pushdowns  = flag.String("pushdowns", "auto,engine", "bench: pushdown方針（カンマ区切り）auto,engine")
-		models     = flag.String("models", "stream,bulk,volcano,vectorized", "bench-models: 実行モデル（カンマ区切り）stream,bulk,volcano,vectorized")
-		vectorSize = flag.Int("vector", 1024, "bench-models: vectorized モードのベクトル長")
+		outPath    = flag.String("out", "../../results/bench/bench_results.csv", "bench: 結果CSVの出力先（追記）")
 	)
 	flag.Parse()
 
@@ -34,19 +33,6 @@ func main() {
 	}
 	ctx := context.Background()
 
-	/*
-		f, err := os.Create("trace.out")
-		if err != nil {
-			log.Fatalf("failed to create trace file: %v", err)
-		}
-		defer f.Close()
-
-		// 2. トレースの開始
-		if err := trace.Start(f); err != nil {
-			log.Fatalf("failed to start trace: %v", err)
-		}
-		defer trace.Stop() // プログラム終了時に必ず止める
-	*/
 	switch *mode {
 	case "setup":
 		// Neo4j 整備＋他4ストア初期化（最初に1回）
@@ -61,7 +47,7 @@ func main() {
 		_, _, migs := def(mode, true)
 		for i := range migs {
 			migs[i].Mode = mode // def が Mode 未設定の定義(IS4等)でも確実に効かせる
-			migs[i].DeleteSource = *deleteSrc
+			migs[i].DeleteSource = settings.MigrationDeleteSource
 		}
 		res, err := bench.RunMigration(ctx, cfg, migs)
 		if err != nil {
@@ -76,7 +62,7 @@ func main() {
 		cypher, params, migs := def(mode, true)
 		for i := range migs {
 			migs[i].Mode = mode
-			migs[i].DeleteSource = *deleteSrc
+			migs[i].DeleteSource = settings.MigrationDeleteSource
 		}
 		bench.RunWorkflow(ctx, *workload, cfg, cypher, params, migs)
 
@@ -90,24 +76,24 @@ func main() {
 		if *workload != "all" && *workload != "" {
 			wls = splitCSV(*workload)
 		}
-		if err := bench.RunBenchmark(ctx, cfg, wls, splitCSV(*placements), splitCSV(*pushdowns), *outPath); err != nil {
+		if err := bench.RunBenchmark(ctx, cfg, wls, *outPath); err != nil {
 			log.Fatalf("bench に失敗: %v", err)
 		}
 
 	case "bench-models":
 		// baseline(Neo4j直) と placement×実行モデルの自作システムを計測し long 形式 CSV へ追記。
-		// 例: -mode bench-models -workload Q9 -placements graph,rdb,doc,col,kvs
-		//     -models stream,bulk,volcano,vectorized -vector 1024 -out q9_models.csv
+		// 配置/実行モデル/ベクトル長は settings.BenchPlacements / BenchModels / VectorSize で切替。
+		// 例: -mode bench-models -workload Q9 -out ../../results/bench/q9_models.csv
 		wls := workloads.AllWorkloadNames()
 		if *workload != "all" && *workload != "" {
 			wls = splitCSV(*workload)
 		}
-		if err := bench.RunModelBenchmark(ctx, cfg, wls, splitCSV(*placements), splitCSV(*models), *vectorSize, *outPath); err != nil {
+		if err := bench.RunModelBenchmark(ctx, cfg, wls, *outPath); err != nil {
 			log.Fatalf("bench-models に失敗: %v", err)
 		}
 
 	default: // "run"
-		// クエリ実行のみ（SelectedTarget/SelectedFormat に従う）
+		// クエリ実行のみ（settings.RunTarget / settings.Format に従う）
 		bench.RunWorkloadByName(ctx, *workload, cfg)
 	}
 }

@@ -5,11 +5,12 @@ import (
 	"encoding/csv"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
 	"polystore_database/src/go/migrator"
-	planner "polystore_database/src/go/planner"
+	"polystore_database/src/go/settings"
 	"polystore_database/src/go/storage"
 	"polystore_database/src/go/workload"
 )
@@ -25,10 +26,10 @@ var placementToMode = map[string]migrator.MigrationMode{
 	"kvs": migrator.ModeGraphToKvs,
 }
 
-// pushdown モード名 → planner.PushdownMode。
-var pushdownModeMap = map[string]planner.PushdownMode{
-	"auto":   planner.PushdownAuto,
-	"engine": planner.PushdownForceEngine,
+// pushdown モード名 → settings.PushdownMode。
+var pushdownModeMap = map[string]settings.PushdownMode{
+	"auto":   settings.PushdownAuto,
+	"engine": settings.PushdownForceEngine,
 }
 
 // wide 表のカラム順（各配置での自作システムのレイテンシ）。
@@ -47,14 +48,18 @@ type latKey struct{ pd, place string }
 // 非graph placement では該当プロパティを対象ストアへ「コピー」(DeleteSource=false) し、
 // mapping を更新してから計測する。計測後は mapping を graph へ戻す（データは graph に保持）。
 // 実験終了時（異常時含む）は必ず mapping を graph 状態へ復元する＝最終的に Neo4j へ戻す。
-func RunBenchmark(ctx context.Context, cfg storage.Config, workloads, placements, pushdowns []string, outPath string) error {
-	// pprof の block/mutex 記録は計測を歪めるため無効化。
-	prevProfile := ProfileCustomRun
-	ProfileCustomRun = false
-	defer func() { ProfileCustomRun = prevProfile }()
+func RunBenchmark(ctx context.Context, cfg storage.Config, workloads []string, outPath string) error {
+	// 配置・pushdown のスイープ軸は settings から取得（旧 -placements/-pushdowns フラグ）。
+	placements := settings.BenchPlacements
+	pushdowns := settings.BenchPushdowns
 
-	prevPushdown := planner.SelectedPushdown
-	defer func() { planner.SelectedPushdown = prevPushdown }()
+	// pprof の block/mutex 記録は計測を歪めるため、bench 中は engine スコープを無効化。
+	prevProfile := settings.ProfileScopes[settings.ScopeEngine]
+	settings.ProfileScopes[settings.ScopeEngine] = false
+	defer func() { settings.ProfileScopes[settings.ScopeEngine] = prevProfile }()
+
+	prevPushdown := settings.Pushdown
+	defer func() { settings.Pushdown = prevPushdown }()
 
 	// mapping スナップショット（graph 状態）。各 placement 後と実験終了時に復元する。
 	snapshot, err := os.ReadFile(cfg.MappingPath)
@@ -126,7 +131,7 @@ func RunBenchmark(ctx context.Context, cfg storage.Config, workloads, placements
 					fmt.Printf("[%s] 未知の pushdown %q（auto/engine）\n", name, pd)
 					continue
 				}
-				planner.SelectedPushdown = pm
+				settings.Pushdown = pm
 				r, err := RunCustom(ctx, cfg, cypher, params)
 				if err != nil {
 					fmt.Printf("[%s|%s|%s] custom エラー: %v\n", name, place, pd, err)
@@ -162,6 +167,9 @@ func RunBenchmark(ctx context.Context, cfg storage.Config, workloads, placements
 
 // openBenchCSV は追記モードで開き、新規ファイルならワイド表のヘッダを書く。
 func openBenchCSV(path string) (*csv.Writer, func(), error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return nil, nil, fmt.Errorf("出力ディレクトリ作成失敗: %w", err)
+	}
 	needHeader := false
 	if fi, err := os.Stat(path); err != nil || fi.Size() == 0 {
 		needHeader = true
