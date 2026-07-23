@@ -2,72 +2,56 @@ package bulk
 
 import (
 	"context"
-	"fmt"
 	"time"
 
-	planner "polystore_database/src/go/planner"
+	"polystore_database/src/go/engine"
+	"polystore_database/src/go/engine/core"
+	"polystore_database/src/go/plan"
+	"polystore_database/src/go/settings"
 	"polystore_database/src/go/storage"
 )
 
-// Result は 1 クエリ実行の結果と計測。
-type Result struct {
-	Rows    []map[string]interface{}
-	Latency time.Duration // Trials 平均
-	Steps   []Metrics     // 最終試行の演算子別計測
+func init() {
+	engine.Register(settings.EngineBulk, func() engine.Engine { return bulkEngine{} })
 }
 
-// RowCount は結果行数。
-func (r Result) RowCount() int { return len(r.Rows) }
+type bulkEngine struct{}
 
-// RunBulk は全件マテリアライズモデルで実行する（trials 回の平均）。
-func RunBulk(ctx context.Context, cfg storage.Config, cypher string, params map[string]string, trials int) (Result, error) {
-	if trials < 1 {
-		trials = 1
-	}
-	qp, err := NewProcessorWithConfig(ctx, cfg)
+func (bulkEngine) Name() string { return "bulk" }
+
+func (bulkEngine) Open(ctx context.Context, cfg storage.Config) (engine.Instance, error) {
+	p, err := NewProcessorWithConfig(ctx, cfg)
 	if err != nil {
-		return Result{}, err
+		return nil, err
 	}
-	defer qp.Close()
-
-	var (
-		sum  time.Duration
-		last Result
-	)
-	for i := 0; i < trials; i++ {
-		qp.Reset()
-		op, err := planner.ParseQuery(cypher, cfg.MappingPath, params)
-		if err != nil {
-			return Result{}, fmt.Errorf("プラン構築に失敗: %w", err)
-		}
-		start := time.Now()
-		rows, err := qp.ProcessQueryBulk(op)
-		elapsed := time.Since(start)
-		if err != nil {
-			return Result{}, fmt.Errorf("クエリ実行に失敗: %w", err)
-		}
-		sum += elapsed
-		last = Result{
-			Rows:    rows,
-			Latency: elapsed,
-			Steps:   qp.StepMetrics(),
-		}
-	}
-	last.Latency = sum / time.Duration(trials)
-	return last, nil
+	return &bulkInstance{p: p}, nil
 }
 
-// PrintResult は結果の要約を標準出力へ出す（演算子ごとに in/out/time）。
-func PrintResult(title string, r Result) {
-	fmt.Printf("[%s]\n", title)
-	fmt.Printf("  - モデル            : Bulk (全件マテリアライズ)\n")
-	fmt.Printf("  - 全体実行時間      : %v\n", r.Latency)
-	fmt.Printf("  - 最終結果数        : %d\n", r.RowCount())
-	if len(r.Steps) > 0 {
-		fmt.Println("  - 演算子別:")
-		for _, s := range r.Steps {
-			fmt.Printf("      %-16s in=%-8d out=%-8d time=%v\n", s.OpType, s.InRows, s.RowCount, s.Duration)
-		}
+type bulkInstance struct{ p *Processor }
+
+func (in *bulkInstance) Run(op plan.PlanNode) (core.Result, error) {
+	in.p.Reset()
+	start := time.Now()
+	rows, err := in.p.ProcessQueryBulk(op)
+	elapsed := time.Since(start)
+	if err != nil {
+		return core.Result{}, err
 	}
-	fmt.Println()
+	return core.Result{
+		Rows:     rows,
+		ExecTime: elapsed,
+		Steps:    toStepMetrics(in.p.StepMetrics()),
+		Engine:   "bulk",
+	}, nil
+}
+
+func (in *bulkInstance) Close() error { return in.p.Close() }
+
+// toStepMetrics は bulk.Metrics を core.StepMetric へ変換する。
+func toStepMetrics(ms []Metrics) []core.StepMetric {
+	out := make([]core.StepMetric, len(ms))
+	for i, m := range ms {
+		out[i] = core.StepMetric{Step: m.StepNum, Op: m.OpType, Duration: m.Duration, InRows: m.InRows, OutRows: m.RowCount}
+	}
+	return out
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 
+	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/migrator"
 	"polystore_database/src/go/settings"
 	"polystore_database/src/go/storage"
@@ -27,7 +28,7 @@ func RunWorkloadByName(ctx context.Context, name string, cfg storage.Config) {
 	// 直前に移行したデータが消えてしまう）。ベースライン初期化は `-mode setup` で明示的に行う。
 
 	if settings.RunTarget == settings.TargetCustom || settings.RunTarget == settings.TargetBoth {
-		r, err := RunCustom(ctx, cfg, cypher, params)
+		r, err := RunEngine(ctx, cfg, settings.Engine, cypher, params)
 		if err != nil {
 			log.Fatalf("%v", err)
 		}
@@ -70,7 +71,7 @@ func RunWorkflow(ctx context.Context, name string, cfg storage.Config, cypher st
 	}
 
 	// 3) 自作システムは移行後の配置で計測
-	if r, err := RunCustom(ctx, cfg, cypher, params); err != nil {
+	if r, err := RunEngine(ctx, cfg, settings.Engine, cypher, params); err != nil {
 		log.Printf("自作システム 実行エラー: %v", err)
 	} else {
 		output("Custom System", r)
@@ -78,7 +79,7 @@ func RunWorkflow(ctx context.Context, name string, cfg storage.Config, cypher st
 }
 
 // output は settings.Format に従って結果を出力する（既存/自作の両方に適用）。
-func output(title string, r ExecResult) {
+func output(title string, r core.Result) {
 	switch settings.Format {
 	case settings.FormatTiming:
 		PrintTiming(title, r)

@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/migrator"
 	"polystore_database/src/go/settings"
 	"polystore_database/src/go/storage"
@@ -132,7 +133,7 @@ func RunBenchmark(ctx context.Context, cfg storage.Config, workloads []string, o
 					continue
 				}
 				settings.Pushdown = pm
-				r, err := RunCustom(ctx, cfg, cypher, params)
+				r, err := RunEngine(ctx, cfg, settings.Engine, cypher, params)
 				if err != nil {
 					fmt.Printf("[%s|%s|%s] custom エラー: %v\n", name, place, pd, err)
 					continue
@@ -192,7 +193,7 @@ func openBenchCSV(path string) (*csv.Writer, func(), error) {
 }
 
 // toMs は ExecResult の平均レイテンシをミリ秒(float)に変換する。
-func toMs(r ExecResult) float64 { return float64(r.TotalLatency.Microseconds()) / 1000.0 }
+func toMs(r core.Result) float64 { return float64(r.TotalLatency().Microseconds()) / 1000.0 }
 
 // msCell は計測ありなら "%.3f"、無ければ空文字（欠測）を返す。
 func msCell(ok bool, ms float64) string {

@@ -3,102 +3,95 @@ package bench
 import (
 	"context"
 	"fmt"
-	executor "polystore_database/src/go/engine/stream"
+	"strconv"
+	"time"
+
+	"polystore_database/src/go/engine"
+	_ "polystore_database/src/go/engine/all" // 全エンジンの init() 登録を集約
+	"polystore_database/src/go/engine/core"
 	planner "polystore_database/src/go/planner"
 	"polystore_database/src/go/profile"
 	"polystore_database/src/go/settings"
 	"polystore_database/src/go/storage"
-	"strconv"
-	"time"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
-// 計測回数は settings.Warmup / settings.Trials で切り替える。
+// RunEngine は指定エンジンで cypher を実行する（Warmup 回捨て → Trials 回平均）。
+// 試行ごとに parse(PlanTime) と実行(ExecTime) を分離集計し、core.Result に格納する。
+//   - 旧 stream の TotalLatency（parse 込み）は TotalLatency()（＝PlanTime+ExecTime）に対応。
+//   - 旧 bulk/volcano の Latency（parse 除外）は ExecTime に対応。
+func RunEngine(ctx context.Context, cfg storage.Config, kind settings.EngineKind, cypher string, params map[string]string) (core.Result, error) {
+	eng, err := engine.New(kind)
+	if err != nil {
+		return core.Result{}, err
+	}
+	inst, err := eng.Open(ctx, cfg)
+	if err != nil {
+		return core.Result{}, fmt.Errorf("エンジン初期化に失敗（DB は全て起動済みですか？）: %w", err)
+	}
+	defer inst.Close()
 
-// average は exec を Warmup 回（結果は破棄）→ Trials 回 実行し、
-// 後半 Trials 回の TotalLatency（と Steps）を平均した ExecResult を返す。
-// Rows は最後の試行のものを保持する（件数は試行間で一定の前提）。
-func average(exec func() (ExecResult, error)) (ExecResult, error) {
+	// プロファイル（接続確立後・計測対象だけを囲む）。ScopeEngine 有効時のみ採取。
+	defer profile.Start(settings.ScopeEngine, string(kind)).Stop()
+
 	if settings.Trials <= 0 {
-		return ExecResult{}, fmt.Errorf("Trials must be >= 1")
+		return core.Result{}, fmt.Errorf("Trials must be >= 1")
 	}
 
 	// ウォームアップ（計測に含めない）
 	for i := 0; i < settings.Warmup; i++ {
-		if _, err := exec(); err != nil {
-			return ExecResult{}, err
+		op, perr := planner.ParseQuery(cypher, cfg.MappingPath, params)
+		if perr != nil {
+			return core.Result{}, fmt.Errorf("クエリのパース／プラン構築に失敗: %w", perr)
+		}
+		if _, rerr := inst.Run(op); rerr != nil {
+			return core.Result{}, fmt.Errorf("クエリ実行に失敗: %w", rerr)
 		}
 	}
 
-	var (
-		sumLatency time.Duration
-		last       ExecResult
-		sumSteps   []time.Duration // 演算子ごとの時間合計（bulk導入後に有効）
-		stepNames  []string
-		stepRows   []int
-	)
-
+	var sumPlan, sumExec time.Duration
+	var last core.Result
 	for i := 0; i < settings.Trials; i++ {
-		r, err := exec()
-		if err != nil {
-			return ExecResult{}, err
+		t0 := time.Now()
+		op, perr := planner.ParseQuery(cypher, cfg.MappingPath, params)
+		planT := time.Since(t0)
+		if perr != nil {
+			return core.Result{}, fmt.Errorf("クエリのパース／プラン構築に失敗: %w", perr)
 		}
-		sumLatency += r.TotalLatency
+		r, rerr := inst.Run(op)
+		if rerr != nil {
+			return core.Result{}, fmt.Errorf("クエリ実行に失敗: %w", rerr)
+		}
+		sumPlan += planT
+		sumExec += r.ExecTime
 		last = r
-
-		// Steps の集計（index 揃えで加算）
-		if len(r.Steps) > 0 {
-			if sumSteps == nil {
-				sumSteps = make([]time.Duration, len(r.Steps))
-				stepNames = make([]string, len(r.Steps))
-				stepRows = make([]int, len(r.Steps))
-			}
-			for j, st := range r.Steps {
-				if j < len(sumSteps) {
-					sumSteps[j] += st.Duration
-					stepNames[j] = st.Name
-					stepRows[j] = st.Rows
-				}
-			}
-		}
 	}
-
-	avg := ExecResult{
-		Rows:         last.Rows,
-		TotalLatency: sumLatency / time.Duration(settings.Trials),
-	}
-	if sumSteps != nil {
-		avg.Steps = make([]StepMetric, len(sumSteps))
-		for j := range sumSteps {
-			avg.Steps[j] = StepMetric{
-				Name:     stepNames[j],
-				Duration: sumSteps[j] / time.Duration(settings.Trials),
-				Rows:     stepRows[j],
-			}
-		}
-	}
-	return avg, nil
+	last.PlanTime = sumPlan / time.Duration(settings.Trials)
+	last.ExecTime = sumExec / time.Duration(settings.Trials)
+	return last, nil
 }
 
 // RunNeo4j は Cypher を Neo4j へ直接実行する（既存システムのベースライン）。Trials 回の平均。
-func RunNeo4j(ctx context.Context, cfg storage.Neo4jConfig, cypher string, params map[string]interface{}) (ExecResult, error) {
+func RunNeo4j(ctx context.Context, cfg storage.Neo4jConfig, cypher string, params map[string]interface{}) (core.Result, error) {
 	driver, err := neo4j.NewDriverWithContext(cfg.URI, neo4j.BasicAuth(cfg.User, cfg.Password, ""))
 	if err != nil {
-		return ExecResult{}, err
+		return core.Result{}, err
 	}
 	defer driver.Close(ctx)
 
 	session := driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead})
 	defer session.Close(ctx)
-	// cypher = "CYPHER runtime=parallel\n" + cypher
-	return average(func() (ExecResult, error) {
+
+	if settings.Trials <= 0 {
+		return core.Result{}, fmt.Errorf("Trials must be >= 1")
+	}
+	one := func() (core.Result, error) {
 		start := time.Now()
 		// pushdown 経路（runGraphPushdown）と同じオートコミット session.Run に揃える。
-		// 管理トランザクション(ExecuteRead)のオーバーヘッドを両者から除き、公平に比較する。
 		res, err := session.Run(ctx, cypher, params)
 		if err != nil {
-			return ExecResult{}, err
+			return core.Result{}, err
 		}
 		var rows []map[string]interface{}
 		for res.Next(ctx) {
@@ -110,40 +103,27 @@ func RunNeo4j(ctx context.Context, cfg storage.Neo4jConfig, cypher string, param
 			rows = append(rows, row)
 		}
 		if err := res.Err(); err != nil {
-			return ExecResult{}, err
+			return core.Result{}, err
 		}
-		return ExecResult{Rows: rows, TotalLatency: time.Since(start)}, nil
-	})
-}
-
-// RunCustom は自作システムで parse＋ストリーム実行する。Trials 回の平均。
-func RunCustom(ctx context.Context, cfg storage.Config, cypher string, params map[string]string) (ExecResult, error) {
-	qp, err := executor.NewProcessorWithConfig(ctx, cfg)
-	if err != nil {
-		return ExecResult{}, fmt.Errorf("Processor の初期化に失敗（DB は全て起動済みですか？）: %w", err)
+		return core.Result{Rows: rows, ExecTime: time.Since(start), Engine: "neo4j"}, nil
 	}
-	defer qp.Close()
-
-	// プロファイル（接続確立後・計測対象だけを囲む）。ScopeEngine が有効なときだけ採取。
-	// bench 実行系は ScopeEngine を一時的に無効化するので、この場合 no-op になる。
-	defer profile.Start(settings.ScopeEngine, "custom").Stop()
-
-	return average(func() (ExecResult, error) {
-		qp.Reset() // 試行ごとに中間状態をクリア
-
-		start := time.Now()
-		op, err := planner.ParseQuery(cypher, cfg.MappingPath, params)
-		if err != nil {
-			return ExecResult{}, fmt.Errorf("クエリのパース／プラン構築に失敗: %w", err)
+	for i := 0; i < settings.Warmup; i++ {
+		if _, err := one(); err != nil {
+			return core.Result{}, err
 		}
-		results, err := qp.ProcessQueryStream(op)
-		elapsed := time.Since(start)
+	}
+	var sum time.Duration
+	var last core.Result
+	for i := 0; i < settings.Trials; i++ {
+		r, err := one()
 		if err != nil {
-			return ExecResult{}, fmt.Errorf("クエリ実行に失敗: %w", err)
+			return core.Result{}, err
 		}
-		// Steps は stream 版では未計測。bulk 導入時に qp のメトリクスから埋める。
-		return ExecResult{Rows: results, TotalLatency: elapsed}, nil
-	})
+		sum += r.ExecTime
+		last = r
+	}
+	last.ExecTime = sum / time.Duration(settings.Trials)
+	return last, nil
 }
 
 // toValuedParams は string params を Neo4j 用の typed params に変換する。

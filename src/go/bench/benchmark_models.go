@@ -9,8 +9,6 @@ import (
 	"strconv"
 	"time"
 
-	bulk "polystore_database/src/go/engine/bulk"
-	volcano "polystore_database/src/go/engine/volcano"
 	"polystore_database/src/go/migrator"
 	"polystore_database/src/go/settings"
 	"polystore_database/src/go/storage"
@@ -118,7 +116,7 @@ func RunModelBenchmark(ctx context.Context, cfg storage.Config, workloads []stri
 			}
 
 			for _, model := range models {
-				rows, ms, rerr := runModelOnce(ctx, cfg, model, cypher, params, vectorSize)
+				rows, ms, rerr := runModelOnce(ctx, cfg, model, cypher, params)
 				if rerr != nil {
 					fmt.Printf("[%s|%s|%s] custom エラー: %v\n", name, place, model, rerr)
 					continue
@@ -145,57 +143,15 @@ func RunModelBenchmark(ctx context.Context, cfg storage.Config, workloads []stri
 	return restoreMapping()
 }
 
-// runModelOnce は指定モデルで 1 ワークロードを計測し、(行数, レイテンシms) を返す。
-// stream は RunCustom が Warmup+Trials を内部で行う。bulk/volcano/vectorized は
-// Warmup 回を捨ててから Trials 回平均を測る。
-func runModelOnce(ctx context.Context, cfg storage.Config, model, cypher string, params map[string]string, vectorSize int) (int, float64, error) {
-	switch model {
-	case "stream":
-		r, err := RunCustom(ctx, cfg, cypher, params)
-		if err != nil {
-			return 0, 0, err
-		}
-		return r.RowCount(), toMs(r), nil
-
-	case "bulk":
-		if settings.Warmup > 0 {
-			if _, err := bulk.RunBulk(ctx, cfg, cypher, params, settings.Warmup); err != nil {
-				return 0, 0, err
-			}
-		}
-		r, err := bulk.RunBulk(ctx, cfg, cypher, params, settings.Trials)
-		if err != nil {
-			return 0, 0, err
-		}
-		return r.RowCount(), durToMs(r.Latency), nil
-
-	case "volcano":
-		if settings.Warmup > 0 {
-			if _, err := volcano.RunVolcano(ctx, cfg, cypher, params, settings.Warmup); err != nil {
-				return 0, 0, err
-			}
-		}
-		r, err := volcano.RunVolcano(ctx, cfg, cypher, params, settings.Trials)
-		if err != nil {
-			return 0, 0, err
-		}
-		return r.RowCount(), durToMs(r.Latency), nil
-
-	case "vectorized":
-		if settings.Warmup > 0 {
-			if _, err := volcano.RunVectorized(ctx, cfg, cypher, params, vectorSize, settings.Warmup); err != nil {
-				return 0, 0, err
-			}
-		}
-		r, err := volcano.RunVectorized(ctx, cfg, cypher, params, vectorSize, settings.Trials)
-		if err != nil {
-			return 0, 0, err
-		}
-		return r.RowCount(), durToMs(r.Latency), nil
-
-	default:
-		return 0, 0, fmt.Errorf("未知のモデル %q（stream/bulk/volcano/vectorized）", model)
+// runModelOnce は指定モデル（＝EngineKind）で 1 ワークロードを計測し、(行数, レイテンシms) を返す。
+// 全モデルが統一エンジンレジストリ経由で Warmup+Trials を回す（RunEngine）。
+// レイテンシは TotalLatency()（parse+実行）で統一（vectorized のベクトル長は settings.VectorSize）。
+func runModelOnce(ctx context.Context, cfg storage.Config, model, cypher string, params map[string]string) (int, float64, error) {
+	r, err := RunEngine(ctx, cfg, settings.EngineKind(model), cypher, params)
+	if err != nil {
+		return 0, 0, err
 	}
+	return r.RowCount(), durToMs(r.TotalLatency()), nil
 }
 
 // openModelCSV は追記モードで開き、新規ファイルなら long 形式のヘッダを書く。
