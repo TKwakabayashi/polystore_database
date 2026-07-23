@@ -5,6 +5,7 @@ import (
 
 	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
+	"polystore_database/src/go/store"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"go.mongodb.org/mongo-driver/bson"
@@ -14,13 +15,13 @@ import (
 // 出力行のキーは RETURN 別名（＝ ReturnItem.Name）に一致させ、コーディネータ経路と揃える。
 func bulkStorePushdown(qp *Processor, o *plan.StorePushdown) ([]Row, error) {
 	switch o.Store {
-	case "graph":
+	case store.Graph:
 		return runGraphPushdown(qp, o.Query, o.Params)
-	case "relational":
+	case store.Relational:
 		return runRelationalPushdown(qp, o)
-	case "document":
+	case store.Document:
 		return runDocumentPushdown(qp, o)
-	case "columnar":
+	case store.Columnar:
 		return runColumnarPushdown(qp, o)
 	default:
 		return nil, fmt.Errorf("StorePushdown: unsupported store %q", o.Store)

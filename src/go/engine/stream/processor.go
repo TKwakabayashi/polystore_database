@@ -7,6 +7,7 @@ import (
 	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
 	"polystore_database/src/go/storage"
+	"polystore_database/src/go/store"
 	"sync"
 	"time"
 
@@ -244,15 +245,15 @@ func ExecuteOperatorStream(qp *Processor, op plan.PlanNode, counter *int, wg *sy
 
 func scanByStore(qp *Processor, o *plan.EntityScan, out chan<- []Record) (int, error) {
 	switch o.DataStore {
-	case "graph", "", "unknown":
+	case store.Graph:
 		return ScanGraphStream(qp, o, out)
-	case "document":
+	case store.Document:
 		return ScanDocStream(qp, o, out)
-	case "kvs":
+	case store.Kvs:
 		return ScanKvsStream(qp, o, out)
-	case "relational":
+	case store.Relational:
 		return ScanRdbStream(qp, o, out)
-	case "columnar":
+	case store.Columnar:
 		return ScanColStream(qp, o, out)
 	default:
 		return 0, fmt.Errorf("unknown datastore for scan: %s", o.DataStore)
@@ -261,15 +262,15 @@ func scanByStore(qp *Processor, o *plan.EntityScan, out chan<- []Record) (int, e
 
 func filterByStore(qp *Processor, o *plan.Filter, in <-chan []Record, out chan<- []Record) (int, error) {
 	switch o.DataStore {
-	case "graph", "", "unknown":
+	case store.Graph:
 		return streamFilterGraph(qp, o, in, out)
-	case "document":
+	case store.Document:
 		return FilterDocStream(qp, o, in, out)
-	case "kvs":
+	case store.Kvs:
 		return FilterKvsStream(qp, o, in, out)
-	case "relational":
+	case store.Relational:
 		return FilterRdbStream(qp, o, in, out)
-	case "columnar":
+	case store.Columnar:
 		return FilterColStream(qp, o, in, out)
 	default:
 		return 0, fmt.Errorf("unknown datastore for filter: %s", o.DataStore)

@@ -6,6 +6,7 @@ import (
 	parser "polystore_database/src/go/parser/output"
 	plan "polystore_database/src/go/plan"
 	schema "polystore_database/src/go/schema"
+	stk "polystore_database/src/go/store"
 	"regexp"
 	"strconv"
 	"strings"
@@ -102,22 +103,18 @@ func (l *QueryPlannerListener) BuildPlan() error {
 
 	// 2. 開始ノードのフィルタをデータストアごとに分類
 	startFilters := l.symbolCondMapping[startEnt.alias]
-	storesMap := make(map[string][]*plan.ConditionNode)
+	storesMap := make(map[stk.Kind][]*plan.ConditionNode)
 	for _, cond := range startFilters {
-		store := cond.DataStore
-		if store == "" {
-			store = "unknown"
-		}
-		storesMap[store] = append(storesMap[store], cond)
+		storesMap[cond.DataStore] = append(storesMap[cond.DataStore], cond)
 	}
 
-	// 3. 最も条件が多いデータストアを特定
-	bestStore := "graph"
+	// 3. 最も条件が多いデータストアを特定（未設定条件は store.Graph に集約される）
+	bestStore := stk.Graph
 	maxConds := -1
-	for store, conds := range storesMap {
+	for sk, conds := range storesMap {
 		if len(conds) > maxConds {
 			maxConds = len(conds)
-			bestStore = store
+			bestStore = sk
 		}
 	}
 
@@ -131,8 +128,8 @@ func (l *QueryPlannerListener) BuildPlan() error {
 	visitedEnt[startEnt.alias] = true
 
 	// 5. 残りのデータストアのフィルタを Filter オペレータとして追加
-	for store, conds := range storesMap {
-		if store == bestStore {
+	for sk, conds := range storesMap {
+		if sk == bestStore {
 			continue
 		}
 		root = &plan.Filter{
@@ -140,7 +137,7 @@ func (l *QueryPlannerListener) BuildPlan() error {
 			Filter:    conds,
 			Alias:     startEnt.alias,
 			ObjType:   plan.Entity,
-			DataStore: store,
+			DataStore: sk,
 		}
 	}
 
@@ -179,8 +176,9 @@ func (l *QueryPlannerListener) BuildPlan() error {
 			targetLabel = unit.Labels[0]
 		}
 		store, dType, _ := l.mappingDictionary.LookupMappingDictionary(unit.ObjType, targetLabel, prop)
+		sk := kindOf(store)
 		for i := range unit.Fetches {
-			if unit.Fetches[i].Store == store {
+			if unit.Fetches[i].Store == sk {
 				for _, p := range unit.Fetches[i].Props {
 					if p == prop {
 						return
@@ -191,7 +189,7 @@ func (l *QueryPlannerListener) BuildPlan() error {
 				return
 			}
 		}
-		unit.Fetches = append(unit.Fetches, plan.FetchPlan{Store: store, Props: []string{prop}, TypeMap: map[string]string{prop: dType}})
+		unit.Fetches = append(unit.Fetches, plan.FetchPlan{Store: sk, Props: []string{prop}, TypeMap: map[string]string{prop: dType}})
 	}
 
 	var groupKeys []plan.GroupKey
@@ -279,7 +277,7 @@ func (l *QueryPlannerListener) fillConditionMetadata(node *plan.ConditionNode) {
 		// 辞書から DataStore と DataType を取得
 		store, dType, err := l.mappingDictionary.LookupMappingDictionary(objType, label, node.Property)
 		if err == nil {
-			node.DataStore = store
+			node.DataStore = kindOf(store)
 			node.DataType = dType
 		}
 	}
@@ -368,28 +366,24 @@ func (l *QueryPlannerListener) appendStoreSpecificFilters(input plan.PlanNode, a
 
 	labels := filters[0].Labels
 
-	// 1. DataStore ごとに条件を分類
-	stores := make(map[string][]*plan.ConditionNode)
+	// 1. DataStore ごとに条件を分類（未設定条件は store.Graph に集約される）
+	stores := make(map[stk.Kind][]*plan.ConditionNode)
 	for _, cond := range filters {
-		store := cond.DataStore
-		if store == "" {
-			store = "unknown"
-		}
-		stores[store] = append(stores[store], cond)
+		stores[cond.DataStore] = append(stores[cond.DataStore], cond)
 	}
 
 	currentOp := input
 
 	// 2. データストアごとに Filter オペレータを生成し、直列に連結
 	// 実行順序を安定させるため、特定の順序（例：アルファベット順）で処理することも検討してください
-	for storeName, conds := range stores {
+	for sk, conds := range stores {
 		currentOp = &plan.Filter{
 			Input:       currentOp,
 			Filter:      conds,
 			Labels:      labels,
 			Alias:       alias,
 			ObjType:     objType,
-			DataStore:   storeName,
+			DataStore:   sk,
 			OutputAlias: nil, // RefinePlanで設定
 		}
 	}
@@ -625,4 +619,13 @@ func CheckLogicalPlan() {
 	} else {
 		fmt.Println("Failed to build plan.")
 	}
+}
+
+// kindOf は schema のストア名文字列を store.Kind に変換する（不明/空は store.Graph）。
+func kindOf(s string) stk.Kind {
+	k, err := stk.ParseKind(s)
+	if err != nil {
+		return stk.Graph
+	}
+	return k
 }

@@ -2,6 +2,7 @@ package stream
 
 import (
 	"polystore_database/src/go/plan"
+	"polystore_database/src/go/store"
 )
 
 // streamProjection は record ストリームを消費し、必要列を単一パスでクロスストア収集して
@@ -89,15 +90,15 @@ func streamProjection(qp *Processor, o *plan.Projection, inputStream <-chan []Re
 // FetchPropertiesBulk は各ストアからプロパティを一括取得する共通入口（既存のまま）。
 func FetchPropertiesBulk(qp *Processor, ids []string, unit *plan.ProjectionUnit, plan *plan.FetchPlan) map[string]map[string]interface{} {
 	switch plan.Store {
-	case "graph":
+	case store.Graph:
 		return fetchGraphPropsStream(qp, ids, unit, plan)
-	case "document":
+	case store.Document:
 		return fetchDocPropsStream(qp, ids, unit, plan)
-	case "kvs":
+	case store.Kvs:
 		return fetchKvsPropsStream(qp, ids, unit, plan)
-	case "columnar":
+	case store.Columnar:
 		return fetchColPropsStream(qp, ids, unit, plan)
-	case "relational":
+	case store.Relational:
 		return fetchRdbPropsStream(qp, ids, unit, plan)
 	default:
 		return nil

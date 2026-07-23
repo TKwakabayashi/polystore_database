@@ -5,6 +5,7 @@ import (
 
 	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
+	"polystore_database/src/go/store"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"go.mongodb.org/mongo-driver/bson"
@@ -15,13 +16,13 @@ import (
 // 委譲はストア内で完結するため DB 往復は 1 回。
 func (p *Processor) runStorePushdown(o *plan.StorePushdown) ([]Row, error) {
 	switch o.Store {
-	case "graph":
+	case store.Graph:
 		return p.runGraphPushdown(o.Query, o.Params)
-	case "relational":
+	case store.Relational:
 		return p.runRelationalPushdown(o)
-	case "document":
+	case store.Document:
 		return p.runDocumentPushdown(o)
-	case "columnar":
+	case store.Columnar:
 		return p.runColumnarPushdown(o)
 	default:
 		return nil, fmt.Errorf("StorePushdown: unsupported store %q", o.Store)

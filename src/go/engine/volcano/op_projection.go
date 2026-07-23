@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"polystore_database/src/go/plan"
+	"polystore_database/src/go/store"
 )
 
 // runProjection は Projection のマテリアライズ実装。子から vectorWidth 幅のバッチを pull しつつ、
@@ -98,15 +99,15 @@ func (p *Processor) runProjection(o *plan.Projection, child Iterator) ([]Row, er
 // fetchPropertiesBulk は各種ストアからプロパティを一括取得する共通の入り口（実装は access_<store>.go）。
 func (p *Processor) fetchPropertiesBulk(ids []string, unit *plan.ProjectionUnit, fetch *plan.FetchPlan) map[string]map[string]interface{} {
 	switch fetch.Store {
-	case "graph":
+	case store.Graph:
 		return p.fetchGraphProps(ids, unit, fetch)
-	case "document":
+	case store.Document:
 		return p.fetchDocProps(ids, unit, fetch)
-	case "kvs":
+	case store.Kvs:
 		return p.fetchKvsProps(ids, unit, fetch)
-	case "columnar":
+	case store.Columnar:
 		return p.fetchColProps(ids, unit, fetch)
-	case "relational":
+	case store.Relational:
 		return p.fetchRdbProps(ids, unit, fetch)
 	default:
 		return nil

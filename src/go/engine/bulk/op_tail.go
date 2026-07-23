@@ -25,7 +25,7 @@ func executeRowBulk(qp *Processor, op plan.PlanNode, counter *int) ([]Row, error
 		if err != nil {
 			return nil, err
 		}
-		recordRowOp(qp, counter, "Pushdown["+o.Store+"]", time.Since(start), 0, len(rows))
+		recordRowOp(qp, counter, "Pushdown["+o.Store.String()+"]", time.Since(start), 0, len(rows))
 		return rows, nil
 
 	case *plan.Projection:

@@ -15,6 +15,7 @@ import (
 	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
 	"polystore_database/src/go/storage"
+	"polystore_database/src/go/store"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gocql/gocql"
@@ -176,15 +177,15 @@ func ExecuteOperatorBulk(qp *Processor, op plan.PlanNode, counter *int) ([]Recor
 
 func scanByStore(qp *Processor, o *plan.EntityScan) ([]Record, error) {
 	switch o.DataStore {
-	case "graph", "", "unknown":
+	case store.Graph:
 		return ScanGraphBulk(qp, o)
-	case "document":
+	case store.Document:
 		return ScanDocBulk(qp, o)
-	case "kvs":
+	case store.Kvs:
 		return ScanKvsBulk(qp, o)
-	case "relational":
+	case store.Relational:
 		return ScanRdbBulk(qp, o)
-	case "columnar":
+	case store.Columnar:
 		return ScanColBulk(qp, o)
 	default:
 		return nil, fmt.Errorf("unknown datastore for scan: %s", o.DataStore)
@@ -193,15 +194,15 @@ func scanByStore(qp *Processor, o *plan.EntityScan) ([]Record, error) {
 
 func filterByStore(qp *Processor, o *plan.Filter, in []Record) ([]Record, error) {
 	switch o.DataStore {
-	case "graph", "", "unknown":
+	case store.Graph:
 		return bulkFilterGraph(qp, o, in)
-	case "document":
+	case store.Document:
 		return FilterDocBulk(qp, o, in)
-	case "kvs":
+	case store.Kvs:
 		return FilterKvsBulk(qp, o, in)
-	case "relational":
+	case store.Relational:
 		return FilterRdbBulk(qp, o, in)
-	case "columnar":
+	case store.Columnar:
 		return FilterColBulk(qp, o, in)
 	default:
 		return nil, fmt.Errorf("unknown datastore for filter: %s", o.DataStore)

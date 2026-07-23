@@ -3,6 +3,7 @@ package planner
 import (
 	"polystore_database/src/go/plan"
 	"polystore_database/src/go/settings"
+	stk "polystore_database/src/go/store"
 )
 
 // pushdown 方針は settings.Pushdown で切り替える（型・定数も settings に集約）。
@@ -33,7 +34,7 @@ func (l *QueryPlannerListener) MaybePushdown(query string, params map[string]str
 	if hasTraversal {
 		// traversal は graph 専用。全参照が graph なら Cypher を丸ごと委譲。
 		if storesOnly(refStores, "graph") {
-			return &plan.StorePushdown{Store: "graph", Query: query, Params: params, Items: l.returnItems}
+			return &plan.StorePushdown{Store: stk.Graph, Query: query, Params: params, Items: l.returnItems}
 		}
 		return l.planRoot
 	}
@@ -48,7 +49,7 @@ func (l *QueryPlannerListener) MaybePushdown(query string, params map[string]str
 		target = l.baseScanStore()
 	}
 	if target == "graph" {
-		return &plan.StorePushdown{Store: "graph", Query: query, Params: params, Items: l.returnItems}
+		return &plan.StorePushdown{Store: stk.Graph, Query: query, Params: params, Items: l.returnItems}
 	}
 	// 非graph 単一ストア: 生成器が対応可能なら委譲、不可なら安全にフォールバック。
 	if op := l.buildNonGraphPushdown(target); op != nil {
@@ -83,7 +84,7 @@ func (l *QueryPlannerListener) collectRefStores() map[string]bool {
 
 	for _, conds := range l.symbolCondMapping {
 		for _, c := range conds {
-			add(c.DataStore)
+			add(c.DataStore.String())
 		}
 	}
 	for _, it := range l.returnItems {
@@ -132,10 +133,7 @@ func (l *QueryPlannerListener) baseScanStore() string {
 	op := l.planRoot
 	for op != nil {
 		if es, ok := op.(*plan.EntityScan); ok {
-			if es.DataStore == "" {
-				return "graph"
-			}
-			return es.DataStore
+			return es.DataStore.String()
 		}
 		ch := op.Children()
 		if len(ch) == 0 {
@@ -204,7 +202,7 @@ func (l *QueryPlannerListener) buildNonGraphPushdown(store string) plan.PlanNode
 	}
 
 	return &plan.StorePushdown{
-		Store:      store,
+		Store:      kindOf(store),
 		Table:      label,
 		Filters:    l.symbolCondMapping[ent.alias],
 		GroupKeys:  groupKeys,

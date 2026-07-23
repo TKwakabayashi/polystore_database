@@ -2,6 +2,7 @@ package bulk
 
 import (
 	"polystore_database/src/go/plan"
+	"polystore_database/src/go/store"
 )
 
 // bulkProjection は record を消費し、必要列を単一パスでクロスストア収集して
@@ -82,15 +83,15 @@ func bulkProjection(qp *Processor, o *plan.Projection, in []Record) []Row {
 // FetchPropertiesBulk は各ストアからプロパティを一括取得する共通入口。
 func FetchPropertiesBulk(qp *Processor, ids []string, unit *plan.ProjectionUnit, plan *plan.FetchPlan) map[string]map[string]interface{} {
 	switch plan.Store {
-	case "graph":
+	case store.Graph:
 		return fetchGraphPropsBulk(qp, ids, unit, plan)
-	case "document":
+	case store.Document:
 		return fetchDocPropsBulk(qp, ids, unit, plan)
-	case "kvs":
+	case store.Kvs:
 		return fetchKvsPropsBulk(qp, ids, unit, plan)
-	case "columnar":
+	case store.Columnar:
 		return fetchColPropsBulk(qp, ids, unit, plan)
-	case "relational":
+	case store.Relational:
 		return fetchRdbPropsBulk(qp, ids, unit, plan)
 	default:
 		return nil

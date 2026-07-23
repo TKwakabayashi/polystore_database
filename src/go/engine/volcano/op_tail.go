@@ -29,7 +29,7 @@ func (p *Processor) runRow(op plan.PlanNode) ([]Row, error) {
 		if err != nil {
 			return nil, err
 		}
-		p.recordOp(p.newStep(), "Pushdown["+o.Store+"]", time.Since(start), len(rows))
+		p.recordOp(p.newStep(), "Pushdown["+o.Store.String()+"]", time.Since(start), len(rows))
 		return rows, nil
 
 	case *plan.Projection:

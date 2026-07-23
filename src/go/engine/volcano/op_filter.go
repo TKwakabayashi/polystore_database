@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"polystore_database/src/go/plan"
+	"polystore_database/src/go/store"
 )
 
 // filterIterator は Filter の pull 実装。子から 1 バッチ pull し、対象ストアで
@@ -73,15 +74,15 @@ func (f *filterIterator) process(in *Batch) (*Batch, error) {
 // filterValid は対象ストアで uniqueIDs のうち条件を満たす uuid 集合を返す（実装は access_<store>.go）。
 func (p *Processor) filterValid(o *plan.Filter, ids []string) (map[string]struct{}, error) {
 	switch o.DataStore {
-	case "graph", "", "unknown":
+	case store.Graph:
 		return p.filterGraphValid(o, ids)
-	case "document":
+	case store.Document:
 		return p.filterDocValid(o, ids)
-	case "kvs":
+	case store.Kvs:
 		return p.filterKvsValid(o, ids)
-	case "relational":
+	case store.Relational:
 		return p.filterRdbValid(o, ids)
-	case "columnar":
+	case store.Columnar:
 		return p.filterColValid(o, ids)
 	default:
 		return nil, fmt.Errorf("未知のフィルタ対象ストア: %s", o.DataStore)

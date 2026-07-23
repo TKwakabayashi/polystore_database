@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"polystore_database/src/go/plan"
+	"polystore_database/src/go/store"
 )
 
 // scanIterator は EntityScan の pull 実装。Open で対象ストアから uuid を全件取得し、
@@ -59,15 +60,15 @@ func (s *scanIterator) Close(ctx context.Context) error { return nil }
 // scanIDs はストア種別に応じて uuid 一覧を取得する（実装は access_<store>.go）。
 func (p *Processor) scanIDs(o *plan.EntityScan) ([]string, error) {
 	switch o.DataStore {
-	case "graph", "", "unknown":
+	case store.Graph:
 		return p.scanGraphIDs(o)
-	case "document":
+	case store.Document:
 		return p.scanDocIDs(o)
-	case "kvs":
+	case store.Kvs:
 		return p.scanKvsIDs(o)
-	case "relational":
+	case store.Relational:
 		return p.scanRdbIDs(o)
-	case "columnar":
+	case store.Columnar:
 		return p.scanColIDs(o)
 	default:
 		return nil, fmt.Errorf("未知のスキャン対象ストア: %s", o.DataStore)

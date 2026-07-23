@@ -19,7 +19,7 @@ func executeRowStream(qp *Processor, op plan.PlanNode, counter *int, wg *sync.Wa
 
 	switch o := op.(type) {
 	case *plan.StorePushdown:
-		return spawnRowOp(qp, "Pushdown["+o.Store+"]", counter, wg, func(out chan []Row) int {
+		return spawnRowOp(qp, "Pushdown["+o.Store.String()+"]", counter, wg, func(out chan []Row) int {
 			return streamStorePushdown(qp, o, out)
 		}), nil
 

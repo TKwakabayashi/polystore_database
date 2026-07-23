@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
+	"polystore_database/src/go/store"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"go.mongodb.org/mongo-driver/bson"
@@ -13,13 +14,13 @@ import (
 // 出力行のキーは RETURN 別名（＝ ReturnItem.Name）に一致させ、コーディネータ経路と揃える。
 func streamStorePushdown(qp *Processor, o *plan.StorePushdown, out chan<- []Row) int {
 	switch o.Store {
-	case "graph":
+	case store.Graph:
 		return runGraphPushdown(qp, o.Query, o.Params, out)
-	case "relational":
+	case store.Relational:
 		return runRelationalPushdown(qp, o, out)
-	case "document":
+	case store.Document:
 		return runDocumentPushdown(qp, o, out)
-	case "columnar":
+	case store.Columnar:
 		return runColumnarPushdown(qp, o, out)
 	default:
 		fmt.Printf("StorePushdown: unsupported store %q\n", o.Store)
