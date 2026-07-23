@@ -5,25 +5,11 @@ import (
 	"strings"
 
 	"polystore_database/src/go/codec"
+	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
 )
 
-func cqlOp(t plan.ConditionType) string {
-	switch t {
-	case plan.CondEq:
-		return "="
-	case plan.CondNeq:
-		return "!="
-	case plan.CondGreater:
-		return ">"
-	case plan.CondLess:
-		return "<"
-	default:
-		return "="
-	}
-}
-
-func ScanColBulk(qp *QueryProcessor, o *plan.EntityScan) ([]Record, error) {
+func ScanColBulk(qp *Processor, o *plan.EntityScan) ([]Record, error) {
 	if qp.cqlSes == nil {
 		return nil, nil
 	}
@@ -35,7 +21,7 @@ func ScanColBulk(qp *QueryProcessor, o *plan.EntityScan) ([]Record, error) {
 		if cond == nil {
 			continue
 		}
-		whereClauses = append(whereClauses, fmt.Sprintf("\"%s\" %s ?", cond.Property, cqlOp(cond.Type)))
+		whereClauses = append(whereClauses, fmt.Sprintf("\"%s\" %s ?", cond.Property, core.CQLOp(cond.Type)))
 		val, _ := codec.ConvertToNativeType(cond.Value, cond.DataType)
 		args = append(args, val)
 	}
@@ -67,7 +53,7 @@ func ScanColBulk(qp *QueryProcessor, o *plan.EntityScan) ([]Record, error) {
 	return out, nil
 }
 
-func FilterColBulk(qp *QueryProcessor, o *plan.Filter, in []Record) ([]Record, error) {
+func FilterColBulk(qp *Processor, o *plan.Filter, in []Record) ([]Record, error) {
 	filterIdxIn := o.InputSlot.VarToSlot[o.Alias]
 	newSlotCount := len(o.OutputSlot.VarToSlot)
 
@@ -78,7 +64,7 @@ func FilterColBulk(qp *QueryProcessor, o *plan.Filter, in []Record) ([]Record, e
 		if cond == nil {
 			continue
 		}
-		commonClauses = append(commonClauses, fmt.Sprintf("\"%s\" %s ?", cond.Property, cqlOp(cond.Type)))
+		commonClauses = append(commonClauses, fmt.Sprintf("\"%s\" %s ?", cond.Property, core.CQLOp(cond.Type)))
 		val, _ := codec.ConvertToNativeType(cond.Value, cond.DataType)
 		commonArgs = append(commonArgs, val)
 	}
@@ -123,7 +109,7 @@ func FilterColBulk(qp *QueryProcessor, o *plan.Filter, in []Record) ([]Record, e
 	return out, nil
 }
 
-func fetchColPropsBulk(qp *QueryProcessor, ids []string, unit *plan.ProjectionUnit, fetch *plan.FetchPlan) map[string]map[string]interface{} {
+func fetchColPropsBulk(qp *Processor, ids []string, unit *plan.ProjectionUnit, fetch *plan.FetchPlan) map[string]map[string]interface{} {
 	result := make(map[string]map[string]interface{})
 	if qp.cqlSes == nil || len(ids) == 0 || len(unit.Labels) == 0 || len(fetch.Props) == 0 {
 		return result

@@ -118,9 +118,9 @@ func RunNeo4j(ctx context.Context, cfg storage.Neo4jConfig, cypher string, param
 
 // RunCustom は自作システムで parse＋ストリーム実行する。Trials 回の平均。
 func RunCustom(ctx context.Context, cfg storage.Config, cypher string, params map[string]string) (ExecResult, error) {
-	qp, err := executor.NewQueryProcessorWithConfig(ctx, cfg)
+	qp, err := executor.NewProcessorWithConfig(ctx, cfg)
 	if err != nil {
-		return ExecResult{}, fmt.Errorf("QueryProcessor の初期化に失敗（DB は全て起動済みですか？）: %w", err)
+		return ExecResult{}, fmt.Errorf("Processor の初期化に失敗（DB は全て起動済みですか？）: %w", err)
 	}
 	defer qp.Close()
 

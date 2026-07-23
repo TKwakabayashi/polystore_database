@@ -7,7 +7,7 @@ import (
 // bulkProjection は record を消費し、必要列を単一パスでクロスストア収集して
 // wide row（キー: "alias.prop" と 束縛 uuid の "alias"）を生成する。
 // record-stream と row-stream の橋渡し点。
-func bulkProjection(qp *QueryProcessor, o *plan.Projection, in []Record) []Row {
+func bulkProjection(qp *Processor, o *plan.Projection, in []Record) []Row {
 	aliasToSlot := o.InputSlot.VarToSlot
 
 	// --- Unit ごとに ID 収集（全行分） ---
@@ -80,7 +80,7 @@ func bulkProjection(qp *QueryProcessor, o *plan.Projection, in []Record) []Row {
 }
 
 // FetchPropertiesBulk は各ストアからプロパティを一括取得する共通入口。
-func FetchPropertiesBulk(qp *QueryProcessor, ids []string, unit *plan.ProjectionUnit, plan *plan.FetchPlan) map[string]map[string]interface{} {
+func FetchPropertiesBulk(qp *Processor, ids []string, unit *plan.ProjectionUnit, plan *plan.FetchPlan) map[string]map[string]interface{} {
 	switch plan.Store {
 	case "graph":
 		return fetchGraphPropsBulk(qp, ids, unit, plan)

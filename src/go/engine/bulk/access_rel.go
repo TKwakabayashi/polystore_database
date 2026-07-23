@@ -5,25 +5,11 @@ import (
 	"strings"
 
 	"polystore_database/src/go/codec"
+	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
 )
 
-func sqlOp(t plan.ConditionType) string {
-	switch t {
-	case plan.CondEq:
-		return "="
-	case plan.CondNeq:
-		return "<>"
-	case plan.CondGreater:
-		return ">"
-	case plan.CondLess:
-		return "<"
-	default:
-		return "="
-	}
-}
-
-func ScanRdbBulk(qp *QueryProcessor, o *plan.EntityScan) ([]Record, error) {
+func ScanRdbBulk(qp *Processor, o *plan.EntityScan) ([]Record, error) {
 	if qp.sqlDb == nil {
 		return nil, nil
 	}
@@ -35,7 +21,7 @@ func ScanRdbBulk(qp *QueryProcessor, o *plan.EntityScan) ([]Record, error) {
 		if cond == nil {
 			continue
 		}
-		clauses = append(clauses, fmt.Sprintf("%s %s ?", cond.Property, sqlOp(cond.Type)))
+		clauses = append(clauses, fmt.Sprintf("%s %s ?", cond.Property, core.SQLOp(cond.Type)))
 		val, _ := codec.ConvertToNativeType(cond.Value, cond.DataType)
 		args = append(args, val)
 	}
@@ -68,7 +54,7 @@ func ScanRdbBulk(qp *QueryProcessor, o *plan.EntityScan) ([]Record, error) {
 	return out, nil
 }
 
-func FilterRdbBulk(qp *QueryProcessor, o *plan.Filter, in []Record) ([]Record, error) {
+func FilterRdbBulk(qp *Processor, o *plan.Filter, in []Record) ([]Record, error) {
 	filterIdxIn := o.InputSlot.VarToSlot[o.Alias]
 	newSlotCount := len(o.OutputSlot.VarToSlot)
 
@@ -79,7 +65,7 @@ func FilterRdbBulk(qp *QueryProcessor, o *plan.Filter, in []Record) ([]Record, e
 		if cond == nil {
 			continue
 		}
-		filterClauses = append(filterClauses, fmt.Sprintf("%s %s ?", cond.Property, sqlOp(cond.Type)))
+		filterClauses = append(filterClauses, fmt.Sprintf("%s %s ?", cond.Property, core.SQLOp(cond.Type)))
 		val, _ := codec.ConvertToNativeType(cond.Value, cond.DataType)
 		commonArgs = append(commonArgs, val)
 	}
@@ -138,7 +124,7 @@ func FilterRdbBulk(qp *QueryProcessor, o *plan.Filter, in []Record) ([]Record, e
 	return out, nil
 }
 
-func fetchRdbPropsBulk(qp *QueryProcessor, ids []string, unit *plan.ProjectionUnit, fetch *plan.FetchPlan) map[string]map[string]interface{} {
+func fetchRdbPropsBulk(qp *Processor, ids []string, unit *plan.ProjectionUnit, fetch *plan.FetchPlan) map[string]map[string]interface{} {
 	result := make(map[string]map[string]interface{})
 	if qp.sqlDb == nil || len(ids) == 0 || len(unit.Labels) == 0 || len(fetch.Props) == 0 {
 		return result

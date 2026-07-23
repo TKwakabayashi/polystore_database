@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
 	"polystore_database/src/go/storage"
 
@@ -55,7 +56,7 @@ type Processor struct {
 // NewProcessor は cfg で 5 ストアへ接続し、指定モードの Processor を返す。
 // vectorSize は ModeVectorized のときのベクトル長（ModeVolcano では無視され 1 になる）。
 func NewProcessor(ctx context.Context, cfg storage.Config, mode Mode, vectorSize int) (*Processor, error) {
-	rg, err := storage.NewRegistry(ctx, cfg)
+	deps, err := core.Open(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("registry 初期化に失敗: %w", err)
 	}
@@ -69,28 +70,17 @@ func NewProcessor(ctx context.Context, cfg storage.Config, mode Mode, vectorSize
 	}
 
 	p := &Processor{
-		rg:          rg,
+		rg:          deps.Registry,
 		ctx:         ctx,
 		mode:        mode,
 		vectorWidth: width,
 		metrics:     make(map[int]*Metrics),
 	}
-
-	if d, ok := rg.Neo4j(); ok {
-		p.neoDriver = d
-	}
-	if d, ok := rg.Mongo(); ok {
-		p.mDb = d
-	}
-	if d, ok := rg.LevelDB(); ok {
-		p.ldb = d
-	}
-	if d, ok := rg.MySQL(); ok {
-		p.sqlDb = d
-	}
-	if s, ok := rg.Cassandra(); ok {
-		p.cqlSes = s
-	}
+	p.neoDriver = deps.Neo
+	p.mDb = deps.Mongo
+	p.ldb = deps.LevelDB
+	p.sqlDb = deps.MySQL
+	p.cqlSes = deps.Cassandra
 	return p, nil
 }
 

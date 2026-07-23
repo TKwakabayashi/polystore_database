@@ -13,7 +13,7 @@ import (
 // executeRowBulk は tail（Projection/Aggregate/Sort/Limit/Return/StorePushdown）を
 // row（map[string]interface{}）で全件マテリアライズ実行する。Projection が record-stream と
 // row-stream の橋渡し点。演算子ごとに step 番号（葉→根）・入出力件数・時間を記録する。
-func executeRowBulk(qp *QueryProcessor, op plan.PlanNode, counter *int) ([]Row, error) {
+func executeRowBulk(qp *Processor, op plan.PlanNode, counter *int) ([]Row, error) {
 	if op == nil {
 		return nil, fmt.Errorf("Empty Operator Passed (row)")
 	}
@@ -83,7 +83,7 @@ func executeRowBulk(qp *QueryProcessor, op plan.PlanNode, counter *int) ([]Row, 
 	}
 }
 
-func recordRowOp(qp *QueryProcessor, counter *int, name string, dur time.Duration, in, out int) {
+func recordRowOp(qp *Processor, counter *int, name string, dur time.Duration, in, out int) {
 	*counter++
 	qp.metrics[*counter] = Metrics{StepNum: *counter, OpType: name, Duration: dur, InRows: in, RowCount: out}
 }

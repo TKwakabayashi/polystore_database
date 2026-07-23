@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"time"
 
+	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
 	"polystore_database/src/go/storage"
 
@@ -28,7 +29,7 @@ type Record struct {
 
 type Row = map[string]interface{}
 
-type QueryProcessor struct {
+type Processor struct {
 	results []map[string]interface{}
 	metrics map[int]Metrics
 
@@ -50,56 +51,45 @@ type Metrics struct {
 	RowCount int           // その演算子が出力した行数
 }
 
-func NewQueryProcessor(ctx context.Context) (*QueryProcessor, error) {
+func NewProcessor(ctx context.Context) (*Processor, error) {
 	cfg, _ := storage.LoadConfig("")
-	return NewQueryProcessorWithConfig(ctx, cfg)
+	return NewProcessorWithConfig(ctx, cfg)
 }
 
-func NewQueryProcessorWithConfig(ctx context.Context, cfg storage.Config) (*QueryProcessor, error) {
-	qp := &QueryProcessor{
+func NewProcessorWithConfig(ctx context.Context, cfg storage.Config) (*Processor, error) {
+	qp := &Processor{
 		results: []map[string]interface{}{},
 		metrics: make(map[int]Metrics),
 		ctx:     ctx,
 	}
 
-	rg, err := storage.NewRegistry(ctx, cfg)
+	deps, err := core.Open(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("%w", err)
 	}
-	qp.rg = rg
-
-	if d, ok := rg.Neo4j(); ok {
-		qp.neoDriver = d
-	}
-	if d, ok := rg.Mongo(); ok {
-		qp.mDb = d
-	}
-	if d, ok := rg.LevelDB(); ok {
-		qp.ldb = d
-	}
-	if d, ok := rg.MySQL(); ok {
-		qp.sqlDb = d
-	}
-	if s, ok := rg.Cassandra(); ok {
-		qp.cqlSes = s
-	}
+	qp.rg = deps.Registry
+	qp.neoDriver = deps.Neo
+	qp.mDb = deps.Mongo
+	qp.ldb = deps.LevelDB
+	qp.sqlDb = deps.MySQL
+	qp.cqlSes = deps.Cassandra
 	return qp, nil
 }
 
-func (qp *QueryProcessor) Close() error {
+func (qp *Processor) Close() error {
 	if qp.rg == nil {
 		return nil
 	}
 	return qp.rg.Close(qp.ctx)
 }
 
-func (qp *QueryProcessor) Reset() {
+func (qp *Processor) Reset() {
 	qp.results = []map[string]interface{}{}
 	qp.metrics = make(map[int]Metrics)
 }
 
 // StepMetrics は StepNum 昇順の演算子計測一覧を返す。
-func (qp *QueryProcessor) StepMetrics() []Metrics {
+func (qp *Processor) StepMetrics() []Metrics {
 	out := make([]Metrics, 0, len(qp.metrics))
 	for step := 1; step <= len(qp.metrics); step++ {
 		if m, ok := qp.metrics[step]; ok {
@@ -112,7 +102,7 @@ func (qp *QueryProcessor) StepMetrics() []Metrics {
 // ProcessQueryBulk は plan ツリーを全件マテリアライズ実行し、最終結果行を返す。
 // tail（Projection/Aggregate/Sort/Limit/Return/StorePushdown）は row ストリームで、
 // record パイプライン（EntityScan/Filter/Expand）は []Record で実行する。
-func (qp *QueryProcessor) ProcessQueryBulk(op plan.PlanNode) ([]map[string]interface{}, error) {
+func (qp *Processor) ProcessQueryBulk(op plan.PlanNode) ([]map[string]interface{}, error) {
 	counter := 0
 	rows, err := executeRowBulk(qp, op, &counter)
 	if err != nil {
@@ -125,7 +115,7 @@ func (qp *QueryProcessor) ProcessQueryBulk(op plan.PlanNode) ([]map[string]inter
 // ExecuteOperatorBulk は record パイプライン（EntityScan/Filter/Expand/VarLengthExpand）を
 // 全件マテリアライズ実行する。上流（子）を先に全件実行してから自演算子を処理し、出力 []Record を
 // 返す。演算子ごとに step 番号（葉→根）・入出力件数・時間を記録する。
-func ExecuteOperatorBulk(qp *QueryProcessor, op plan.PlanNode, counter *int) ([]Record, error) {
+func ExecuteOperatorBulk(qp *Processor, op plan.PlanNode, counter *int) ([]Record, error) {
 	if op == nil {
 		return nil, fmt.Errorf("Empty Operator Passed")
 	}
@@ -184,7 +174,7 @@ func ExecuteOperatorBulk(qp *QueryProcessor, op plan.PlanNode, counter *int) ([]
 	return output, nil
 }
 
-func scanByStore(qp *QueryProcessor, o *plan.EntityScan) ([]Record, error) {
+func scanByStore(qp *Processor, o *plan.EntityScan) ([]Record, error) {
 	switch o.DataStore {
 	case "graph", "", "unknown":
 		return ScanGraphBulk(qp, o)
@@ -201,7 +191,7 @@ func scanByStore(qp *QueryProcessor, o *plan.EntityScan) ([]Record, error) {
 	}
 }
 
-func filterByStore(qp *QueryProcessor, o *plan.Filter, in []Record) ([]Record, error) {
+func filterByStore(qp *Processor, o *plan.Filter, in []Record) ([]Record, error) {
 	switch o.DataStore {
 	case "graph", "", "unknown":
 		return bulkFilterGraph(qp, o, in)

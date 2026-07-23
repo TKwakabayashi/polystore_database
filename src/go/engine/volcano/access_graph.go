@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"polystore_database/src/go/codec"
+	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -39,7 +40,7 @@ func cypherOp(t plan.ConditionType) (string, error) {
 }
 
 // sqlToCypherOp は graph filter 用の演算子表記（<> 等）。
-func sqlToCypherOp(t plan.ConditionType) string { return sqlOp(t) }
+func sqlToCypherOp(t plan.ConditionType) string { return core.SQLOp(t) }
 
 // ---------- EntityScan ----------
 

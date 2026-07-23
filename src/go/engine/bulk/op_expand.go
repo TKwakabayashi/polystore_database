@@ -22,7 +22,7 @@ type VarPathResult struct {
 
 // ExpandGraphBulk は 1 段固定長 Expand。全入力行の src.uuid をまとめて
 // 1 回の Cypher (WHERE src.uuid IN $ids) で展開する。
-func ExpandGraphBulk(qp *QueryProcessor, o *plan.Expand, in []Record) ([]Record, error) {
+func ExpandGraphBulk(qp *Processor, o *plan.Expand, in []Record) ([]Record, error) {
 	srcIdx := o.InputSlot.VarToSlot[o.SourceEntity]
 	relIdxOut, hasRel := o.OutputSlot.VarToSlot[o.Alias]
 	tgtIdxOut, hasTarget := o.OutputSlot.VarToSlot[o.TargetEntity]
@@ -104,7 +104,7 @@ func ExpandGraphBulk(qp *QueryProcessor, o *plan.Expand, in []Record) ([]Record,
 }
 
 // bulkVarLengthExpand は可変長 Expand。
-func bulkVarLengthExpand(qp *QueryProcessor, o *plan.VarLengthExpand, in []Record) ([]Record, error) {
+func bulkVarLengthExpand(qp *Processor, o *plan.VarLengthExpand, in []Record) ([]Record, error) {
 	srcIdxIn := o.InputSlot.VarToSlot[o.SourceEntity]
 	tgtIdxOut, hasTarget := o.OutputSlot.VarToSlot[o.TargetEntity]
 	newSlotCount := len(o.OutputSlot.VarToSlot)

@@ -12,7 +12,7 @@ import (
 
 // executeRowStream は tail（Projection/Aggregate/Sort/Limit/Return）を row ストリームで実行する。
 // Projection が record-stream と row-stream の橋渡し点。
-func executeRowStream(qp *QueryProcessor, op plan.PlanNode, counter *int, wg *sync.WaitGroup) (chan []Row, error) {
+func executeRowStream(qp *Processor, op plan.PlanNode, counter *int, wg *sync.WaitGroup) (chan []Row, error) {
 	if op == nil {
 		return nil, fmt.Errorf("Empty Operator Passed (row stream)")
 	}
@@ -73,7 +73,7 @@ func executeRowStream(qp *QueryProcessor, op plan.PlanNode, counter *int, wg *sy
 	}
 }
 
-func spawnRowOp(qp *QueryProcessor, name string, counter *int, wg *sync.WaitGroup, run func(out chan []Row) int) chan []Row {
+func spawnRowOp(qp *Processor, name string, counter *int, wg *sync.WaitGroup, run func(out chan []Row) int) chan []Row {
 	out := make(chan []Row, 500)
 	*counter++
 	step := *counter

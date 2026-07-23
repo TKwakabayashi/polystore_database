@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
 	"polystore_database/src/go/storage"
 	"sync"
@@ -26,7 +27,7 @@ type Record struct {
 
 type Row = map[string]interface{}
 
-type QueryProcessor struct {
+type Processor struct {
 	records   []Record
 	slotTable *plan.SlotTable
 	results   []map[string]interface{}
@@ -54,13 +55,13 @@ type Metrics struct {
 	RowCount int           // そのステップでの結果数
 }
 
-func NewQueryProcessor(ctx context.Context) (*QueryProcessor, error) {
+func NewProcessor(ctx context.Context) (*Processor, error) {
 	st := &plan.SlotTable{
 		VarToSlot: make(map[string]int),
 		SlotToVar: []string{},
 	}
 
-	qp := &QueryProcessor{
+	qp := &Processor{
 		records:   []Record{},
 		slotTable: st,
 		results:   []map[string]interface{}{},
@@ -69,56 +70,21 @@ func NewQueryProcessor(ctx context.Context) (*QueryProcessor, error) {
 		ctx:       ctx,
 	}
 	cfg, _ := storage.LoadConfig("")
-	rg, err := storage.NewRegistry(ctx, cfg)
+	deps, err := core.Open(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("%w", err)
 	}
-
-	qp.rg = rg
-	// Neo4j の設定
-	neoDriver, ok := rg.Neo4j()
-	if ok {
-		qp.neoDriver = neoDriver
-	} else {
-
-	}
-
-	// MongoDB の設定
-	mDb, ok := rg.Mongo()
-	if ok {
-		qp.mDb = mDb
-	} else {
-
-	}
-
-	// LevelDB の設定
-	ldb, ok := rg.LevelDB()
-	if ok {
-		qp.ldb = ldb
-	} else {
-
-	}
-
-	// MySQL の設定
-	sqlDb, ok := rg.MySQL()
-	if ok {
-		qp.sqlDb = sqlDb
-	} else {
-
-	}
-
-	// Cassandra (gocql) の設定
-	cqlSes, ok := rg.Cassandra()
-	if ok {
-		qp.cqlSes = cqlSes
-	} else {
-
-	}
+	qp.rg = deps.Registry
+	qp.neoDriver = deps.Neo
+	qp.mDb = deps.Mongo
+	qp.ldb = deps.LevelDB
+	qp.sqlDb = deps.MySQL
+	qp.cqlSes = deps.Cassandra
 
 	return qp, nil
 }
 
-func NewQueryProcessorWithConfig(ctx context.Context, cfg storage.Config) (*QueryProcessor, error) {
+func NewProcessorWithConfig(ctx context.Context, cfg storage.Config) (*Processor, error) {
 	st := &plan.SlotTable{
 		VarToSlot: make(map[string]int),
 		SlotToVar: []string{},
@@ -136,7 +102,7 @@ func NewQueryProcessorWithConfig(ctx context.Context, cfg storage.Config) (*Quer
 		},
 	}
 
-	qp := &QueryProcessor{
+	qp := &Processor{
 		records:   []Record{},
 		slotTable: st,
 		results:   []map[string]interface{}{},
@@ -147,63 +113,28 @@ func NewQueryProcessorWithConfig(ctx context.Context, cfg storage.Config) (*Quer
 		sem:       semaphore.NewWeighted(int64(exec.globalMax())),
 	}
 
-	rg, err := storage.NewRegistry(ctx, cfg)
+	deps, err := core.Open(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("%w", err)
 	}
-
-	qp.rg = rg
-	// Neo4j の設定
-	neoDriver, ok := rg.Neo4j()
-	if ok {
-		qp.neoDriver = neoDriver
-	} else {
-
-	}
-
-	// MongoDB の設定
-	mDb, ok := rg.Mongo()
-	if ok {
-		qp.mDb = mDb
-	} else {
-
-	}
-
-	// LevelDB の設定
-	ldb, ok := rg.LevelDB()
-	if ok {
-		qp.ldb = ldb
-	} else {
-
-	}
-
-	// MySQL の設定
-	sqlDb, ok := rg.MySQL()
-	if ok {
-		qp.sqlDb = sqlDb
-	} else {
-
-	}
-
-	// Cassandra (gocql) の設定
-	cqlSes, ok := rg.Cassandra()
-	if ok {
-		qp.cqlSes = cqlSes
-	} else {
-
-	}
+	qp.rg = deps.Registry
+	qp.neoDriver = deps.Neo
+	qp.mDb = deps.Mongo
+	qp.ldb = deps.LevelDB
+	qp.sqlDb = deps.MySQL
+	qp.cqlSes = deps.Cassandra
 
 	return qp, nil
 }
 
-func (qp *QueryProcessor) Close() error {
+func (qp *Processor) Close() error {
 	if qp.rg == nil {
 		return nil
 	}
 	return qp.rg.Close(qp.ctx)
 }
 
-func (qp *QueryProcessor) Reset() {
+func (qp *Processor) Reset() {
 	// 中間レコードのクリア
 	qp.records = []Record{}
 
@@ -223,7 +154,7 @@ func (qp *QueryProcessor) Reset() {
 	qp.counts = make(map[string]int)
 }
 
-func (qp *QueryProcessor) ProcessQueryStream(op plan.PlanNode) ([]map[string]interface{}, error) {
+func (qp *Processor) ProcessQueryStream(op plan.PlanNode) ([]map[string]interface{}, error) {
 	var wg sync.WaitGroup
 	counter := 0
 	rowCh, err := executeRowStream(qp, op, &counter, &wg)
@@ -242,7 +173,7 @@ func (qp *QueryProcessor) ProcessQueryStream(op plan.PlanNode) ([]map[string]int
 	return qp.results, nil
 }
 
-func ExecuteOperatorStream(qp *QueryProcessor, op plan.PlanNode, counter *int, wg *sync.WaitGroup) (chan []Record, error) {
+func ExecuteOperatorStream(qp *Processor, op plan.PlanNode, counter *int, wg *sync.WaitGroup) (chan []Record, error) {
 	if op == nil {
 		return nil, fmt.Errorf("Empty Operator Passed")
 	}
@@ -311,7 +242,7 @@ func ExecuteOperatorStream(qp *QueryProcessor, op plan.PlanNode, counter *int, w
 	return outputStream, nil
 }
 
-func scanByStore(qp *QueryProcessor, o *plan.EntityScan, out chan<- []Record) (int, error) {
+func scanByStore(qp *Processor, o *plan.EntityScan, out chan<- []Record) (int, error) {
 	switch o.DataStore {
 	case "graph", "", "unknown":
 		return ScanGraphStream(qp, o, out)
@@ -328,7 +259,7 @@ func scanByStore(qp *QueryProcessor, o *plan.EntityScan, out chan<- []Record) (i
 	}
 }
 
-func filterByStore(qp *QueryProcessor, o *plan.Filter, in <-chan []Record, out chan<- []Record) (int, error) {
+func filterByStore(qp *Processor, o *plan.Filter, in <-chan []Record, out chan<- []Record) (int, error) {
 	switch o.DataStore {
 	case "graph", "", "unknown":
 		return streamFilterGraph(qp, o, in, out)

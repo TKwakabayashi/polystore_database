@@ -21,7 +21,7 @@ type VarPathResult struct {
 	// RelIDs   []string // 必要に応じて保持
 }
 
-func ExpandGraphStream(qp *QueryProcessor, o *plan.Expand, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
+func ExpandGraphStream(qp *Processor, o *plan.Expand, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
 	srcIdx := o.InputSlot.VarToSlot[o.SourceEntity]
 	relIdxOut, hasRel := o.OutputSlot.VarToSlot[o.Alias]
 	tgtIdxOut, hasTarget := o.OutputSlot.VarToSlot[o.TargetEntity]
@@ -105,7 +105,7 @@ func ExpandGraphStream(qp *QueryProcessor, o *plan.Expand, inputStream <-chan []
 	)
 }
 
-func streamVarLengthExpand(qp *QueryProcessor, o *plan.VarLengthExpand, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
+func streamVarLengthExpand(qp *Processor, o *plan.VarLengthExpand, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
 	srcIdxIn := o.InputSlot.VarToSlot[o.SourceEntity]
 	tgtIdxOut, hasTarget := o.OutputSlot.VarToSlot[o.TargetEntity]
 	newSlotCount := len(o.OutputSlot.VarToSlot)

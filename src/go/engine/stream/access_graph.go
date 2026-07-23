@@ -9,13 +9,13 @@ import (
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
-func (qp *QueryProcessor) newReadSession() neo4j.SessionWithContext {
+func (qp *Processor) newReadSession() neo4j.SessionWithContext {
 	return qp.neoDriver.NewSession(qp.ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead, FetchSize: neo4j.FetchAll})
 }
 
-func (qp *QueryProcessor) closeSession(s neo4j.SessionWithContext) { _ = s.Close(qp.ctx) }
+func (qp *Processor) closeSession(s neo4j.SessionWithContext) { _ = s.Close(qp.ctx) }
 
-func ScanGraphStream(qp *QueryProcessor,
+func ScanGraphStream(qp *Processor,
 	o *plan.EntityScan, output chan<- []Record) (int, error) {
 	var whereSections []string
 	params := make(map[string]interface{})
@@ -102,7 +102,7 @@ func ScanGraphStream(qp *QueryProcessor,
 
 }
 
-func streamFilterGraph(qp *QueryProcessor, o *plan.Filter, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
+func streamFilterGraph(qp *Processor, o *plan.Filter, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
 	filterIdxIn := o.InputSlot.VarToSlot[o.Alias]
 	newSlotCount := len(o.OutputSlot.VarToSlot)
 
@@ -204,7 +204,7 @@ func streamFilterGraph(qp *QueryProcessor, o *plan.Filter, inputStream <-chan []
 	)
 }
 
-func fetchGraphPropsStream(qp *QueryProcessor,
+func fetchGraphPropsStream(qp *Processor,
 	ids []string, unit *plan.ProjectionUnit, fetch *plan.FetchPlan) map[string]map[string]interface{} {
 	result := make(map[string]map[string]interface{})
 	if len(ids) == 0 || len(fetch.Props) == 0 {

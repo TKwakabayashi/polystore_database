@@ -5,27 +5,9 @@ import (
 	"strings"
 
 	"polystore_database/src/go/codec"
+	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
 )
-
-func cqlOp(t plan.ConditionType) string {
-	switch t {
-	case plan.CondEq:
-		return "="
-	case plan.CondNeq:
-		return "!="
-	case plan.CondGreater:
-		return ">"
-	case plan.CondLess:
-		return "<"
-	case plan.CondGreaterEq:
-		return ">="
-	case plan.CondLessEq:
-		return "<="
-	default:
-		return "="
-	}
-}
 
 // ---------- EntityScan ----------
 
@@ -39,7 +21,7 @@ func (p *Processor) scanColIDs(o *plan.EntityScan) ([]string, error) {
 		if cond == nil {
 			continue
 		}
-		whereClauses = append(whereClauses, fmt.Sprintf("\"%s\" %s ?", cond.Property, cqlOp(cond.Type)))
+		whereClauses = append(whereClauses, fmt.Sprintf("\"%s\" %s ?", cond.Property, core.CQLOp(cond.Type)))
 		val, _ := codec.ConvertToNativeType(cond.Value, cond.DataType)
 		args = append(args, val)
 	}
@@ -79,7 +61,7 @@ func (p *Processor) filterColValid(o *plan.Filter, ids []string) (map[string]str
 		if cond == nil {
 			continue
 		}
-		commonClauses = append(commonClauses, fmt.Sprintf("\"%s\" %s ?", cond.Property, cqlOp(cond.Type)))
+		commonClauses = append(commonClauses, fmt.Sprintf("\"%s\" %s ?", cond.Property, core.CQLOp(cond.Type)))
 		val, _ := codec.ConvertToNativeType(cond.Value, cond.DataType)
 		commonArgs = append(commonArgs, val)
 	}

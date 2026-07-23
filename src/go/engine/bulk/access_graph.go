@@ -10,13 +10,13 @@ import (
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
-func (qp *QueryProcessor) newReadSession() neo4j.SessionWithContext {
+func (qp *Processor) newReadSession() neo4j.SessionWithContext {
 	return qp.neoDriver.NewSession(qp.ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead, FetchSize: neo4j.FetchAll})
 }
 
-func (qp *QueryProcessor) closeSession(s neo4j.SessionWithContext) { _ = s.Close(qp.ctx) }
+func (qp *Processor) closeSession(s neo4j.SessionWithContext) { _ = s.Close(qp.ctx) }
 
-func ScanGraphBulk(qp *QueryProcessor, o *plan.EntityScan) ([]Record, error) {
+func ScanGraphBulk(qp *Processor, o *plan.EntityScan) ([]Record, error) {
 	var whereSections []string
 	params := make(map[string]interface{})
 
@@ -78,7 +78,7 @@ func ScanGraphBulk(qp *QueryProcessor, o *plan.EntityScan) ([]Record, error) {
 	return out, res.Err()
 }
 
-func bulkFilterGraph(qp *QueryProcessor, o *plan.Filter, in []Record) ([]Record, error) {
+func bulkFilterGraph(qp *Processor, o *plan.Filter, in []Record) ([]Record, error) {
 	filterIdxIn := o.InputSlot.VarToSlot[o.Alias]
 	newSlotCount := len(o.OutputSlot.VarToSlot)
 
@@ -169,7 +169,7 @@ func bulkFilterGraph(qp *QueryProcessor, o *plan.Filter, in []Record) ([]Record,
 	return out, nil
 }
 
-func fetchGraphPropsBulk(qp *QueryProcessor, ids []string, unit *plan.ProjectionUnit, fetch *plan.FetchPlan) map[string]map[string]interface{} {
+func fetchGraphPropsBulk(qp *Processor, ids []string, unit *plan.ProjectionUnit, fetch *plan.FetchPlan) map[string]map[string]interface{} {
 	result := make(map[string]map[string]interface{})
 	if len(ids) == 0 || len(fetch.Props) == 0 {
 		return result

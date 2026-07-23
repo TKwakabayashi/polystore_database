@@ -3,30 +3,12 @@ package stream
 import (
 	"fmt"
 	"polystore_database/src/go/codec"
+	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
 	"strings"
 )
 
-func sqlOp(t plan.ConditionType) string {
-	switch t {
-	case plan.CondEq:
-		return "="
-	case plan.CondNeq:
-		return "<>"
-	case plan.CondGreater:
-		return ">"
-	case plan.CondLess:
-		return "<"
-	case plan.CondGreaterEq:
-		return ">="
-	case plan.CondLessEq:
-		return "<="
-	default:
-		return "="
-	}
-}
-
-func ScanRdbStream(qp *QueryProcessor,
+func ScanRdbStream(qp *Processor,
 	o *plan.EntityScan, output chan<- []Record) (int, error) {
 	if qp.sqlDb == nil {
 		return 0, nil
@@ -39,7 +21,7 @@ func ScanRdbStream(qp *QueryProcessor,
 		if cond == nil {
 			continue
 		}
-		clauses = append(clauses, fmt.Sprintf("%s %s ?", cond.Property, sqlOp(cond.Type)))
+		clauses = append(clauses, fmt.Sprintf("%s %s ?", cond.Property, core.SQLOp(cond.Type)))
 		val, _ := codec.ConvertToNativeType(cond.Value, cond.DataType)
 		args = append(args, val)
 	}
@@ -83,7 +65,7 @@ func ScanRdbStream(qp *QueryProcessor,
 	return rowCount, nil
 }
 
-func FilterRdbStream(qp *QueryProcessor,
+func FilterRdbStream(qp *Processor,
 	o *plan.Filter, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
 	filterIdxIn := o.InputSlot.VarToSlot[o.Alias]
 	newSlotCount := len(o.OutputSlot.VarToSlot)
@@ -95,7 +77,7 @@ func FilterRdbStream(qp *QueryProcessor,
 		if cond == nil {
 			continue
 		}
-		filterClauses = append(filterClauses, fmt.Sprintf("%s %s ?", cond.Property, sqlOp(cond.Type)))
+		filterClauses = append(filterClauses, fmt.Sprintf("%s %s ?", cond.Property, core.SQLOp(cond.Type)))
 		val, _ := codec.ConvertToNativeType(cond.Value, cond.DataType)
 		commonArgs = append(commonArgs, val)
 	}
@@ -161,7 +143,7 @@ func FilterRdbStream(qp *QueryProcessor,
 	)
 }
 
-func fetchRdbPropsStream(qp *QueryProcessor,
+func fetchRdbPropsStream(qp *Processor,
 	ids []string, unit *plan.ProjectionUnit, fetch *plan.FetchPlan) map[string]map[string]interface{} {
 	result := make(map[string]map[string]interface{})
 	if qp.sqlDb == nil || len(ids) == 0 || len(unit.Labels) == 0 || len(fetch.Props) == 0 {

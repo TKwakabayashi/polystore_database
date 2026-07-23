@@ -6,7 +6,7 @@ import (
 
 // streamProjection は record ストリームを消費し、必要列を単一パスでクロスストア収集して
 // wide row（キー: "alias.prop" と 束縛 uuid の "alias"）を row ストリームへ emit する。
-func streamProjection(qp *QueryProcessor, o *plan.Projection, inputStream <-chan []Record, out chan<- []Row) int {
+func streamProjection(qp *Processor, o *plan.Projection, inputStream <-chan []Record, out chan<- []Row) int {
 	if qp == nil {
 		return 0
 	}
@@ -87,7 +87,7 @@ func streamProjection(qp *QueryProcessor, o *plan.Projection, inputStream <-chan
 }
 
 // FetchPropertiesBulk は各ストアからプロパティを一括取得する共通入口（既存のまま）。
-func FetchPropertiesBulk(qp *QueryProcessor, ids []string, unit *plan.ProjectionUnit, plan *plan.FetchPlan) map[string]map[string]interface{} {
+func FetchPropertiesBulk(qp *Processor, ids []string, unit *plan.ProjectionUnit, plan *plan.FetchPlan) map[string]map[string]interface{} {
 	switch plan.Store {
 	case "graph":
 		return fetchGraphPropsStream(qp, ids, unit, plan)

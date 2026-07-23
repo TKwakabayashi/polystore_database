@@ -24,7 +24,7 @@ func RunBulk(ctx context.Context, cfg storage.Config, cypher string, params map[
 	if trials < 1 {
 		trials = 1
 	}
-	qp, err := NewQueryProcessorWithConfig(ctx, cfg)
+	qp, err := NewProcessorWithConfig(ctx, cfg)
 	if err != nil {
 		return Result{}, err
 	}

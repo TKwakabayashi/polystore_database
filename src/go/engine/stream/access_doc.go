@@ -2,32 +2,14 @@ package stream
 
 import (
 	"polystore_database/src/go/codec"
+	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func mongoOp(t plan.ConditionType) string {
-	switch t {
-	case plan.CondEq:
-		return "$eq"
-	case plan.CondNeq:
-		return "$ne"
-	case plan.CondGreater:
-		return "$gt"
-	case plan.CondLess:
-		return "$lt"
-	case plan.CondGreaterEq:
-		return "$gte"
-	case plan.CondLessEq:
-		return "$lte"
-	default:
-		return "$eq"
-	}
-}
-
-func ScanDocStream(qp *QueryProcessor,
+func ScanDocStream(qp *Processor,
 	o *plan.EntityScan, output chan<- []Record) (int, error) {
 	// --- DB特有: bson クエリ構築 ---
 	query := bson.D{}
@@ -41,7 +23,7 @@ func ScanDocStream(qp *QueryProcessor,
 				val = int64(v32)
 			}
 		}
-		query = append(query, bson.E{Key: cond.Property, Value: bson.M{mongoOp(cond.Type): val}})
+		query = append(query, bson.E{Key: cond.Property, Value: bson.M{core.MongoOp(cond.Type): val}})
 	}
 
 	// --- 以下 ScanGraphStream と同じストリーミング骨格 ---
@@ -80,7 +62,7 @@ func ScanDocStream(qp *QueryProcessor,
 	return rowCount, nil
 }
 
-func FilterDocStream(qp *QueryProcessor,
+func FilterDocStream(qp *Processor,
 	o *plan.Filter, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
 	filterIdxIn := o.InputSlot.VarToSlot[o.Alias]
 	newSlotCount := len(o.OutputSlot.VarToSlot)
@@ -92,7 +74,7 @@ func FilterDocStream(qp *QueryProcessor,
 			continue
 		}
 		val, _ := codec.ConvertToNativeType(cond.Value, cond.DataType)
-		commonConditions = append(commonConditions, bson.E{Key: cond.Property, Value: bson.M{mongoOp(cond.Type): val}})
+		commonConditions = append(commonConditions, bson.E{Key: cond.Property, Value: bson.M{core.MongoOp(cond.Type): val}})
 	}
 
 	return runBatches(
@@ -147,7 +129,7 @@ func FilterDocStream(qp *QueryProcessor,
 }
 
 // fetchGraphPropsStream と同じ構造。クエリと行パースだけ Mongo 用。
-func fetchDocPropsStream(qp *QueryProcessor, ids []string, unit *plan.ProjectionUnit, fetch *plan.FetchPlan) map[string]map[string]interface{} {
+func fetchDocPropsStream(qp *Processor, ids []string, unit *plan.ProjectionUnit, fetch *plan.FetchPlan) map[string]map[string]interface{} {
 	result := make(map[string]map[string]interface{})
 	if qp.mDb == nil || len(ids) == 0 || len(unit.Labels) == 0 || len(fetch.Props) == 0 {
 		return result

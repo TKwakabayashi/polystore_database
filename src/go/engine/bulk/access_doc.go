@@ -2,28 +2,14 @@ package bulk
 
 import (
 	"polystore_database/src/go/codec"
+	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func mongoOp(t plan.ConditionType) string {
-	switch t {
-	case plan.CondEq:
-		return "$eq"
-	case plan.CondNeq:
-		return "$ne"
-	case plan.CondGreater:
-		return "$gt"
-	case plan.CondLess:
-		return "$lt"
-	default:
-		return "$eq"
-	}
-}
-
-func ScanDocBulk(qp *QueryProcessor, o *plan.EntityScan) ([]Record, error) {
+func ScanDocBulk(qp *Processor, o *plan.EntityScan) ([]Record, error) {
 	if qp.mDb == nil {
 		return nil, nil
 	}
@@ -39,7 +25,7 @@ func ScanDocBulk(qp *QueryProcessor, o *plan.EntityScan) ([]Record, error) {
 				val = int64(v32)
 			}
 		}
-		query = append(query, bson.E{Key: cond.Property, Value: bson.M{mongoOp(cond.Type): val}})
+		query = append(query, bson.E{Key: cond.Property, Value: bson.M{core.MongoOp(cond.Type): val}})
 	}
 
 	newSlotCount := len(o.OutputSlot.VarToSlot)
@@ -67,7 +53,7 @@ func ScanDocBulk(qp *QueryProcessor, o *plan.EntityScan) ([]Record, error) {
 	return out, nil
 }
 
-func FilterDocBulk(qp *QueryProcessor, o *plan.Filter, in []Record) ([]Record, error) {
+func FilterDocBulk(qp *Processor, o *plan.Filter, in []Record) ([]Record, error) {
 	filterIdxIn := o.InputSlot.VarToSlot[o.Alias]
 	newSlotCount := len(o.OutputSlot.VarToSlot)
 
@@ -78,7 +64,7 @@ func FilterDocBulk(qp *QueryProcessor, o *plan.Filter, in []Record) ([]Record, e
 			continue
 		}
 		val, _ := codec.ConvertToNativeType(cond.Value, cond.DataType)
-		commonConditions = append(commonConditions, bson.E{Key: cond.Property, Value: bson.M{mongoOp(cond.Type): val}})
+		commonConditions = append(commonConditions, bson.E{Key: cond.Property, Value: bson.M{core.MongoOp(cond.Type): val}})
 	}
 
 	idMap := make(map[string]struct{})
@@ -124,7 +110,7 @@ func FilterDocBulk(qp *QueryProcessor, o *plan.Filter, in []Record) ([]Record, e
 	return out, nil
 }
 
-func fetchDocPropsBulk(qp *QueryProcessor, ids []string, unit *plan.ProjectionUnit, fetch *plan.FetchPlan) map[string]map[string]interface{} {
+func fetchDocPropsBulk(qp *Processor, ids []string, unit *plan.ProjectionUnit, fetch *plan.FetchPlan) map[string]map[string]interface{} {
 	result := make(map[string]map[string]interface{})
 	if qp.mDb == nil || len(ids) == 0 || len(unit.Labels) == 0 || len(fetch.Props) == 0 {
 		return result

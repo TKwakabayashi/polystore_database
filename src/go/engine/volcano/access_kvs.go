@@ -2,12 +2,10 @@ package volcano
 
 import (
 	"bytes"
-	"cmp"
-	"fmt"
 	"strconv"
-	"time"
 
 	"polystore_database/src/go/codec"
+	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
 
 	"github.com/syndtr/goleveldb/leveldb/util"
@@ -21,7 +19,7 @@ func (p *Processor) scanKvsIDs(o *plan.EntityScan) ([]string, error) {
 	}
 	var ids []string
 	seen := make(map[string]struct{})
-	primaryEq := findPrimaryEqCondition(o.Filter)
+	primaryEq := core.FindPrimaryEqCondition(o.Filter)
 
 	for _, label := range o.Labels {
 		var prefix []byte
@@ -125,15 +123,6 @@ func (p *Processor) fetchKvsProps(ids []string, unit *plan.ProjectionUnit, fetch
 
 // ---------- 条件評価（点 Get） ----------
 
-func findPrimaryEqCondition(filters []*plan.ConditionNode) *plan.ConditionNode {
-	for _, c := range filters {
-		if c != nil && c.Type == plan.CondEq {
-			return c
-		}
-	}
-	return nil
-}
-
 // matchConditionsKVS は条件に現れるプロパティだけを点 Get して判定する。
 func (p *Processor) matchConditionsKVS(label, uuid string, filters []*plan.ConditionNode) bool {
 	for _, cond := range filters {
@@ -146,102 +135,9 @@ func (p *Processor) matchConditionsKVS(label, uuid string, filters []*plan.Condi
 			return false // プロパティ欠落 = 不一致
 		}
 		actual, _ := codec.ConvertToNativeType(codec.DecodeValue(valBytes, cond.DataType), cond.DataType)
-		if !evalConditionKVS(actual, cond) {
+		if !core.EvalConditionKVS(actual, cond) {
 			return false
 		}
 	}
 	return true
-}
-
-func evalConditionKVS(actual interface{}, cond *plan.ConditionNode) bool {
-	if actual == nil {
-		return false
-	}
-	switch cond.DataType {
-	case "int", "integer", "long":
-		var a int64
-		switch v := actual.(type) {
-		case int64:
-			a = v
-		case int32:
-			a = int64(v)
-		case int:
-			a = int64(v)
-		default:
-			a, _ = strconv.ParseInt(fmt.Sprintf("%v", v), 10, 64)
-		}
-		b, _ := strconv.ParseInt(cond.Value, 10, 64)
-		return compareOrderedKVS(a, b, cond.Type)
-
-	case "float", "double":
-		var a float64
-		switch v := actual.(type) {
-		case float64:
-			a = v
-		case float32:
-			a = float64(v)
-		default:
-			a, _ = strconv.ParseFloat(fmt.Sprintf("%v", v), 64)
-		}
-		b, _ := strconv.ParseFloat(cond.Value, 64)
-		return compareOrderedKVS(a, b, cond.Type)
-
-	case "datetime", "date":
-		a, ok := actual.(time.Time)
-		if !ok {
-			return false
-		}
-		var b time.Time
-		var err error
-		if cond.DataType == "date" {
-			b, err = time.Parse("2006-01-02", cond.Value)
-		} else {
-			b, err = time.Parse(time.RFC3339, cond.Value)
-		}
-		if err != nil {
-			return false
-		}
-		return compareTimeKVS(a, b, cond.Type)
-
-	default:
-		return compareOrderedKVS(fmt.Sprintf("%v", actual), cond.Value, cond.Type)
-	}
-}
-
-func compareOrderedKVS[T cmp.Ordered](a, b T, op plan.ConditionType) bool {
-	switch op {
-	case plan.CondEq:
-		return a == b
-	case plan.CondNeq:
-		return a != b
-	case plan.CondGreater:
-		return a > b
-	case plan.CondLess:
-		return a < b
-	case plan.CondGreaterEq:
-		return a >= b
-	case plan.CondLessEq:
-		return a <= b
-	default:
-		return false
-	}
-}
-
-func compareTimeKVS(a, b time.Time, op plan.ConditionType) bool {
-	switch op {
-	case plan.CondEq:
-		return a.Equal(b)
-	case plan.CondNeq:
-		return !a.Equal(b)
-	case plan.CondGreater:
-		return a.After(b)
-	case plan.CondLess:
-		return a.Before(b)
-	case plan.CondGreaterEq:
-		return !a.Before(b)
-	case plan.CondLessEq:
-		return !a.After(b)
-	default:
-		return false
-	}
 }
