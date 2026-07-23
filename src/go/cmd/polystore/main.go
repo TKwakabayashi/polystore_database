@@ -19,10 +19,10 @@ import (
 // パッケージ（編集→再ビルド）で切り替える。
 func main() {
 	var (
-		mode       = flag.String("mode", "run", "実行モード: setup | migrate | run | workflow | verify-migrate | bench | bench-models")
+		mode       = flag.String("mode", "run", "実行モード: setup | migrate | run | workflow | bench | bench-models")
 		workload   = flag.String("workload", "Q11", "ワークロード名（bench はカンマ区切り複数 or all）")
 		configPath = flag.String("config", "../../config/config.json", "設定ファイル(JSON)")
-		migMode    = flag.String("migmode", "graph_to_rdb", "移行モード（a_to_b）: migrate / workflow / verify-migrate で使用")
+		migMode    = flag.String("migmode", "graph_to_rdb", "移行モード（a_to_b）: migrate / workflow で使用")
 		outPath    = flag.String("out", "../../results/bench/bench_results.csv", "bench: 結果CSVの出力先（追記）")
 	)
 	flag.Parse()
@@ -65,10 +65,6 @@ func main() {
 			migs[i].DeleteSource = settings.MigrationDeleteSource
 		}
 		bench.RunWorkflow(ctx, *workload, cfg, cypher, params, migs)
-
-	case "verify-migrate":
-		// 【一時】migrator の動作確認（非破壊ラウンドトリップ検証）
-		bench.RunMigrationVerify(ctx, cfg, *workload, migrator.MigrationMode(*migMode))
 
 	case "bench":
 		// baseline(Neo4j直) と placement×pushdown の自作システムを計測し CSV へ追記。最後に graph へ戻す。
