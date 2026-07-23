@@ -40,8 +40,9 @@ var coreMustPassAll = map[string]bool{"Q11": true}
 //   - record パイプライン（scan/filter/expand/projection）を代表的にカバーする
 //     （Q11=traversal, IS2/IS3=scan+projection, AGG1/AGG6=集約）。
 //   - graph 配置で 4 モデル全てが成功する（結果非空で multiset 比較が意味を持つ）。
-//   - >= / <= を使うもの（Q2/AGG4/AGG5）は bulk-graph の既存演算子ギャップを踏むため除外し、
-//     そちらは bench-models で扱う。Q9 は結果 0 件かつ低速のため除外。
+//   - 範囲フィルタ（>= / <=）を使う Q2/AGG4/AGG5 は auto-pushdown で単一ストアへ委譲され
+//     record パイプラインを通らないため、ここでは扱わず bench-models（PushdownForceEngine）で
+//     全配置を確認する。Q9 は結果 0 件かつ低速のため除外。
 var equivWorkloads = []string{"Q11", "IS2", "IS3", "AGG1", "AGG6"}
 
 // TestEngineEquivalence は graph 配置で各ワークロードを 4 モデルで実行し、成功したモデル間で

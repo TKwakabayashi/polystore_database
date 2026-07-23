@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"polystore_database/src/go/codec"
+	"polystore_database/src/go/engine/core"
 	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 
@@ -31,22 +32,10 @@ func ScanGraphBulk(qp *Processor, o *plan.EntityScan) ([]Record, error) {
 	}
 
 	// 2. プロパティフィルタ条件の構築 (n.prop = $val ...)
+	//    演算子表記は core.SQLOp（全6演算子・Cypher 互換の <> >= <= 等）で 3 エンジン共通。
 	for i, cond := range o.Filter {
-		var operator string
-		switch cond.Type {
-		case plan.CondEq:
-			operator = "="
-		case plan.CondNeq:
-			operator = "<>"
-		case plan.CondGreater:
-			operator = ">"
-		case plan.CondLess:
-			operator = "<"
-		default:
-			return nil, fmt.Errorf("unknown operator")
-		}
 		paramName := fmt.Sprintf("val%d", i)
-		whereSections = append(whereSections, fmt.Sprintf("n.%s %s $%s", cond.Property, operator, paramName))
+		whereSections = append(whereSections, fmt.Sprintf("n.%s %s $%s", cond.Property, core.SQLOp(cond.Type), paramName))
 		params[paramName], _ = codec.ConvertToNativeType(cond.Value, cond.DataType)
 	}
 
@@ -101,19 +90,8 @@ func bulkFilterGraph(qp *Processor, o *plan.Filter, in []Record) ([]Record, erro
 	var whereClauses []string
 	params := make(map[string]interface{})
 	for i, cond := range o.Filter {
-		operator := "="
-		switch cond.Type {
-		case plan.CondEq:
-			operator = "="
-		case plan.CondNeq:
-			operator = "<>"
-		case plan.CondGreater:
-			operator = ">"
-		case plan.CondLess:
-			operator = "<"
-		}
 		paramName := fmt.Sprintf("val%d", i)
-		whereClauses = append(whereClauses, fmt.Sprintf("%s.%s %s $%s", targetVar, cond.Property, operator, paramName))
+		whereClauses = append(whereClauses, fmt.Sprintf("%s.%s %s $%s", targetVar, cond.Property, core.SQLOp(cond.Type), paramName))
 		params[paramName], _ = codec.ConvertToNativeType(cond.Value, cond.DataType)
 	}
 
