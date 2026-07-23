@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 	"polystore_database/src/go/store"
 )
@@ -47,8 +48,8 @@ func (s *scanIterator) Next(ctx context.Context) (*Batch, error) {
 	}
 	b := newBatch(s.slotCount, end-s.pos)
 	for ; s.pos < end; s.pos++ {
-		row := make([]string, s.slotCount)
-		row[s.aliasIdx] = s.ids[s.pos]
+		row := make([]uid.UUID, s.slotCount)
+		row[s.aliasIdx] = uid.UUID(s.ids[s.pos])
 		b.appendRow(row)
 	}
 	s.p.recordOp(s.step, "EntityScan", time.Since(start), b.n)

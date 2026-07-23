@@ -11,21 +11,25 @@
 // plan.PlanNode を消費して iterator ツリーを構築する。
 package volcano
 
-import "context"
+import (
+	"context"
+
+	uid "polystore_database/src/go/id"
+)
 
 // Batch は演算子間を流れる中間結果（列指向）。
-//   - cols[slot] が長さ n の列（値は uuid などの文字列スロット）。
+//   - cols[slot] が長さ n の列（値は uuid スロット）。
 //   - 空バッチ (n==0) は演算子間では流さない（EOF と区別するため）。
 type Batch struct {
-	cols [][]string
+	cols [][]uid.UUID
 	n    int
 }
 
 // newBatch は slotCount 個の空列を持つ Batch を確保する。
 func newBatch(slotCount, capRows int) *Batch {
-	cols := make([][]string, slotCount)
+	cols := make([][]uid.UUID, slotCount)
 	for i := range cols {
-		cols[i] = make([]string, 0, capRows)
+		cols[i] = make([]uid.UUID, 0, capRows)
 	}
 	return &Batch{cols: cols, n: 0}
 }
@@ -33,10 +37,10 @@ func newBatch(slotCount, capRows int) *Batch {
 // slotCount は列（スロット）数。
 func (b *Batch) slotCount() int { return len(b.cols) }
 
-// appendRow は 1 行（長さ slotCount 以下の []string）を各列末尾へ追加する。
-func (b *Batch) appendRow(row []string) {
+// appendRow は 1 行（長さ slotCount 以下の []uid.UUID）を各列末尾へ追加する。
+func (b *Batch) appendRow(row []uid.UUID) {
 	for s := range b.cols {
-		var v string
+		var v uid.UUID
 		if s < len(row) {
 			v = row[s]
 		}
@@ -45,9 +49,9 @@ func (b *Batch) appendRow(row []string) {
 	b.n++
 }
 
-// row は i 行目を []string として復元する。
-func (b *Batch) row(i int) []string {
-	out := make([]string, len(b.cols))
+// row は i 行目を []uid.UUID として復元する。
+func (b *Batch) row(i int) []uid.UUID {
+	out := make([]uid.UUID, len(b.cols))
 	for s := range b.cols {
 		out[s] = b.cols[s][i]
 	}
@@ -55,7 +59,7 @@ func (b *Batch) row(i int) []string {
 }
 
 // get は (行 i, スロット s) の値を返す。
-func (b *Batch) get(i, s int) string { return b.cols[s][i] }
+func (b *Batch) get(i, s int) uid.UUID { return b.cols[s][i] }
 
 // Iterator は pull 型（Volcano）の演算子インターフェース。
 type Iterator interface {

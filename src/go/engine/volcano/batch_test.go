@@ -3,6 +3,7 @@ package volcano
 import (
 	"testing"
 
+	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 )
 
@@ -11,8 +12,8 @@ import (
 
 func TestBatchAppendAndRow(t *testing.T) {
 	b := newBatch(3, 2)
-	b.appendRow([]string{"a0", "a1", "a2"})
-	b.appendRow([]string{"b0", "b1"}) // 短い行は残スロットが空文字
+	b.appendRow([]uid.UUID{"a0", "a1", "a2"})
+	b.appendRow([]uid.UUID{"b0", "b1"}) // 短い行は残スロットが空文字
 
 	if b.n != 2 {
 		t.Fatalf("n = %d, want 2", b.n)
@@ -33,7 +34,7 @@ func TestRemapCarriesSharedAliases(t *testing.T) {
 	in := plan.SlotTable{VarToSlot: map[string]int{"a": 0, "b": 1}}
 	out := plan.SlotTable{VarToSlot: map[string]int{"b": 0, "c": 1}} // a は落ち、c は新規
 
-	got := remap([]string{"va", "vb"}, in, out)
+	got := remap([]uid.UUID{"va", "vb"}, in, out)
 	if len(got) != 2 {
 		t.Fatalf("len = %d, want 2", len(got))
 	}

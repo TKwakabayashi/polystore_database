@@ -6,6 +6,7 @@ import (
 
 	"polystore_database/src/go/codec"
 	"polystore_database/src/go/engine/core"
+	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 
 	"github.com/syndtr/goleveldb/leveldb/util"
@@ -22,8 +23,8 @@ func ScanKvsBulk(qp *Processor, o *plan.EntityScan) ([]Record, error) {
 	out := make([]Record, 0)
 
 	emit := func(uuid string) {
-		newSlots := make([]string, newSlotCount)
-		newSlots[aliasIdx] = uuid
+		newSlots := make([]uid.UUID, newSlotCount)
+		newSlots[aliasIdx] = uid.UUID(uuid)
 		out = append(out, Record{Slots: newSlots})
 	}
 
@@ -83,16 +84,16 @@ func FilterKvsBulk(qp *Processor, o *plan.Filter, in []Record) ([]Record, error)
 	filterIdxIn := o.InputSlot.VarToSlot[o.Alias]
 	newSlotCount := len(o.OutputSlot.VarToSlot)
 
-	idMap := make(map[string]struct{})
+	idMap := make(map[uid.UUID]struct{})
 	for _, r := range in {
 		idMap[r.Slots[filterIdxIn]] = struct{}{}
 	}
 
 	// --- DB特有: 各 uuid を点 Get で判定 ---
-	validMap := make(map[string]struct{})
+	validMap := make(map[uid.UUID]struct{})
 	for id := range idMap {
 		for _, label := range o.Labels {
-			if matchConditionsKVS(qp, label, id, o.Filter) {
+			if matchConditionsKVS(qp, label, id.String(), o.Filter) {
 				validMap[id] = struct{}{}
 				break
 			}
@@ -102,7 +103,7 @@ func FilterKvsBulk(qp *Processor, o *plan.Filter, in []Record) ([]Record, error)
 	out := make([]Record, 0, len(in))
 	for _, r := range in {
 		if _, ok := validMap[r.Slots[filterIdxIn]]; ok {
-			newRec := Record{Slots: make([]string, newSlotCount)}
+			newRec := Record{Slots: make([]uid.UUID, newSlotCount)}
 			for alias, outIdx := range o.OutputSlot.VarToSlot {
 				if inIdx, exists := o.InputSlot.VarToSlot[alias]; exists {
 					newRec.Slots[outIdx] = r.Slots[inIdx]
@@ -129,7 +130,7 @@ func fetchKvsPropsBulk(qp *Processor, ids []string, unit *plan.ProjectionUnit, f
 		}
 		for _, label := range unit.Labels {
 			for _, propName := range fetch.Props {
-				valByte, err := qp.ldb.Get(codec.BuildEntityKey(label, uuid, propName), nil)
+				valByte, err := qp.ldb.Get(codec.BuildEntityKey(label, uid.UUID(uuid), propName), nil)
 				if err != nil {
 					if _, ok := result[uuid][propName]; !ok {
 						result[uuid][propName] = nil
@@ -154,7 +155,7 @@ func matchConditionsKVS(qp *Processor, label, uuid string, filters []*plan.Condi
 		if cond == nil {
 			continue
 		}
-		valBytes, err := qp.ldb.Get(codec.BuildEntityKey(label, uuid, cond.Property), nil)
+		valBytes, err := qp.ldb.Get(codec.BuildEntityKey(label, uid.UUID(uuid), cond.Property), nil)
 		if err != nil {
 			return false // プロパティ欠落 = 不一致
 		}

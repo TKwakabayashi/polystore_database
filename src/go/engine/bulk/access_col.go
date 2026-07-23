@@ -6,6 +6,7 @@ import (
 
 	"polystore_database/src/go/codec"
 	"polystore_database/src/go/engine/core"
+	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 )
 
@@ -42,8 +43,8 @@ func ScanColBulk(qp *Processor, o *plan.EntityScan) ([]Record, error) {
 			if id == "" {
 				continue
 			}
-			newSlots := make([]string, newSlotCount)
-			newSlots[aliasIdx] = id
+			newSlots := make([]uid.UUID, newSlotCount)
+			newSlots[aliasIdx] = uid.UUID(id)
 			out = append(out, Record{Slots: newSlots})
 		}
 		if err := iter.Close(); err != nil {
@@ -70,24 +71,24 @@ func FilterColBulk(qp *Processor, o *plan.Filter, in []Record) ([]Record, error)
 	}
 	whereClause := strings.Join(append([]string{"uuid IN ?"}, commonClauses...), " AND ")
 
-	idMap := make(map[string]struct{})
+	idMap := make(map[uid.UUID]struct{})
 	for _, r := range in {
 		idMap[r.Slots[filterIdxIn]] = struct{}{}
 	}
 	uniqueIDs := make([]string, 0, len(idMap))
 	for id := range idMap {
-		uniqueIDs = append(uniqueIDs, id)
+		uniqueIDs = append(uniqueIDs, id.String())
 	}
 
 	// --- DB特有: valid 抽出 ---
 	queryArgs := append([]interface{}{uniqueIDs}, commonArgs...)
-	validMap := make(map[string]struct{})
+	validMap := make(map[uid.UUID]struct{})
 	for _, label := range o.Labels {
 		query := fmt.Sprintf("SELECT uuid FROM \"%s\" WHERE %s ALLOW FILTERING", label, whereClause)
 		iter := qp.cqlSes.Query(query, queryArgs...).Iter()
 		var id string
 		for iter.Scan(&id) {
-			validMap[id] = struct{}{}
+			validMap[uid.UUID(id)] = struct{}{}
 		}
 		if err := iter.Close(); err != nil {
 			return nil, err
@@ -97,7 +98,7 @@ func FilterColBulk(qp *Processor, o *plan.Filter, in []Record) ([]Record, error)
 	out := make([]Record, 0, len(in))
 	for _, r := range in {
 		if _, ok := validMap[r.Slots[filterIdxIn]]; ok {
-			newRec := Record{Slots: make([]string, newSlotCount)}
+			newRec := Record{Slots: make([]uid.UUID, newSlotCount)}
 			for alias, outIdx := range o.OutputSlot.VarToSlot {
 				if inIdx, exists := o.InputSlot.VarToSlot[alias]; exists {
 					newRec.Slots[outIdx] = r.Slots[inIdx]

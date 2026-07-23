@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 	"polystore_database/src/go/store"
 )
@@ -47,13 +48,13 @@ func (f *filterIterator) process(in *Batch) (*Batch, error) {
 	filterIdxIn := f.o.InputSlot.VarToSlot[f.o.Alias]
 
 	// バッチ内 uuid のユニーク化
-	idSet := make(map[string]struct{}, in.n)
+	idSet := make(map[uid.UUID]struct{}, in.n)
 	for i := 0; i < in.n; i++ {
 		idSet[in.get(i, filterIdxIn)] = struct{}{}
 	}
 	uniqueIDs := make([]string, 0, len(idSet))
 	for id := range idSet {
-		uniqueIDs = append(uniqueIDs, id)
+		uniqueIDs = append(uniqueIDs, id.String())
 	}
 
 	valid, err := f.p.filterValid(f.o, uniqueIDs)
@@ -64,7 +65,7 @@ func (f *filterIterator) process(in *Batch) (*Batch, error) {
 	outSlots := len(f.o.OutputSlot.VarToSlot)
 	out := newBatch(outSlots, in.n)
 	for i := 0; i < in.n; i++ {
-		if _, ok := valid[in.get(i, filterIdxIn)]; ok {
+		if _, ok := valid[in.get(i, filterIdxIn).String()]; ok {
 			out.appendRow(remap(in.row(i), f.o.InputSlot, f.o.OutputSlot))
 		}
 	}
@@ -90,8 +91,8 @@ func (p *Processor) filterValid(o *plan.Filter, ids []string) (map[string]struct
 }
 
 // remap は InputSlot 基準の行を OutputSlot 基準へ引き継ぐ。
-func remap(in []string, inSlot, outSlot plan.SlotTable) []string {
-	out := make([]string, len(outSlot.VarToSlot))
+func remap(in []uid.UUID, inSlot, outSlot plan.SlotTable) []uid.UUID {
+	out := make([]uid.UUID, len(outSlot.VarToSlot))
 	for alias, outIdx := range outSlot.VarToSlot {
 		if inIdx, ok := inSlot.VarToSlot[alias]; ok && inIdx < len(in) {
 			out[outIdx] = in[inIdx]

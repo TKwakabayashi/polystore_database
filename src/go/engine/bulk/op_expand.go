@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 )
 
@@ -59,11 +60,11 @@ func ExpandGraphBulk(qp *Processor, o *plan.Expand, in []Record) ([]Record, erro
 	finalQuery := fmt.Sprintf("MATCH %s WHERE src.uuid IN $ids RETURN %s", pattern, returns)
 
 	srcIds := make([]string, 0, len(in))
-	recordMap := make(map[string][]Record)
+	recordMap := make(map[uid.UUID][]Record)
 	for _, r := range in {
 		id := r.Slots[srcIdx]
 		if _, exists := recordMap[id]; !exists {
-			srcIds = append(srcIds, id)
+			srcIds = append(srcIds, id.String())
 		}
 		recordMap[id] = append(recordMap[id], r)
 	}
@@ -79,9 +80,9 @@ func ExpandGraphBulk(qp *Processor, o *plan.Expand, in []Record) ([]Record, erro
 	out := make([]Record, 0, len(in))
 	for res.Next(qp.ctx) {
 		dbRec := res.Record()
-		sidStr := dbRec.Values[0].(string)
-		for _, originalRec := range recordMap[sidStr] {
-			newSlots := make([]string, newSlotCount)
+		sid := uid.FromAny(dbRec.Values[0])
+		for _, originalRec := range recordMap[sid] {
+			newSlots := make([]uid.UUID, newSlotCount)
 			for alias, outIdx := range o.OutputSlot.VarToSlot {
 				if inIdx, exists := o.InputSlot.VarToSlot[alias]; exists {
 					newSlots[outIdx] = originalRec.Slots[inIdx]
@@ -89,12 +90,12 @@ func ExpandGraphBulk(qp *Processor, o *plan.Expand, in []Record) ([]Record, erro
 			}
 			if hasRel {
 				if rid, ok := dbRec.Get("rid"); ok && rid != nil {
-					newSlots[relIdxOut] = rid.(string)
+					newSlots[relIdxOut] = uid.FromAny(rid)
 				}
 			}
 			if hasTarget {
 				if tid, ok := dbRec.Get("tid"); ok && tid != nil {
-					newSlots[tgtIdxOut] = tid.(string)
+					newSlots[tgtIdxOut] = uid.FromAny(tid)
 				}
 			}
 			out = append(out, Record{Slots: newSlots})
@@ -135,11 +136,11 @@ func bulkVarLengthExpand(qp *Processor, o *plan.VarLengthExpand, in []Record) ([
 	)
 
 	srcIds := make([]string, 0, len(in))
-	recordMap := make(map[string][]Record)
+	recordMap := make(map[uid.UUID][]Record)
 	for _, r := range in {
 		id := r.Slots[srcIdxIn]
 		if _, exists := recordMap[id]; !exists {
-			srcIds = append(srcIds, id)
+			srcIds = append(srcIds, id.String())
 		}
 		recordMap[id] = append(recordMap[id], r)
 	}
@@ -153,9 +154,9 @@ func bulkVarLengthExpand(qp *Processor, o *plan.VarLengthExpand, in []Record) ([
 	}
 
 	out := make([]Record, 0, len(in))
-	reachedSids := make(map[string]struct{})
-	carry := func(originalRec Record, targetID string) {
-		newSlots := make([]string, newSlotCount)
+	reachedSids := make(map[uid.UUID]struct{})
+	carry := func(originalRec Record, targetID uid.UUID) {
+		newSlots := make([]uid.UUID, newSlotCount)
 		for alias, outIdx := range o.OutputSlot.VarToSlot {
 			if inIdx, exists := o.InputSlot.VarToSlot[alias]; exists {
 				newSlots[outIdx] = originalRec.Slots[inIdx]
@@ -169,8 +170,8 @@ func bulkVarLengthExpand(qp *Processor, o *plan.VarLengthExpand, in []Record) ([
 
 	for res.Next(qp.ctx) {
 		rec := res.Record()
-		sid := rec.Values[0].(string)
-		tid := rec.Values[1].(string)
+		sid := uid.FromAny(rec.Values[0])
+		tid := uid.FromAny(rec.Values[1])
 		reachedSids[sid] = struct{}{}
 		for _, originalRec := range recordMap[sid] {
 			carry(originalRec, tid)
@@ -182,7 +183,8 @@ func bulkVarLengthExpand(qp *Processor, o *plan.VarLengthExpand, in []Record) ([
 
 	// 0ホップ（自分自身）
 	if o.MinHops == 0 {
-		for _, sid := range srcIds {
+		for _, sidStr := range srcIds {
+			sid := uid.UUID(sidStr)
 			if _, ok := reachedSids[sid]; ok {
 				continue
 			}

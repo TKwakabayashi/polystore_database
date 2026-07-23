@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"polystore_database/src/go/codec"
+	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -70,8 +71,8 @@ func ScanGraphBulk(qp *Processor, o *plan.EntityScan) ([]Record, error) {
 	out := make([]Record, 0)
 	for res.Next(qp.ctx) {
 		if idVal, ok := res.Record().Get("id"); ok && idVal != nil {
-			newSlots := make([]string, newSlotCount)
-			newSlots[aliasIdx] = idVal.(string)
+			newSlots := make([]uid.UUID, newSlotCount)
+			newSlots[aliasIdx] = uid.FromAny(idVal)
 			out = append(out, Record{Slots: newSlots})
 		}
 	}
@@ -126,13 +127,13 @@ func bulkFilterGraph(qp *Processor, o *plan.Filter, in []Record) ([]Record, erro
 	)
 
 	// 全入力から uuid をユニーク化して 1 回で問い合わせる
-	idMap := make(map[string]struct{})
+	idMap := make(map[uid.UUID]struct{})
 	for _, r := range in {
 		idMap[r.Slots[filterIdxIn]] = struct{}{}
 	}
 	uniqueIDs := make([]string, 0, len(idMap))
 	for id := range idMap {
-		uniqueIDs = append(uniqueIDs, id)
+		uniqueIDs = append(uniqueIDs, id.String())
 	}
 	params["ids"] = uniqueIDs
 
@@ -143,10 +144,10 @@ func bulkFilterGraph(qp *Processor, o *plan.Filter, in []Record) ([]Record, erro
 	if err != nil {
 		return nil, err
 	}
-	validMap := make(map[string]struct{})
+	validMap := make(map[uid.UUID]struct{})
 	for res.Next(qp.ctx) {
 		if id, ok := res.Record().Get("id"); ok && id != nil {
-			validMap[id.(string)] = struct{}{}
+			validMap[uid.FromAny(id)] = struct{}{}
 		}
 	}
 	if err := res.Err(); err != nil {
@@ -157,7 +158,7 @@ func bulkFilterGraph(qp *Processor, o *plan.Filter, in []Record) ([]Record, erro
 	out := make([]Record, 0, len(in))
 	for _, r := range in {
 		if _, ok := validMap[r.Slots[filterIdxIn]]; ok {
-			newRec := Record{Slots: make([]string, newSlotCount)}
+			newRec := Record{Slots: make([]uid.UUID, newSlotCount)}
 			for alias, outIdx := range o.OutputSlot.VarToSlot {
 				if inIdx, exists := o.InputSlot.VarToSlot[alias]; exists {
 					newRec.Slots[outIdx] = r.Slots[inIdx]

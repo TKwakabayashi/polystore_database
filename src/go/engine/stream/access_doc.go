@@ -3,6 +3,7 @@ package stream
 import (
 	"polystore_database/src/go/codec"
 	"polystore_database/src/go/engine/core"
+	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -45,8 +46,8 @@ func ScanDocStream(qp *Processor,
 			if err := cur.Decode(&rec); err != nil || rec.UUID == "" {
 				continue
 			}
-			newSlots := make([]string, newSlotCount)
-			newSlots[aliasIdx] = rec.UUID
+			newSlots := make([]uid.UUID, newSlotCount)
+			newSlots[aliasIdx] = uid.UUID(rec.UUID)
 			currentBatch = append(currentBatch, Record{Slots: newSlots})
 			rowCount++
 			if len(currentBatch) >= outputBatchSize {
@@ -82,20 +83,20 @@ func FilterDocStream(qp *Processor,
 		noResource, closeNoResource,
 		func(_ struct{}, batch []Record) ([]Record, error) {
 			// id ユニーク化（graph と同じ）
-			idMap := make(map[string]struct{})
+			idMap := make(map[uid.UUID]struct{})
 			for _, r := range batch {
 				idMap[r.Slots[filterIdxIn]] = struct{}{}
 			}
 			uniqueIDs := make([]string, 0, len(idMap))
 			for id := range idMap {
-				uniqueIDs = append(uniqueIDs, id)
+				uniqueIDs = append(uniqueIDs, id.String())
 			}
 
 			// --- DB特有: valid 抽出 ---
 			query := append(bson.D{{Key: "uuid", Value: bson.M{"$in": uniqueIDs}}}, commonConditions...)
-			validMap := make(map[string]struct{})
+			validMap := make(map[uid.UUID]struct{})
 			for _, label := range o.Labels {
-				cur, err := qp.mDb.Collection(label).Find(qp.ctx, query, options.Find().SetProjection(bson.M{"uuid": 1}))
+				cur, err := qp.mDb.Collection(label).Find(qp.ctx, query, options.Find().SetProjection(bson.M{uid.PropName: 1}))
 				if err != nil {
 					return nil, err
 				}
@@ -104,7 +105,7 @@ func FilterDocStream(qp *Processor,
 						UUID string `bson:"uuid"`
 					}
 					if err := cur.Decode(&rec); err == nil {
-						validMap[rec.UUID] = struct{}{}
+						validMap[uid.UUID(rec.UUID)] = struct{}{}
 					}
 				}
 				cur.Close(qp.ctx)
@@ -114,7 +115,7 @@ func FilterDocStream(qp *Processor,
 			out := make([]Record, 0, len(batch))
 			for _, r := range batch {
 				if _, ok := validMap[r.Slots[filterIdxIn]]; ok {
-					newRec := Record{Slots: make([]string, newSlotCount)}
+					newRec := Record{Slots: make([]uid.UUID, newSlotCount)}
 					for alias, outIdx := range o.OutputSlot.VarToSlot {
 						if inIdx, exists := o.InputSlot.VarToSlot[alias]; exists {
 							newRec.Slots[outIdx] = r.Slots[inIdx]

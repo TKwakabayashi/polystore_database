@@ -3,6 +3,7 @@ package bulk
 import (
 	"polystore_database/src/go/codec"
 	"polystore_database/src/go/engine/core"
+	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -44,8 +45,8 @@ func ScanDocBulk(qp *Processor, o *plan.EntityScan) ([]Record, error) {
 			if err := cur.Decode(&rec); err != nil || rec.UUID == "" {
 				continue
 			}
-			newSlots := make([]string, newSlotCount)
-			newSlots[aliasIdx] = rec.UUID
+			newSlots := make([]uid.UUID, newSlotCount)
+			newSlots[aliasIdx] = uid.UUID(rec.UUID)
 			out = append(out, Record{Slots: newSlots})
 		}
 		cur.Close(qp.ctx)
@@ -67,20 +68,20 @@ func FilterDocBulk(qp *Processor, o *plan.Filter, in []Record) ([]Record, error)
 		commonConditions = append(commonConditions, bson.E{Key: cond.Property, Value: bson.M{core.MongoOp(cond.Type): val}})
 	}
 
-	idMap := make(map[string]struct{})
+	idMap := make(map[uid.UUID]struct{})
 	for _, r := range in {
 		idMap[r.Slots[filterIdxIn]] = struct{}{}
 	}
 	uniqueIDs := make([]string, 0, len(idMap))
 	for id := range idMap {
-		uniqueIDs = append(uniqueIDs, id)
+		uniqueIDs = append(uniqueIDs, id.String())
 	}
 
 	// --- DB特有: valid 抽出 ---
-	query := append(bson.D{{Key: "uuid", Value: bson.M{"$in": uniqueIDs}}}, commonConditions...)
-	validMap := make(map[string]struct{})
+	query := append(bson.D{{Key: uid.PropName, Value: bson.M{"$in": uniqueIDs}}}, commonConditions...)
+	validMap := make(map[uid.UUID]struct{})
 	for _, label := range o.Labels {
-		cur, err := qp.mDb.Collection(label).Find(qp.ctx, query, options.Find().SetProjection(bson.M{"uuid": 1}))
+		cur, err := qp.mDb.Collection(label).Find(qp.ctx, query, options.Find().SetProjection(bson.M{uid.PropName: 1}))
 		if err != nil {
 			return nil, err
 		}
@@ -89,7 +90,7 @@ func FilterDocBulk(qp *Processor, o *plan.Filter, in []Record) ([]Record, error)
 				UUID string `bson:"uuid"`
 			}
 			if err := cur.Decode(&rec); err == nil {
-				validMap[rec.UUID] = struct{}{}
+				validMap[uid.UUID(rec.UUID)] = struct{}{}
 			}
 		}
 		cur.Close(qp.ctx)
@@ -98,7 +99,7 @@ func FilterDocBulk(qp *Processor, o *plan.Filter, in []Record) ([]Record, error)
 	out := make([]Record, 0, len(in))
 	for _, r := range in {
 		if _, ok := validMap[r.Slots[filterIdxIn]]; ok {
-			newRec := Record{Slots: make([]string, newSlotCount)}
+			newRec := Record{Slots: make([]uid.UUID, newSlotCount)}
 			for alias, outIdx := range o.OutputSlot.VarToSlot {
 				if inIdx, exists := o.InputSlot.VarToSlot[alias]; exists {
 					newRec.Slots[outIdx] = r.Slots[inIdx]
@@ -116,7 +117,7 @@ func fetchDocPropsBulk(qp *Processor, ids []string, unit *plan.ProjectionUnit, f
 		return result
 	}
 	for _, label := range unit.Labels {
-		cur, err := qp.mDb.Collection(label).Find(qp.ctx, bson.M{"uuid": bson.M{"$in": ids}})
+		cur, err := qp.mDb.Collection(label).Find(qp.ctx, bson.M{uid.PropName: bson.M{"$in": ids}})
 		if err != nil {
 			continue
 		}
@@ -125,7 +126,7 @@ func fetchDocPropsBulk(qp *Processor, ids []string, unit *plan.ProjectionUnit, f
 			if err := cur.Decode(&raw); err != nil {
 				continue
 			}
-			id, ok := raw["uuid"].(string)
+			id, ok := raw[uid.PropName].(string)
 			if !ok {
 				continue
 			}

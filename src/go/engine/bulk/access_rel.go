@@ -6,6 +6,7 @@ import (
 
 	"polystore_database/src/go/codec"
 	"polystore_database/src/go/engine/core"
+	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 )
 
@@ -45,8 +46,8 @@ func ScanRdbBulk(qp *Processor, o *plan.EntityScan) ([]Record, error) {
 			if err := rows.Scan(&id); err != nil || id == "" {
 				continue
 			}
-			newSlots := make([]string, newSlotCount)
-			newSlots[aliasIdx] = id
+			newSlots := make([]uid.UUID, newSlotCount)
+			newSlots[aliasIdx] = uid.UUID(id)
 			out = append(out, Record{Slots: newSlots})
 		}
 		rows.Close()
@@ -74,13 +75,13 @@ func FilterRdbBulk(qp *Processor, o *plan.Filter, in []Record) ([]Record, error)
 		whereBase = strings.Join(filterClauses, " AND ")
 	}
 
-	idMap := make(map[string]struct{})
+	idMap := make(map[uid.UUID]struct{})
 	for _, r := range in {
 		idMap[r.Slots[filterIdxIn]] = struct{}{}
 	}
 	uniqueIDs := make([]string, 0, len(idMap))
 	for id := range idMap {
-		uniqueIDs = append(uniqueIDs, id)
+		uniqueIDs = append(uniqueIDs, id.String())
 	}
 	if len(uniqueIDs) == 0 {
 		return nil, nil
@@ -88,7 +89,7 @@ func FilterRdbBulk(qp *Processor, o *plan.Filter, in []Record) ([]Record, error)
 
 	// --- DB特有: valid 抽出 ---
 	placeholders := strings.Repeat("?,", len(uniqueIDs)-1) + "?"
-	validMap := make(map[string]struct{})
+	validMap := make(map[uid.UUID]struct{})
 	for _, label := range o.Labels {
 		query := fmt.Sprintf("SELECT uuid FROM %s WHERE %s AND uuid IN (%s)", label, whereBase, placeholders)
 		args := make([]interface{}, 0, len(commonArgs)+len(uniqueIDs))
@@ -103,7 +104,7 @@ func FilterRdbBulk(qp *Processor, o *plan.Filter, in []Record) ([]Record, error)
 		for rows.Next() {
 			var id string
 			if err := rows.Scan(&id); err == nil {
-				validMap[id] = struct{}{}
+				validMap[uid.UUID(id)] = struct{}{}
 			}
 		}
 		rows.Close()
@@ -112,7 +113,7 @@ func FilterRdbBulk(qp *Processor, o *plan.Filter, in []Record) ([]Record, error)
 	out := make([]Record, 0, len(in))
 	for _, r := range in {
 		if _, ok := validMap[r.Slots[filterIdxIn]]; ok {
-			newRec := Record{Slots: make([]string, newSlotCount)}
+			newRec := Record{Slots: make([]uid.UUID, newSlotCount)}
 			for alias, outIdx := range o.OutputSlot.VarToSlot {
 				if inIdx, exists := o.InputSlot.VarToSlot[alias]; exists {
 					newRec.Slots[outIdx] = r.Slots[inIdx]

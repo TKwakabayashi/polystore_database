@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"polystore_database/src/go/codec"
 	"polystore_database/src/go/engine/core"
+	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 	"strings"
 )
@@ -45,8 +46,8 @@ func ScanColStream(qp *Processor,
 			if id == "" {
 				continue
 			}
-			newSlots := make([]string, newSlotCount)
-			newSlots[aliasIdx] = id
+			newSlots := make([]uid.UUID, newSlotCount)
+			newSlots[aliasIdx] = uid.UUID(id)
 			currentBatch = append(currentBatch, Record{Slots: newSlots})
 			rowCount++
 			if len(currentBatch) >= outputBatchSize {
@@ -86,24 +87,24 @@ func FilterColStream(qp *Processor,
 		qp.ctx, qp.exec, qp.sem, OpFilter, inputStream, outputStream,
 		noResource, closeNoResource,
 		func(_ struct{}, batch []Record) ([]Record, error) {
-			idMap := make(map[string]struct{})
+			idMap := make(map[uid.UUID]struct{})
 			for _, r := range batch {
 				idMap[r.Slots[filterIdxIn]] = struct{}{}
 			}
 			uniqueIDs := make([]string, 0, len(idMap))
 			for id := range idMap {
-				uniqueIDs = append(uniqueIDs, id)
+				uniqueIDs = append(uniqueIDs, id.String())
 			}
 
 			// --- DB特有: valid 抽出 ---
 			queryArgs := append([]interface{}{uniqueIDs}, commonArgs...)
-			validMap := make(map[string]struct{})
+			validMap := make(map[uid.UUID]struct{})
 			for _, label := range o.Labels {
 				query := fmt.Sprintf("SELECT uuid FROM \"%s\" WHERE %s ALLOW FILTERING", label, whereClause)
 				iter := qp.cqlSes.Query(query, queryArgs...).Iter()
 				var id string
 				for iter.Scan(&id) {
-					validMap[id] = struct{}{}
+					validMap[uid.UUID(id)] = struct{}{}
 				}
 				if err := iter.Close(); err != nil {
 					return nil, err
@@ -114,7 +115,7 @@ func FilterColStream(qp *Processor,
 			out := make([]Record, 0, len(batch))
 			for _, r := range batch {
 				if _, ok := validMap[r.Slots[filterIdxIn]]; ok {
-					newRec := Record{Slots: make([]string, newSlotCount)}
+					newRec := Record{Slots: make([]uid.UUID, newSlotCount)}
 					for alias, outIdx := range o.OutputSlot.VarToSlot {
 						if inIdx, exists := o.InputSlot.VarToSlot[alias]; exists {
 							newRec.Slots[outIdx] = r.Slots[inIdx]

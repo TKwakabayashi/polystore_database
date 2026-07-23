@@ -3,6 +3,7 @@ package stream
 import (
 	"fmt"
 	"polystore_database/src/go/codec"
+	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 	"strings"
 
@@ -80,10 +81,8 @@ func ScanGraphStream(qp *Processor,
 	currentBatch := make([]Record, 0, outputBatchSize)
 	for res.Next(qp.ctx) {
 		if idVal, ok := res.Record().Get("id"); ok && idVal != nil {
-			idStr := idVal.(string)
-
-			newSlots := make([]string, newSlotCount)
-			newSlots[aliasIdx] = idStr
+			newSlots := make([]uid.UUID, newSlotCount)
+			newSlots[aliasIdx] = uid.FromAny(idVal)
 
 			currentBatch = append(currentBatch, Record{Slots: newSlots})
 			rowCount++
@@ -157,13 +156,13 @@ func streamFilterGraph(qp *Processor, o *plan.Filter, inputStream <-chan []Recor
 		qp.ctx, qp.exec, qp.sem, OpFilter, inputStream, outputStream,
 		qp.newReadSession, qp.closeSession,
 		func(sess neo4j.SessionWithContext, batch []Record) ([]Record, error) {
-			idMap := make(map[string]struct{})
+			idMap := make(map[uid.UUID]struct{})
 			for _, r := range batch {
 				idMap[r.Slots[filterIdxIn]] = struct{}{}
 			}
 			uniqueIDs := make([]string, 0, len(idMap))
 			for id := range idMap {
-				uniqueIDs = append(uniqueIDs, id)
+				uniqueIDs = append(uniqueIDs, id.String())
 			}
 
 			localParams := make(map[string]interface{}, len(params)+1)
@@ -177,10 +176,10 @@ func streamFilterGraph(qp *Processor, o *plan.Filter, inputStream <-chan []Recor
 				return nil, err
 			}
 
-			validMap := make(map[string]struct{})
+			validMap := make(map[uid.UUID]struct{})
 			for res.Next(qp.ctx) {
 				if id, ok := res.Record().Get("id"); ok && id != nil {
-					validMap[id.(string)] = struct{}{}
+					validMap[uid.FromAny(id)] = struct{}{}
 				}
 			}
 			if err := res.Err(); err != nil {
@@ -190,7 +189,7 @@ func streamFilterGraph(qp *Processor, o *plan.Filter, inputStream <-chan []Recor
 			out := make([]Record, 0, len(batch))
 			for _, r := range batch {
 				if _, ok := validMap[r.Slots[filterIdxIn]]; ok {
-					newRec := Record{Slots: make([]string, newSlotCount)}
+					newRec := Record{Slots: make([]uid.UUID, newSlotCount)}
 					for alias, outIdx := range o.OutputSlot.VarToSlot {
 						if inIdx, exists := o.InputSlot.VarToSlot[alias]; exists {
 							newRec.Slots[outIdx] = r.Slots[inIdx]

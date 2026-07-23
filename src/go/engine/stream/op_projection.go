@@ -26,8 +26,8 @@ func streamProjection(qp *Processor, o *plan.Projection, inputStream <-chan []Re
 				if !ok || slotIdx >= len(r.Slots) {
 					continue
 				}
-				if id := r.Slots[slotIdx]; id != "" {
-					unitIDMap[unit.Alias][id] = struct{}{}
+				if id := r.Slots[slotIdx]; !id.Empty() {
+					unitIDMap[unit.Alias][id.String()] = struct{}{}
 				}
 			}
 		}
@@ -64,7 +64,7 @@ func streamProjection(qp *Processor, o *plan.Projection, inputStream <-chan []Re
 			row := make(Row)
 			for alias, slotIdx := range aliasToSlot {
 				if slotIdx < len(r.Slots) {
-					row[alias] = r.Slots[slotIdx] // 束縛 uuid
+					row[alias] = r.Slots[slotIdx].String() // 束縛 uuid
 				}
 			}
 			for _, unit := range o.Units {
@@ -72,7 +72,7 @@ func streamProjection(qp *Processor, o *plan.Projection, inputStream <-chan []Re
 				if !ok || slotIdx >= len(r.Slots) {
 					continue
 				}
-				props := cache[unit.Alias][r.Slots[slotIdx]]
+				props := cache[unit.Alias][r.Slots[slotIdx].String()]
 				for _, f := range unit.Fetches {
 					for _, p := range f.Props {
 						row[unit.Alias+"."+p] = props[p]

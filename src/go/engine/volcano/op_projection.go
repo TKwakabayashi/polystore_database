@@ -37,8 +37,8 @@ func (p *Processor) runProjection(o *plan.Projection, child Iterator) ([]Row, er
 				if !ok || slotIdx >= batch.slotCount() {
 					continue
 				}
-				if id := batch.get(i, slotIdx); id != "" {
-					unitIDMap[unit.Alias][id] = struct{}{}
+				if id := batch.get(i, slotIdx); !id.Empty() {
+					unitIDMap[unit.Alias][id.String()] = struct{}{}
 				}
 			}
 		}
@@ -74,7 +74,7 @@ func (p *Processor) runProjection(o *plan.Projection, child Iterator) ([]Row, er
 			row := make(Row)
 			for alias, slotIdx := range aliasToSlot {
 				if slotIdx < batch.slotCount() {
-					row[alias] = batch.get(i, slotIdx) // 束縛 uuid
+					row[alias] = batch.get(i, slotIdx).String() // 束縛 uuid
 				}
 			}
 			for _, unit := range o.Units {
@@ -82,7 +82,7 @@ func (p *Processor) runProjection(o *plan.Projection, child Iterator) ([]Row, er
 				if !ok || slotIdx >= batch.slotCount() {
 					continue
 				}
-				props := cache[unit.Alias][batch.get(i, slotIdx)]
+				props := cache[unit.Alias][batch.get(i, slotIdx).String()]
 				for _, f := range unit.Fetches {
 					for _, pr := range f.Props {
 						row[unit.Alias+"."+pr] = props[pr]

@@ -24,9 +24,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-type Record struct {
-	Slots []string
-}
+// Record は core.Record への型エイリアス（Slots []id.UUID を stream と共有）。
+type Record = core.Record
 
 type Row = map[string]interface{}
 

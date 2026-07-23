@@ -6,6 +6,7 @@ import (
 
 	"polystore_database/src/go/codec"
 	"polystore_database/src/go/engine/core"
+	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 
 	"github.com/syndtr/goleveldb/leveldb/util"
@@ -102,7 +103,7 @@ func (p *Processor) fetchKvsProps(ids []string, unit *plan.ProjectionUnit, fetch
 		for _, label := range unit.Labels {
 			for _, propName := range fetch.Props {
 				p.countRoundTrip()
-				valByte, err := p.ldb.Get(codec.BuildEntityKey(label, uuid, propName), nil)
+				valByte, err := p.ldb.Get(codec.BuildEntityKey(label, uid.UUID(uuid), propName), nil)
 				if err != nil {
 					if _, ok := result[uuid][propName]; !ok {
 						result[uuid][propName] = nil
@@ -130,7 +131,7 @@ func (p *Processor) matchConditionsKVS(label, uuid string, filters []*plan.Condi
 			continue
 		}
 		p.countRoundTrip()
-		valBytes, err := p.ldb.Get(codec.BuildEntityKey(label, uuid, cond.Property), nil)
+		valBytes, err := p.ldb.Get(codec.BuildEntityKey(label, uid.UUID(uuid), cond.Property), nil)
 		if err != nil {
 			return false // プロパティ欠落 = 不一致
 		}

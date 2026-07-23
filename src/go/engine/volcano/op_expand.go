@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 )
 
@@ -96,11 +97,11 @@ func (e *expandIterator) Next(ctx context.Context) (*Batch, error) {
 func (e *expandIterator) process(in *Batch) (*Batch, error) {
 	// src.uuid -> その uuid を持つ入力行（複数あり得る）
 	srcIds := make([]string, 0, in.n)
-	recordMap := make(map[string][][]string)
+	recordMap := make(map[uid.UUID][][]uid.UUID)
 	for i := 0; i < in.n; i++ {
 		id := in.get(i, e.srcIdx)
 		if _, exists := recordMap[id]; !exists {
-			srcIds = append(srcIds, id)
+			srcIds = append(srcIds, id.String())
 		}
 		recordMap[id] = append(recordMap[id], in.row(i))
 	}
@@ -117,19 +118,16 @@ func (e *expandIterator) process(in *Batch) (*Batch, error) {
 	out := newBatch(e.slotCount, in.n)
 	for res.Next(e.p.ctx) {
 		dbRec := res.Record()
-		sid, ok := dbRec.Values[0].(string)
-		if !ok {
-			continue
-		}
-		var rid, tid string
+		sid := uid.FromAny(dbRec.Values[0])
+		var rid, tid uid.UUID
 		if e.hasRel {
 			if v, ok := dbRec.Get("rid"); ok && v != nil {
-				rid, _ = v.(string)
+				rid = uid.FromAny(v)
 			}
 		}
 		if e.hasTarget {
 			if v, ok := dbRec.Get("tid"); ok && v != nil {
-				tid, _ = v.(string)
+				tid = uid.FromAny(v)
 			}
 		}
 		for _, origin := range recordMap[sid] {
@@ -221,11 +219,11 @@ func (e *varExpandIterator) Next(ctx context.Context) (*Batch, error) {
 
 func (e *varExpandIterator) process(in *Batch) (*Batch, error) {
 	srcIds := make([]string, 0, in.n)
-	recordMap := make(map[string][][]string)
+	recordMap := make(map[uid.UUID][][]uid.UUID)
 	for i := 0; i < in.n; i++ {
 		id := in.get(i, e.srcIdx)
 		if _, exists := recordMap[id]; !exists {
-			srcIds = append(srcIds, id)
+			srcIds = append(srcIds, id.String())
 		}
 		recordMap[id] = append(recordMap[id], in.row(i))
 	}
@@ -240,7 +238,7 @@ func (e *varExpandIterator) process(in *Batch) (*Batch, error) {
 	}
 
 	out := newBatch(e.slotCount, in.n)
-	carry := func(origin []string, targetID string) {
+	carry := func(origin []uid.UUID, targetID uid.UUID) {
 		newSlots := remap(origin, e.o.InputSlot, e.o.OutputSlot)
 		if e.hasTarget {
 			newSlots[e.tgtIdxOut] = targetID
@@ -248,11 +246,11 @@ func (e *varExpandIterator) process(in *Batch) (*Batch, error) {
 		out.appendRow(newSlots)
 	}
 
-	reached := make(map[string]struct{})
+	reached := make(map[uid.UUID]struct{})
 	for res.Next(e.p.ctx) {
 		rec := res.Record()
-		sid, _ := rec.Values[0].(string)
-		tid, _ := rec.Values[1].(string)
+		sid := uid.FromAny(rec.Values[0])
+		tid := uid.FromAny(rec.Values[1])
 		reached[sid] = struct{}{}
 		for _, origin := range recordMap[sid] {
 			carry(origin, tid)
@@ -264,7 +262,8 @@ func (e *varExpandIterator) process(in *Batch) (*Batch, error) {
 
 	// 0 ホップ（自分自身）
 	if e.o.MinHops == 0 {
-		for _, sid := range srcIds {
+		for _, sidStr := range srcIds {
+			sid := uid.UUID(sidStr)
 			if _, ok := reached[sid]; ok {
 				continue
 			}

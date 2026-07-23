@@ -136,15 +136,15 @@ func upsertKvs(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, 
 			// json(複雑値)は保存のみ。転置索引は張らない（値検索は非対応）。
 			complex := strings.EqualFold(typeMap[p], "json")
 
-			entityKey := codec.BuildEntityKey(cfg.Entity, row.UUID.String(), p)
+			entityKey := codec.BuildEntityKey(cfg.Entity, row.UUID, p)
 			if !complex {
 				if oldVal, err := db.Get(entityKey, nil); err == nil {
-					levelBatch.Delete(codec.BuildIndexKey(cfg.Entity, p, oldVal, row.UUID.String()))
+					levelBatch.Delete(codec.BuildIndexKey(cfg.Entity, p, oldVal, row.UUID))
 				}
 			}
 			levelBatch.Put(entityKey, valBytes)
 			if !complex {
-				levelBatch.Put(codec.BuildIndexKey(cfg.Entity, p, valBytes, row.UUID.String()), []byte{})
+				levelBatch.Put(codec.BuildIndexKey(cfg.Entity, p, valBytes, row.UUID), []byte{})
 			}
 		}
 	}
