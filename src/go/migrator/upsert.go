@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"polystore_database/src/go/codec"
+	"polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 	"polystore_database/src/go/storage"
 	"sort"
@@ -223,7 +224,7 @@ func upsertRdb(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, 
 	// スキーマ準備は prepareDestSchema で1回実施済み（ここでは DDL を行わない）
 
 	// ワーカー間でロック取得順を揃え、デッドロック頻度を下げる
-	sort.Slice(rows, func(i, j int) bool { return rows[i].UUID < rows[j].UUID })
+	sort.Slice(rows, func(i, j int) bool { return id.Less(rows[i].UUID, rows[j].UUID) })
 
 	numProps := len(cfg.Properties)
 	placeholderGroup := "(" + strings.Repeat("?,", numProps) + "?)"
