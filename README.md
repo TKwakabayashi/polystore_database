@@ -133,7 +133,9 @@ go run ./cmd/polystore -mode bench        -workload all -out ../../results/bench
 go run ./cmd/polystore -mode bench-models -workload Q11,AGG5 -out ../../results/bench/models.csv
 ```
 
-利用可能なワークロード: `Q2 Q8 Q9 Q11 IS1..IS6 AGG1..AGG6`（`-workload all` で全件、カンマ区切りで複数）。
+利用可能なワークロード: `Q2 Q8 Q9 Q11 IS1..IS6 AGG1..AGG6 BI3 BI9`（`-workload all` で全件、カンマ区切りで複数）。
+Q2/Q8/Q9/Q11 は公式 LDBC Interactive Complex IC2/8/9/11、IS1/3/4/5/6 は Interactive Short、
+BI3/BI9 は Business Intelligence の read クエリに対応する（対応表と拡張ロードマップは `docs/LDBC_WORKLOADS.md`）。
 
 ### 内部挙動の切替
 
@@ -147,10 +149,43 @@ go run ./cmd/polystore -mode bench-models -workload Q11,AGG5 -out ../../results/
 ```bash
 cd src/go
 go test ./...                                                         # ユニット（DB不要）
-# 結合テスト（docker スタックを up した状態で）:
-go test -tags integration ./integration/ -run EngineEquivalence -v    # 4実行モデルの結果一致
-go test -tags integration ./integration/ -run Roundtrip -v            # 移行ラウンドトリップ整合
+# golden プランの再生成（ワークロードやプランナを変えたとき。差分を確認してコミット）:
+go test ./planner/ -run Golden -update
 ```
+
+### 結合テスト（実 DB・合成 mini-SNB）
+
+実 LDBC dump は重いため、結合テストは小さな合成 mini-SNB（`integration/seed.go`）を**隔離スタック**
+（`datastore/env/citest.env`・実データと別ポート/別ボリューム）へ投入して回す。`POLYSTORE_SEED=1` で
+`TestMain` が seed する（**この時 Neo4j は全削除されるため、実データスタックに対しては付けない**）。
+
+```bash
+# 1) 隔離スタックを起動（実スタックと同時起動可）
+cd datastore
+docker compose --env-file env/citest.env up -d
+docker compose --env-file env/citest.env --profile init run --rm cassandra-init
+# 2) seed して結合テスト（全ワークロード非空 / 4モデル等価 / 移行ラウンドトリップ）
+cd ../src/go
+POLYSTORE_SEED=1 POLYSTORE_CONFIG=../../config/config.citest.json \
+  go test -tags integration ./integration/ -v
+# 3) 破棄
+cd ../datastore && docker compose --env-file env/citest.env down -v
+```
+
+ロード済みの実データに対して流す場合は `POLYSTORE_SEED` を付けず、`POLYSTORE_CONFIG` を実データ用の
+`config/config.json` にする（`WorkloadNonempty` は実在しない id で 0 件になる params ドリフトを検知する）。
+
+ユニット（DB 不要）の主なカバレッジ:
+- **planner golden プラン**（`planner/plan_golden_test.go` + `planner/testdata/*.plan`）:
+  全ワークロードの Cypher を `planner.ParseQuery` で論理プランへ変換し、木のダンプが golden と一致するか検証。
+  パーサ/プランナ/pushdown 判定の回帰を DB 無しでガードする。
+- **純関数**: `engine/core`（pushdown クエリビルダ・演算子変換）、`codec`（型変換・KVS キー）、
+  `schema`（mapping 引き）、`engine`（レジストリ解決）、`workload`（params 完備性）。
+
+CI は目的別に 3 分割（`.github/workflows/`）:
+- `lint.yml`: gofmt / go vet / staticcheck（DB 不要・除外方針は `src/go/staticcheck.conf`）
+- `unit.yml`: build + `go test ./...`（**ubuntu + windows** マトリクスで Mac/Windows 両対応を検証）
+- `integration.yml`: 合成 mini-SNB を隔離スタックへ seed して結合テスト（手動 dispatch と main への push）
 
 ---
 

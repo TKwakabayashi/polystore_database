@@ -8,6 +8,7 @@ import (
 	schema "polystore_database/src/go/schema"
 	stk "polystore_database/src/go/store"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -219,6 +220,11 @@ func (l *QueryPlannerListener) BuildPlan() error {
 	for _, u := range unitMap {
 		projectionUnits = append(projectionUnits, *u)
 	}
+	// unitMap は map なので反復順が非決定的。Alias 順に整列して論理プランを再現可能にする
+	// （materialize 単位は互いに独立で、順序は結果に影響しない）。
+	sort.Slice(projectionUnits, func(i, j int) bool {
+		return projectionUnits[i].Alias < projectionUnits[j].Alias
+	})
 
 	// tail: Projection → (Aggregate) → (Sort) → (Limit) → Return
 	var tail plan.PlanNode = &plan.Projection{Input: root, Units: projectionUnits}

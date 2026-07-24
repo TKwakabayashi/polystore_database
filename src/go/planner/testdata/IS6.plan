@@ -1,0 +1,6 @@
+Return[f.id, f.title, mod.id, mod.firstName, mod.lastName]
+  Projection(input:f,mod, slot:map[f:0 mod:1]) [Materialize: f(graph[id title]) | mod(graph[id firstName lastName])]
+    Expand(input:f, slot:map[f:0]) (output:f,mod, slot:map[f:0 mod:1]) [(f)-[Ealias_2:HAS_MODERATOR]->(mod:Person)]
+      Expand(input:Nalias_0, slot:map[Nalias_0:0]) (output:f, slot:map[f:0]) [(Nalias_0)<-[Ealias_1:CONTAINER_OF]-(f:Forum)]
+        VarLengthExpand(input:m, slot:map[m:0]) (output:Nalias_0, slot:map[Nalias_0:0]) [(m)-[Ealias_0:REPLY_OF*0..]->(Nalias_0:Post), Condition:{}]
+          EntityScan(output:m, slot:map[m:0]) [Alias: m, Label: Message, Store: graph, Condition: {m.id = 1030792151051}]

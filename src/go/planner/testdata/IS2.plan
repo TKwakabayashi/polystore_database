@@ -1,0 +1,6 @@
+Return[m.id, m.content, m.imageFile, m.creationDate, p.id, p.firstName, p.lastName]
+  Limit[10]
+    Sort[m.creationDate DESC]
+      Projection(input:m,p, slot:map[m:0 p:1]) [Materialize: m(graph[id content imageFile creationDate]) | p(graph[id firstName lastName])]
+        Expand(input:p, slot:map[p:0]) (output:m,p, slot:map[m:0 p:1]) [(p)<-[Ealias_0:HAS_CREATOR]-(m:Message)]
+          EntityScan(output:p, slot:map[p:0]) [Alias: p, Label: Person, Store: graph, Condition: {p.id = 21990232558284}]

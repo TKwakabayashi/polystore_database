@@ -1,0 +1,8 @@
+Return[other.id, other.firstName, other.lastName, m.id, coalesce(m.content,m.imageFile), m.creationDate]
+  Limit[20]
+    Sort[m.creationDate DESC, m.id ASC]
+      Projection(input:m,other, slot:map[m:0 other:1]) [Materialize: m(graph[id content imageFile creationDate]) | other(graph[id firstName lastName])]
+        Filter(input:m,other, slot:map[m:0 other:1]) (output:m,other, slot:map[m:0 other:1]) [Store: graph, Alias: m, Label: Message, Condition: {m.creationDate < 2011-06-16T00:00:00.000Z}]
+          Expand(input:other, slot:map[other:0]) (output:m,other, slot:map[m:0 other:1]) [(other)<-[Ealias_1:HAS_CREATOR]-(m:Message)]
+            VarLengthExpand(input:p, slot:map[p:0]) (output:other, slot:map[other:0]) [(p)-[Ealias_0:KNOWS*1..2]-(other:Person), Condition:{}]
+              EntityScan(output:p, slot:map[p:0]) [Alias: p, Label: Person, Store: graph, Condition: {p.id = 17592186049378}]

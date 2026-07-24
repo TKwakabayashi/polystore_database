@@ -1,0 +1,4 @@
+Return[p.firstName, p.lastName, p.birthday, p.locationIP, p.browserUsed, c.id, p.gender, p.creationDate]
+  Projection(input:c,p, slot:map[c:0 p:1]) [Materialize: c(graph[id]) | p(graph[firstName lastName birthday locationIP browserUsed gender creationDate])]
+    Expand(input:p, slot:map[p:0]) (output:c,p, slot:map[c:0 p:1]) [(p)-[Ealias_0:IS_LOCATED_IN]->(c:City)]
+      EntityScan(output:p, slot:map[p:0]) [Alias: p, Label: Person, Store: graph, Condition: {p.id = 21990232558284}]

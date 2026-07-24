@@ -1,0 +1,57 @@
+name: Integration
+
+# 目的: 実 DB スタック（Neo4j/Mongo/MySQL/Cassandra/LevelDB）を要する結合テスト。
+#   - 全ワークロード非空（WorkloadNonempty）
+#   - engine 等価性（4 実行モデルの結果一致）
+#   - migration ラウンドトリップ整合
+#
+# 実データ（LDBC SF1・約 300 万ノード）は GitHub ホストランナーでは非現実的なため、
+# 小さな合成 mini-SNB（integration/seed.go）を隔離スタック（datastore/env/citest.env）へ
+# 投入して回す（POLYSTORE_SEED=1）。実データ用の設定/ボリューム/ポートには一切触れない。
+#
+# 常時ではなく手動 dispatch と main への push で実行（PR は塞がない）。
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    name: seeded mini-SNB integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/go/go.mod
+          cache-dependency-path: src/go/go.sum
+
+      - name: 隔離スタック起動（citest・別ポート/別ボリューム）
+        working-directory: datastore
+        run: |
+          docker compose --env-file env/citest.env up -d
+          # Neo4j 起動待ち
+          for i in $(seq 1 40); do
+            if docker exec polystore-citest-neo4j-1 cypher-shell -u neo4j -p password123 "RETURN 1" >/dev/null 2>&1; then
+              echo "neo4j ready"; break; fi; sleep 3; done
+          # Cassandra 起動待ち → keyspace 作成
+          for i in $(seq 1 60); do
+            if docker exec polystore-citest-cassandra-1 cqlsh -e "SELECT now() FROM system.local" >/dev/null 2>&1; then
+              echo "cassandra ready"; break; fi; sleep 3; done
+          docker compose --env-file env/citest.env --profile init run --rm cassandra-init
+
+      - name: 結合テスト（合成 mini-SNB を seed して実行）
+        working-directory: src/go
+        env:
+          POLYSTORE_SEED: "1"
+          POLYSTORE_CONFIG: ../../config/config.citest.json
+        run: go test -tags integration ./integration/ -v
+
+      - name: スタック破棄
+        if: always()
+        working-directory: datastore
+        run: docker compose --env-file env/citest.env down -v

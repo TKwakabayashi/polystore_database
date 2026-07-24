@@ -1,0 +1,8 @@
+Return[author.id, author.firstName, author.lastName, comment.creationDate, comment.id, comment.content]
+  Limit[20]
+    Sort[comment.creationDate DESC, comment.id ASC]
+      Projection(input:author,comment, slot:map[author:0 comment:1]) [Materialize: author(graph[id firstName lastName]) | comment(graph[creationDate id content])]
+        Expand(input:comment, slot:map[comment:0]) (output:author,comment, slot:map[author:0 comment:1]) [(comment)-[Ealias_2:HAS_CREATOR]->(author:Person)]
+          Expand(input:m, slot:map[m:0]) (output:comment, slot:map[comment:0]) [(m)<-[Ealias_1:REPLY_OF]-(comment:Comment)]
+            Expand(input:p, slot:map[p:0]) (output:m, slot:map[m:0]) [(p)<-[Ealias_0:HAS_CREATOR]-(m:Message)]
+              EntityScan(output:p, slot:map[p:0]) [Alias: p, Label: Person, Store: graph, Condition: {p.id = 15393162799448}]

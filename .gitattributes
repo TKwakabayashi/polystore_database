@@ -1,0 +1,12 @@
+# 改行は LF 正規化（Mac/Windows 両対応）。特に golden プランは LF 固定で
+# Windows の autocrlf による CRLF 化を防ぐ（planner golden テストの安定化）。
+* text=auto eol=lf
+*.go text eol=lf
+*.plan text eol=lf
+*.json text eol=lf
+
+# バイナリは変換しない。
+*.jar binary
+*.dump binary
+*.ldb binary
+*.prof binary

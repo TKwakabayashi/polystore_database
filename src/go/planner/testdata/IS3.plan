@@ -1,0 +1,5 @@
+Return[friend.id, friend.firstName, friend.lastName, r.creationDate]
+  Sort[r.creationDate DESC, friend.id ASC]
+    Projection(input:friend,r, slot:map[friend:0 r:1]) [Materialize: friend(graph[id firstName lastName]) | r(graph[creationDate])]
+      Expand(input:p, slot:map[p:0]) (output:friend,r, slot:map[friend:0 r:1]) [(p)-[r:KNOWS]-(friend:Person)]
+        EntityScan(output:p, slot:map[p:0]) [Alias: p, Label: Person, Store: graph, Condition: {p.id = 21990232558284}]

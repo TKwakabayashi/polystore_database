@@ -29,7 +29,17 @@ var Registry = map[string]workloadDef{
 	"AGG4": DefineWorkloadAGG4,
 	"AGG5": DefineWorkloadAGG5,
 	"AGG6": DefineWorkloadAGG6,
+	"BI3":  DefineWorkloadBI3,
+	"BI9":  DefineWorkloadBI9,
 }
+
+// ワークロード命名メモ（公式 LDBC SNB read クエリとの対応）:
+//   - Q2/Q8/Q9/Q11 は公式 Interactive Complex IC2/IC8/IC9/IC11 に対応する。
+//   - IS1/IS3/IS4/IS5/IS6 は公式 Interactive Short に対応する。
+//     IS2 は公式 IS2（WITH+2段目MATCH）ではなく、現行 Cypher サブセットで表せる簡略版。
+//   - BI3/BI9 は公式 Business Intelligence の read クエリ。単一線形パス＋単段集約で表せる
+//     数少ない BI（他の BI/IC は WITH/OPTIONAL/collect/shortestPath 等が必要で現行文法では不可）。
+//   - AGG1〜6 は公式外の、集約カバレッジ検証用の独自ワークロード。
 
 // AvailableWorkloads は登録済みワークロード名をソートして返す。
 func AvailableWorkloads() string {
@@ -358,6 +368,61 @@ func DefineWorkloadIS6(mode migrator.MigrationMode, isMigration bool) (string, m
 		migs = []migrator.MigrationConfig{ // 導出:要確認
 			{ObjType: plan.Entity, Entity: "Forum", Properties: []string{"id", "title"}, Mode: mode},
 			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id", "firstName", "lastName"}, Mode: mode},
+		}
+	}
+	return cypher, params, migs
+}
+
+// BI3: 公式 LDBC BI Q3「ある国のあるタグクラスで人気のトピック(フォーラム)」。
+// 単一線形パス（国←市←Person←Forum→Post←*Message→Tag→TagClass）＋ count(DISTINCT) の
+// 単段グループ集約で、現行文法で表現できる数少ない BI の1つ。City/Country は現行カタログでは
+// Place（type 付き）でモデル化されるため :Place を使う（cf. Q11）。
+// TODO(実値): $country/$tagClass はロード中の SNB dump に実在する値へ要検証（0件回避）。
+func DefineWorkloadBI3(mode migrator.MigrationMode, isMigration bool) (string, map[string]string, []migrator.MigrationConfig) {
+	cypher := "MATCH (country:Place {type: \"Country\", name: $country})<-[:IS_PART_OF]-(city:Place)\n" +
+		"      <-[:IS_LOCATED_IN]-(person:Person)<-[:HAS_MODERATOR]-(forum:Forum)\n" +
+		"      -[:CONTAINER_OF]->(post:Post)<-[:REPLY_OF*0..]-(message:Message)\n" +
+		"      -[:HAS_TAG]->(tag:Tag)-[:HAS_TYPE]->(tagclass:TagClass {name: $tagClass})\n" +
+		"RETURN forum.id, forum.title, forum.creationDate, person.id, count(DISTINCT message.id) AS messageCount\n" +
+		"ORDER BY messageCount DESC, forum.id ASC\n" +
+		"LIMIT 20"
+	params := map[string]string{
+		"country":  "Germany",       // TODO: 実値に調整
+		"tagClass": "MusicalArtist", // TODO: 実値に調整
+	}
+	var migs []migrator.MigrationConfig
+	if isMigration {
+		migs = []migrator.MigrationConfig{
+			{ObjType: plan.Entity, Entity: "Forum", Properties: []string{"id", "title", "creationDate"}, Mode: mode},
+			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id"}, Mode: mode},
+			{ObjType: plan.Entity, Entity: "Message", Properties: []string{"id"}, Mode: mode},
+		}
+	}
+	return cypher, params, migs
+}
+
+// BI9: 公式 LDBC BI Q9「ある期間に最も活発なスレッド開始者」。
+// 単一線形パス（Person←Post←*Message）＋日付範囲フィルタ＋ count(DISTINCT) ×2 の単段集約。
+// creationDate の範囲比較を使うため、非graph 配置では計画 §C の型整合（datetime↔string）に依存する
+// （graph 配置は文字列比較で機能する）。Post/Comment は現行カタログでは Message にモデル化される。
+// TODO(実値): $startDate/$endDate はロード中の SNB dump の分布に合わせ要検証（0件回避）。
+func DefineWorkloadBI9(mode migrator.MigrationMode, isMigration bool) (string, map[string]string, []migrator.MigrationConfig) {
+	cypher := "MATCH (person:Person)<-[:HAS_CREATOR]-(post:Post)<-[:REPLY_OF*0..]-(reply:Message)\n" +
+		"WHERE post.creationDate >= $startDate AND post.creationDate <= $endDate\n" +
+		"      AND reply.creationDate >= $startDate AND reply.creationDate <= $endDate\n" +
+		"RETURN person.id, person.firstName, person.lastName,\n" +
+		"       count(DISTINCT post.id) AS threadCount, count(DISTINCT reply.id) AS messageCount\n" +
+		"ORDER BY messageCount DESC, person.id ASC\n" +
+		"LIMIT 100"
+	params := map[string]string{
+		"startDate": "2010-01-01T00:00:00.000Z", // TODO: 実値に調整
+		"endDate":   "2013-01-01T00:00:00.000Z", // TODO: 実値に調整
+	}
+	var migs []migrator.MigrationConfig
+	if isMigration {
+		migs = []migrator.MigrationConfig{
+			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id", "firstName", "lastName"}, Mode: mode},
+			{ObjType: plan.Entity, Entity: "Message", Properties: []string{"id", "creationDate"}, Mode: mode},
 		}
 	}
 	return cypher, params, migs

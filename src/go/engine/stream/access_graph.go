@@ -257,7 +257,9 @@ func fetchGraphPropsStream(qp *Processor,
 
 	res, err := sess.Run(qp.ctx, query, map[string]interface{}{"ids": ids})
 	if err != nil {
-
+		// この関数は error を返さないシグネチャのため伝播できない。
+		// 空ブランチのままだと直後の res.Next で nil 参照 panic するので、空結果を返す。
+		return result
 	}
 
 	// 5. 結果のパースと型変換

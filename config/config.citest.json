@@ -1,0 +1,23 @@
+{
+  "_comment": "合成 mini-SNB 結合テスト専用（datastore/env/citest.env の隔離スタック向け）。接続情報は開発用ローカル固定値。実データ用の config/config.json（gitignore）とは別物。",
+  "mapping_path": "../../catalog/mapping.json",
+  "neo4j": {
+    "uri": "bolt://localhost:17687",
+    "user": "neo4j",
+    "password": "password123"
+  },
+  "mongo": {
+    "uri": "mongodb://localhost:27018",
+    "dbname": "polystore_document"
+  },
+  "leveldb": {
+    "path": "../../datastore/runtime/polystore_kvs_citest"
+  },
+  "mysql": {
+    "dsn": "user:pass@tcp(localhost:13306)/polystore_relational"
+  },
+  "cassandra": {
+    "hosts": ["localhost:19042"],
+    "keyspace": "polystore_columnar"
+  }
+}

@@ -1,0 +1,1 @@
+StorePushdown[graph]: MATCH (p:Person {id: $personId})<-[:HAS_CREATOR]-(m:Message) <-[:REPLY_OF]-(comment:Comment)-[:HAS_CREATOR]->(author:Person) RETURN author.id, author.firstName, author.lastName, count(comment) AS replyCount ORDER BY replyCount DESC, author.id ASC LIMIT 20

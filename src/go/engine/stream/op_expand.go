@@ -2,6 +2,7 @@ package stream
 
 import (
 	"fmt"
+	"polystore_database/src/go/engine/core"
 	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 	"strings"
@@ -115,7 +116,7 @@ func streamVarLengthExpand(qp *Processor, o *plan.VarLengthExpand, inputStream <
 	if o.RelLabel != "" {
 		relLabel = ":" + o.RelLabel
 	}
-	relContent := fmt.Sprintf("[%s%s*%d..%d]", o.Alias, relLabel, o.MinHops, o.MaxHops)
+	relContent := fmt.Sprintf("[%s%s%s]", o.Alias, relLabel, core.VarLengthRange(o.MinHops, o.MaxHops))
 	var relPattern string
 	switch o.Dir {
 	case plan.Incoming:

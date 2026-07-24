@@ -1,0 +1,41 @@
+name: Lint
+
+# 目的: 静的解析（フォーマット・vet・staticcheck）。DB 不要・単一 OS で十分。
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: gofmt / vet / staticcheck
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/go
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/go/go.mod
+          cache-dependency-path: src/go/go.sum
+
+      - name: gofmt (差分ゼロ検査)
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "gofmt が必要なファイル:"; echo "$unformatted"; exit 1
+          fi
+
+      # 生成コード（parser/output: ANTLR 生成）は unreachable code 等が出るため対象外。
+      - name: go vet
+        run: go vet $(go list ./... | grep -v '/parser/output')
+
+      - name: staticcheck
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@2025.1.1
+          # 設定は src/go/staticcheck.conf。生成コードは除外。
+          staticcheck $(go list ./... | grep -v '/parser/output')

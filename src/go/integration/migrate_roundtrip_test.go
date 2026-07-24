@@ -12,7 +12,6 @@ package integration
 
 import (
 	"context"
-	"os"
 	"strings"
 	"testing"
 
@@ -24,19 +23,8 @@ import (
 // TestMigrationRoundtrip は各ストアへの非破壊ラウンドトリップ（src→dest→src）で
 // (1) データ消失なし (2) コピー整合 (3) 復元一致 を検証する。
 func TestMigrationRoundtrip(t *testing.T) {
-	// go test は package ディレクトリ（integration/）を cwd にするため、
-	// アプリ（cwd=src/go）と同じ相対パス前提に合わせて 1 段上へ移動する。
-	if err := os.Chdir(".."); err != nil {
-		t.Fatalf("chdir to src/go: %v", err)
-	}
-	cfgPath := os.Getenv("POLYSTORE_CONFIG")
-	if cfgPath == "" {
-		cfgPath = "../../config/config.json"
-	}
-	cfg, err := storage.LoadConfig(cfgPath)
-	if err != nil {
-		t.Fatalf("config load (%s): %v", cfgPath, err)
-	}
+	// cwd 調整（→src/go）と設定読み込みは TestMain / loadCfg に集約（main_test.go）。
+	cfg := loadCfg(t)
 	ctx := context.Background()
 
 	cases := []struct {

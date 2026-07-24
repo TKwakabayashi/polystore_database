@@ -1,0 +1,37 @@
+name: Unit Tests
+
+# 目的: ビルド + DB 不要のユニット/golden プランテスト。
+# 開発は Mac/Windows 両方で行うため、OS 差（パス・改行）を CI で検出できるよう
+# Linux(=Mac 相当の Unix) と Windows のマトリクスで回す。
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: build & test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: src/go
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/go/go.mod
+          cache-dependency-path: src/go/go.sum
+
+      - name: go build
+        run: go build ./...
+
+      # integration タグ無し = 実 DB 不要（ユニット + golden プラン）。
+      - name: go test (unit)
+        run: go test ./...

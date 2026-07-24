@@ -139,7 +139,8 @@ func (e *VarLengthExpand) String() string {
 	var rangeLit string
 	var pattern string
 
-	if e.MinHops > e.MaxHops {
+	// MaxHops<0 は上限なし（例: `*0..`）の番兵。両端が非負のときだけ min>max を不正とする。
+	if e.MinHops >= 0 && e.MaxHops >= 0 && e.MinHops > e.MaxHops {
 		panic("不正なホップ数")
 	} else if e.MinHops < 0 && e.MaxHops < 0 {
 		rangeLit = "*"
