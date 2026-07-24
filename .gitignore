@@ -16,6 +16,7 @@ datastore/runtime/
 #ignore meta folder
 docs/
 .vscode/
+catalog/library
 
 # Rust build artifacts
 target/
