@@ -2,7 +2,6 @@ package core
 
 import (
 	"testing"
-	"time"
 
 	"go.mongodb.org/mongo-driver/mongo"
 
@@ -105,14 +104,15 @@ func TestBuildMongoPipelineDistinctAddsFields(t *testing.T) {
 func TestTypeParams(t *testing.T) {
 	out := TypeParams(map[string]string{
 		"num":  "5",
-		"date": "2011-06-16T00:00:00Z",
+		"date": "2011-06-16T00:00:00.000Z",
 		"str":  "Germany",
 	})
 	if n, ok := out["num"].(int); !ok || n != 5 {
 		t.Errorf("num = %#v, want int 5", out["num"])
 	}
-	if _, ok := out["date"].(time.Time); !ok {
-		t.Errorf("date = %#v, want time.Time", out["date"])
+	// 日付は time.Time へ変換せず文字列のまま（creationDate は文字列格納のため）。
+	if s, ok := out["date"].(string); !ok || s != "2011-06-16T00:00:00.000Z" {
+		t.Errorf("date = %#v, want string (変換しない)", out["date"])
 	}
 	if s, ok := out["str"].(string); !ok || s != "Germany" {
 		t.Errorf("str = %#v, want string Germany", out["str"])

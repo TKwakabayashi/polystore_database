@@ -153,12 +153,14 @@ func DefineWorkloadQ11(mode migrator.MigrationMode, isMigration bool) (string, m
 }
 
 func DefineWorkloadIS1(mode migrator.MigrationMode, isMigration bool) (string, map[string]string, []migrator.MigrationConfig) {
-	cypher := "MATCH (p:Person {id: $personId})-[:IS_LOCATED_IN]->(c:City)\n" +
+	// 現行ダンプは都市を :Place{type:"City"} でモデル化し :City ラベルは無いため、
+	// 公式の (c:City) ではなく (c:Place) でマッチする（実データ検証で 0 件だったため修正）。
+	cypher := "MATCH (p:Person {id: $personId})-[:IS_LOCATED_IN]->(c:Place)\n" +
 		"RETURN p.firstName, p.lastName, p.birthday,\n" +
 		"       p.locationIP, p.browserUsed,\n" +
 		"       c.id, p.gender, p.creationDate"
 	params := map[string]string{
-		"personId": "21990232558284",
+		"personId": "21990232558284", // 実在（IS2/IS3 と同一。検証済）
 	}
 	var migs []migrator.MigrationConfig
 	if isMigration {
@@ -210,7 +212,7 @@ func DefineWorkloadIS4(mode migrator.MigrationMode, isMigration bool) (string, m
 	cypher := "MATCH (m:Message {id: $messageId})\n" +
 		"RETURN m.creationDate, coalesce(m.content, m.imageFile)"
 	params := map[string]string{
-		"messageId": "1030792151051", // TODO: 実値に調整
+		"messageId": "1924151655166", // 実在（IS6 の Post→Forum→moderator 構造を満たす。検証済）
 	}
 	var migs []migrator.MigrationConfig
 	if isMigration { // authoritative（旧 executeWorkFlowIS4 より）
@@ -225,7 +227,7 @@ func DefineWorkloadIS5(mode migrator.MigrationMode, isMigration bool) (string, m
 	cypher := "MATCH (m:Message {id: $messageId})-[:HAS_CREATOR]->(p:Person)\n" +
 		"RETURN p.id, p.firstName, p.lastName"
 	params := map[string]string{
-		"messageId": "1030792151051", // TODO: 実値に調整
+		"messageId": "1924151655166", // 実在（IS6 の Post→Forum→moderator 構造を満たす。検証済）
 	}
 	var migs []migrator.MigrationConfig
 	if isMigration {
@@ -361,7 +363,7 @@ func DefineWorkloadIS6(mode migrator.MigrationMode, isMigration bool) (string, m
 		"RETURN f.id, f.title,\n" +
 		"       mod.id, mod.firstName, mod.lastName"
 	params := map[string]string{
-		"messageId": "1030792151051", // TODO: 実値に調整
+		"messageId": "1924151655166", // 実在（IS6 の Post→Forum→moderator 構造を満たす。検証済）
 	}
 	var migs []migrator.MigrationConfig
 	if isMigration {

@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"polystore_database/src/go/codec"
 	"polystore_database/src/go/plan"
@@ -212,13 +211,15 @@ func cqlAggExpr(a plan.AggregateItem) string {
 	return fn + "(\"" + a.Prop + "\")"
 }
 
+// TypeParams は graph pushdown（session.Run）へ渡す前にパラメータを型付けする。
+// 整数（id 等）は int にして Neo4j の整数プロパティと一致させる。日付は time.Time へ変換
+// しない: creationDate は文字列で格納されており（mapping も string に整合済み）、datetime へ
+// 変換すると「文字列プロパティ vs datetime パラメータ」比較が 0 件になるため、文字列のまま渡す。
 func TypeParams(params map[string]string) map[string]interface{} {
 	out := make(map[string]interface{}, len(params))
 	for k, v := range params {
 		if n, err := strconv.Atoi(v); err == nil {
 			out[k] = n
-		} else if t, err := time.Parse(time.RFC3339, v); err == nil {
-			out[k] = t
 		} else {
 			out[k] = v
 		}

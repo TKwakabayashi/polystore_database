@@ -1,4 +1,4 @@
 Return[p.id, p.firstName, p.lastName]
   Projection(input:p, slot:map[p:0]) [Materialize: p(graph[id firstName lastName])]
     Expand(input:m, slot:map[m:0]) (output:p, slot:map[p:0]) [(m)-[Ealias_0:HAS_CREATOR]->(p:Person)]
-      EntityScan(output:m, slot:map[m:0]) [Alias: m, Label: Message, Store: graph, Condition: {m.id = 1030792151051}]
+      EntityScan(output:m, slot:map[m:0]) [Alias: m, Label: Message, Store: graph, Condition: {m.id = 1924151655166}]

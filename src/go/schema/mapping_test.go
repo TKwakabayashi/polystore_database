@@ -27,7 +27,7 @@ func TestLookupEntityProperty(t *testing.T) {
 	}{
 		{"Person", "firstName", "graph", "string"},
 		{"Person", "id", "graph", "long"},
-		{"Person", "creationDate", "graph", "datetime"}, // 注意: 実データは文字列（計画 §C の型不一致）
+		{"Person", "creationDate", "graph", "string"}, // 実データが文字列なので string に整合（旧 datetime、§C）
 	}
 	for _, c := range cases {
 		st, ty, err := md.LookupMappingDictionary(plan.Entity, c.label, c.prop)
