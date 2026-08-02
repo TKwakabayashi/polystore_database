@@ -62,34 +62,7 @@ func (dt DataType) String() string {
 	return str
 }
 
-type DataStore int
-
-const (
-	Graph DataStore = iota
-	Columnar
-	Relational
-	Document
-	Kvs
-)
-
-func (ds DataStore) String() string {
-	var str string
-	switch ds {
-	case Graph:
-		str = "graph"
-	case Columnar:
-		str = "columnar"
-	case Relational:
-		str = "relational"
-	case Document:
-		str = "document"
-	case Kvs:
-		str = "kvs"
-	default:
-		// emit error
-	}
-	return str
-}
+// （旧 plan.DataStore enum は未使用のため削除。ストア種別の語彙は store.Kind に一本化した。）
 
 // VarLengthExpand Condition
 

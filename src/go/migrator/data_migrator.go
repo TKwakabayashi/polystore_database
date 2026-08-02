@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"polystore_database/src/go/codec"
-	"polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 	schema "polystore_database/src/go/schema"
 	"polystore_database/src/go/storage"
@@ -17,13 +16,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/sync/errgroup"
 )
-
-func asUUID(v interface{}) id.UUID {
-	if s, ok := v.(string); ok {
-		return id.UUID(s)
-	}
-	return ""
-}
 
 func prepareDestSchema(ctx context.Context, cfg MigrationConfig, destKind storage.StoreKind, reg *storage.Registry, typeMap map[string]string) error {
 	switch destKind {

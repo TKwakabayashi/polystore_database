@@ -1,37 +1,19 @@
 package storage
 
-import "fmt"
+import "polystore_database/src/go/store"
 
-type StoreKind int
+// StoreKind はデータストア種別。語彙は store.Kind に一本化したので、ここは互換のための
+// 型エイリアス＋定数の再エクスポート（migrator / bench から storage.StoreKind / storage.Graph
+// 等で参照され続けるため残す。将来 store.Kind へ直接移行して削除可能）。
+type StoreKind = store.Kind
 
 const (
-	Graph StoreKind = iota
-	Columnar
-	Relational
-	Document
-	Kvs
+	Graph      = store.Graph
+	Columnar   = store.Columnar
+	Relational = store.Relational
+	Document   = store.Document
+	Kvs        = store.Kvs
 )
 
-var storeKindNames = map[StoreKind]string{
-	Graph:      "graph",
-	Document:   "document",
-	Kvs:        "kvs",
-	Relational: "relational",
-	Columnar:   "columnar",
-}
-
-func (k StoreKind) String() string {
-	if s, ok := storeKindNames[k]; ok {
-		return s
-	}
-	return fmt.Sprintf("StoreKind(%d)", int(k))
-}
-
-func ParseStoreKind(s string) (StoreKind, error) {
-	for k, name := range storeKindNames {
-		if name == s {
-			return k, nil
-		}
-	}
-	return 0, fmt.Errorf("unknown store kind: %q", s)
-}
+// ParseStoreKind は store.ParseKind への委譲。
+func ParseStoreKind(s string) (StoreKind, error) { return store.ParseKind(s) }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"polystore_database/src/go/codec"
+	"polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 	"polystore_database/src/go/storage"
 	"sort"
@@ -135,15 +136,15 @@ func upsertKvs(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, 
 			// json(複雑値)は保存のみ。転置索引は張らない（値検索は非対応）。
 			complex := strings.EqualFold(typeMap[p], "json")
 
-			entityKey := codec.BuildEntityKey(cfg.Entity, row.UUID.String(), p)
+			entityKey := codec.BuildEntityKey(cfg.Entity, row.UUID, p)
 			if !complex {
 				if oldVal, err := db.Get(entityKey, nil); err == nil {
-					levelBatch.Delete(codec.BuildIndexKey(cfg.Entity, p, oldVal, row.UUID.String()))
+					levelBatch.Delete(codec.BuildIndexKey(cfg.Entity, p, oldVal, row.UUID))
 				}
 			}
 			levelBatch.Put(entityKey, valBytes)
 			if !complex {
-				levelBatch.Put(codec.BuildIndexKey(cfg.Entity, p, valBytes, row.UUID.String()), []byte{})
+				levelBatch.Put(codec.BuildIndexKey(cfg.Entity, p, valBytes, row.UUID), []byte{})
 			}
 		}
 	}
@@ -223,7 +224,7 @@ func upsertRdb(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, 
 	// スキーマ準備は prepareDestSchema で1回実施済み（ここでは DDL を行わない）
 
 	// ワーカー間でロック取得順を揃え、デッドロック頻度を下げる
-	sort.Slice(rows, func(i, j int) bool { return rows[i].UUID < rows[j].UUID })
+	sort.Slice(rows, func(i, j int) bool { return id.Less(rows[i].UUID, rows[j].UUID) })
 
 	numProps := len(cfg.Properties)
 	placeholderGroup := "(" + strings.Repeat("?,", numProps) + "?)"

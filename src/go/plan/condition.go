@@ -2,11 +2,13 @@ package plan
 
 import (
 	"fmt"
+
+	"polystore_database/src/go/store"
 )
 
 type ConditionNode struct {
 	Type      ConditionType
-	DataStore string // assign at BuildPlan
+	DataStore store.Kind // assign at BuildPlan
 
 	Labels   []string
 	Alias    string

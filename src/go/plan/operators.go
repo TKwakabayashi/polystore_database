@@ -3,6 +3,8 @@ package plan
 import (
 	"fmt"
 	"strings"
+
+	"polystore_database/src/go/store"
 )
 
 // ================================
@@ -18,7 +20,7 @@ type EntityScan struct {
 	Labels []string
 	Filter []*ConditionNode
 
-	DataStore string
+	DataStore store.Kind
 }
 
 func (e *EntityScan) String() string {
@@ -50,7 +52,7 @@ type Filter struct {
 	Alias     string
 	Labels    []string
 	ObjType   ObjectType
-	DataStore string
+	DataStore store.Kind
 }
 
 func (f *Filter) String() string {
@@ -284,7 +286,7 @@ func (r *Return) String() string {
 //   - graph: パラメータ埋め込み済みの Cypher をそのまま Neo4j で実行する。
 //   - 非graph: Table/Filters/GroupKeys/Aggs/... からネイティブ集約クエリを生成する（拡張点）。
 type StorePushdown struct {
-	Store  string            // "graph","relational","columnar","document","kvs"
+	Store  store.Kind        // "graph","relational","columnar","document","kvs"
 	Query  string            // graph 用: 原クエリ（$param 付き。baseline と同一発行）
 	Params map[string]string // graph 用: パラメータ（実行時に型付けして渡す）
 
@@ -301,7 +303,7 @@ type StorePushdown struct {
 func (s *StorePushdown) Children() []PlanNode { return nil }
 
 func (s *StorePushdown) String() string {
-	if s.Store == "graph" {
+	if s.Store == store.Graph {
 		return fmt.Sprintf("StorePushdown[graph]: %s", strings.Join(strings.Fields(s.Query), " "))
 	}
 	return fmt.Sprintf("StorePushdown[%s] table=%s groups=%d aggs=%d limit=%d",

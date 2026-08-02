@@ -1,5 +1,7 @@
 package plan
 
+import "polystore_database/src/go/store"
+
 type ReturnItem struct {
 	Name       string
 	Alias      string
@@ -19,7 +21,7 @@ type ProjectionUnit struct {
 }
 
 type FetchPlan struct {
-	Store   string
+	Store   store.Kind
 	Props   []string
 	TypeMap map[string]string
 }

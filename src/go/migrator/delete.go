@@ -119,13 +119,13 @@ func deleteKvs(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, 
 	levelBatch := new(leveldb.Batch)
 	for _, r := range rows {
 		for _, p := range cfg.Properties {
-			entityKey := codec.BuildEntityKey(cfg.Entity, r.UUID.String(), p)
+			entityKey := codec.BuildEntityKey(cfg.Entity, r.UUID, p)
 			// json(複雑値)は転置索引を張っていないため、エンティティキーのみ削除する
 			complex := strings.EqualFold(typeMap[p], "json")
 			if val, err := db.Get(entityKey, nil); err == nil {
 				levelBatch.Delete(entityKey)
 				if !complex {
-					levelBatch.Delete(codec.BuildIndexKey(cfg.Entity, p, val, r.UUID.String()))
+					levelBatch.Delete(codec.BuildIndexKey(cfg.Entity, p, val, r.UUID))
 				}
 			}
 		}
