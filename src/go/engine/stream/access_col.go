@@ -7,13 +7,15 @@ import (
 	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 	"strings"
+	"time"
 )
 
 func ScanColStream(qp *Processor,
-	o *plan.EntityScan, output chan<- []Record) (int, error) {
+	o *plan.EntityScan, step int, output chan<- []Record) (int, error) {
 	if qp.cqlSes == nil {
 		return 0, nil
 	}
+	t0 := time.Now()
 
 	// --- DB特有: WHERE 構築 ---
 	var whereClauses []string
@@ -31,8 +33,8 @@ func ScanColStream(qp *Processor,
 		whereStr = "WHERE " + strings.Join(whereClauses, " AND ")
 	}
 
-	// --- graph と同じストリーミング骨格 ---
-	const outputBatchSize = 500
+	// --- graph と同じストリーミング骨格（batch 幅は VectorWidth に統一）---
+	outputBatchSize := qp.exec.vectorWidth()
 	rowCount := 0
 	newSlotCount := len(o.OutputSlot.VarToSlot)
 	aliasIdx := o.OutputSlot.VarToSlot[o.Alias]
@@ -40,6 +42,7 @@ func ScanColStream(qp *Processor,
 
 	for _, label := range o.Labels {
 		query := fmt.Sprintf("SELECT uuid FROM \"%s\" %s ALLOW FILTERING", label, whereStr)
+		qp.countRoundTrip()
 		iter := qp.cqlSes.Query(query, args...).Iter()
 		var id string
 		for iter.Scan(&id) {
@@ -62,11 +65,12 @@ func ScanColStream(qp *Processor,
 	if len(currentBatch) > 0 {
 		output <- currentBatch
 	}
+	qp.recordScan(step, rowCount, t0)
 	return rowCount, nil
 }
 
 func FilterColStream(qp *Processor,
-	o *plan.Filter, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
+	o *plan.Filter, step int, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
 	filterIdxIn := o.InputSlot.VarToSlot[o.Alias]
 	newSlotCount := len(o.OutputSlot.VarToSlot)
 
@@ -84,7 +88,7 @@ func FilterColStream(qp *Processor,
 	whereClause := strings.Join(append([]string{"uuid IN ?"}, commonClauses...), " AND ")
 
 	return runBatches(
-		qp.ctx, qp.exec, qp.sem, OpFilter, inputStream, outputStream,
+		qp.ctx, qp.exec, qp.sem, OpFilter, qp, step, inputStream, outputStream,
 		noResource, closeNoResource,
 		func(_ struct{}, batch []Record) ([]Record, error) {
 			idMap := make(map[uid.UUID]struct{})
@@ -101,6 +105,7 @@ func FilterColStream(qp *Processor,
 			validMap := make(map[uid.UUID]struct{})
 			for _, label := range o.Labels {
 				query := fmt.Sprintf("SELECT uuid FROM \"%s\" WHERE %s ALLOW FILTERING", label, whereClause)
+				qp.countRoundTrip()
 				iter := qp.cqlSes.Query(query, queryArgs...).Iter()
 				var id string
 				for iter.Scan(&id) {
@@ -152,6 +157,7 @@ func fetchColPropsStream(qp *Processor,
 			batch := ids[i:end]
 
 			query := fmt.Sprintf("SELECT uuid, %s FROM \"%s\" WHERE uuid IN ?", propList, table)
+			qp.countRoundTrip()
 			iter := qp.cqlSes.Query(query, batch).Iter()
 			for {
 				row := make(map[string]interface{})

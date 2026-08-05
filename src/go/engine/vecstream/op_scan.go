@@ -35,7 +35,10 @@ func (s *scanIterator) Open(ctx context.Context) error {
 		return err
 	}
 	s.ids = ids
-	s.p.recordOp(s.step, "EntityScan", time.Since(start), 0)
+	now := time.Now()
+	s.p.recordOp(s.step, "EntityScan", now.Sub(start), 0)
+	// scan 自体は 1 クエリ（全件取得）。行の払い出しは Next 側で計上。
+	s.p.recordFlow(s.step, "EntityScan", 0, 0, 0, 0, 1, start, now)
 	return nil
 }
 
@@ -54,7 +57,9 @@ func (s *scanIterator) Next(ctx context.Context) (*Batch, error) {
 		row[s.aliasIdx] = uid.UUID(s.ids[s.pos])
 		b.appendRow(row)
 	}
-	s.p.recordOp(s.step, "EntityScan", time.Since(start), b.n)
+	now := time.Now()
+	s.p.recordOp(s.step, "EntityScan", now.Sub(start), b.n)
+	s.p.recordFlow(s.step, "EntityScan", 0, 1, 0, int64(b.n), 0, start, now)
 	return b, nil
 }
 

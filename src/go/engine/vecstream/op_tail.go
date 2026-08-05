@@ -30,7 +30,11 @@ func (p *Processor) runRow(op plan.PlanNode) ([]Row, error) {
 		if err != nil {
 			return nil, err
 		}
-		p.recordOp(p.newStep(), "Pushdown["+o.Store.String()+"]", time.Since(start), len(rows))
+		now := time.Now()
+		step := p.newStep()
+		name := "Pushdown[" + o.Store.String() + "]"
+		p.recordOp(step, name, now.Sub(start), len(rows))
+		p.recordFlow(step, name, 0, 0, 0, int64(len(rows)), 1, start, now)
 		return rows, nil
 
 	case *plan.Projection:
@@ -52,7 +56,10 @@ func (p *Processor) runRow(op plan.PlanNode) ([]Row, error) {
 		}
 		start := time.Now()
 		rows := applyAggregate(o, in)
-		p.recordOp(p.newStep(), "Aggregate", time.Since(start), len(rows))
+		now := time.Now()
+		step := p.newStep()
+		p.recordOp(step, "Aggregate", now.Sub(start), len(rows))
+		p.recordFlow(step, "Aggregate", 0, 0, int64(len(in)), int64(len(rows)), 0, start, now)
 		return rows, nil
 
 	case *plan.Sort:
@@ -62,7 +69,10 @@ func (p *Processor) runRow(op plan.PlanNode) ([]Row, error) {
 		}
 		start := time.Now()
 		rows := applySort(o, in)
-		p.recordOp(p.newStep(), "Sort", time.Since(start), len(rows))
+		now := time.Now()
+		step := p.newStep()
+		p.recordOp(step, "Sort", now.Sub(start), len(rows))
+		p.recordFlow(step, "Sort", 0, 0, int64(len(in)), int64(len(rows)), 0, start, now)
 		return rows, nil
 
 	case *plan.Limit:
@@ -72,7 +82,10 @@ func (p *Processor) runRow(op plan.PlanNode) ([]Row, error) {
 		}
 		start := time.Now()
 		rows := applyLimit(o, in)
-		p.recordOp(p.newStep(), "Limit", time.Since(start), len(rows))
+		now := time.Now()
+		step := p.newStep()
+		p.recordOp(step, "Limit", now.Sub(start), len(rows))
+		p.recordFlow(step, "Limit", 0, 0, int64(len(in)), int64(len(rows)), 0, start, now)
 		return rows, nil
 
 	case *plan.Return:
@@ -82,7 +95,10 @@ func (p *Processor) runRow(op plan.PlanNode) ([]Row, error) {
 		}
 		start := time.Now()
 		rows := applyReturn(o, in)
-		p.recordOp(p.newStep(), "Return", time.Since(start), len(rows))
+		now := time.Now()
+		step := p.newStep()
+		p.recordOp(step, "Return", now.Sub(start), len(rows))
+		p.recordFlow(step, "Return", 0, 0, int64(len(in)), int64(len(rows)), 0, start, now)
 		return rows, nil
 
 	default:

@@ -41,7 +41,7 @@ func (in *vecstreamInstance) Run(op plan.PlanNode) (core.Result, error) {
 	return core.Result{
 		Rows:        rows,
 		ExecTime:    elapsed,
-		Steps:       toStepMetrics(in.p.StepMetrics()),
+		Steps:       in.p.StepMetrics(),
 		RoundTrips:  in.p.RoundTrips(),
 		VectorWidth: in.p.VectorWidth(),
 		Engine:      "vecstream",
@@ -49,12 +49,3 @@ func (in *vecstreamInstance) Run(op plan.PlanNode) (core.Result, error) {
 }
 
 func (in *vecstreamInstance) Close() error { return in.p.Close() }
-
-// toStepMetrics は vecstream.Metrics を core.StepMetric へ変換する（InRows は未計測 -1）。
-func toStepMetrics(ms []Metrics) []core.StepMetric {
-	out := make([]core.StepMetric, len(ms))
-	for i, m := range ms {
-		out[i] = core.StepMetric{Step: m.StepNum, Op: m.OpType, Duration: m.Duration, InRows: -1, OutRows: m.RowCount}
-	}
-	return out
-}

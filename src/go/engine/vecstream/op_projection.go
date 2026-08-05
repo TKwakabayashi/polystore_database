@@ -50,6 +50,7 @@ func (p *Processor) runProjection(o *plan.Projection, child Iterator, step int) 
 		}
 
 		// B. プロパティ一括取得 cache[alias][id][prop] = value
+		var queries int64
 		cache := make(map[string]map[string]map[string]interface{})
 		for ui := range o.Units {
 			unit := o.Units[ui]
@@ -63,6 +64,7 @@ func (p *Processor) runProjection(o *plan.Projection, child Iterator, step int) 
 			}
 			cache[unit.Alias] = make(map[string]map[string]interface{})
 			for fi := range unit.Fetches {
+				queries++
 				data := p.fetchPropertiesBulk(sess, ids, &unit, &unit.Fetches[fi])
 				for id, propsMap := range data {
 					if _, ok := cache[unit.Alias][id]; !ok {
@@ -97,7 +99,9 @@ func (p *Processor) runProjection(o *plan.Projection, child Iterator, step int) 
 			}
 			out = append(out, row)
 		}
-		p.recordOp(step, "Projection", time.Since(start), batch.n)
+		now := time.Now()
+		p.recordOp(step, "Projection", now.Sub(start), batch.n)
+		p.recordFlow(step, "Projection", 1, 0, int64(batch.n), int64(batch.n), queries, start, now)
 	}
 	return out, nil
 }

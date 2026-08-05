@@ -22,7 +22,7 @@ type VarPathResult struct {
 	// RelIDs   []string // 必要に応じて保持
 }
 
-func ExpandGraphStream(qp *Processor, o *plan.Expand, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
+func ExpandGraphStream(qp *Processor, o *plan.Expand, step int, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
 	srcIdx := o.InputSlot.VarToSlot[o.SourceEntity]
 	relIdxOut, hasRel := o.OutputSlot.VarToSlot[o.Alias]
 	tgtIdxOut, hasTarget := o.OutputSlot.VarToSlot[o.TargetEntity]
@@ -59,7 +59,7 @@ func ExpandGraphStream(qp *Processor, o *plan.Expand, inputStream <-chan []Recor
 	finalQuery := fmt.Sprintf("MATCH %s WHERE src.uuid IN $ids RETURN %s", pattern, returns)
 
 	return runBatches(
-		qp.ctx, qp.exec, qp.sem, OpExpand, inputStream, outputStream,
+		qp.ctx, qp.exec, qp.sem, OpExpand, qp, step, inputStream, outputStream,
 		qp.newReadSession, qp.closeSession,
 		func(sess neo4j.SessionWithContext, batch []Record) ([]Record, error) {
 			srcIds := make([]string, 0, len(batch))
@@ -72,6 +72,7 @@ func ExpandGraphStream(qp *Processor, o *plan.Expand, inputStream <-chan []Recor
 				recordMap[id] = append(recordMap[id], r)
 			}
 
+			qp.countRoundTrip()
 			res, err := sess.Run(qp.ctx, finalQuery, map[string]interface{}{"ids": srcIds})
 			if err != nil {
 				return nil, err
@@ -106,7 +107,7 @@ func ExpandGraphStream(qp *Processor, o *plan.Expand, inputStream <-chan []Recor
 	)
 }
 
-func streamVarLengthExpand(qp *Processor, o *plan.VarLengthExpand, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
+func streamVarLengthExpand(qp *Processor, o *plan.VarLengthExpand, step int, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
 	srcIdxIn := o.InputSlot.VarToSlot[o.SourceEntity]
 	tgtIdxOut, hasTarget := o.OutputSlot.VarToSlot[o.TargetEntity]
 	newSlotCount := len(o.OutputSlot.VarToSlot)
@@ -137,7 +138,7 @@ func streamVarLengthExpand(qp *Processor, o *plan.VarLengthExpand, inputStream <
 	)
 
 	return runBatches(
-		qp.ctx, qp.exec, qp.sem, OpVarLengthExpand, inputStream, outputStream,
+		qp.ctx, qp.exec, qp.sem, OpVarLengthExpand, qp, step, inputStream, outputStream,
 		qp.newReadSession, qp.closeSession,
 		func(sess neo4j.SessionWithContext, batch []Record) ([]Record, error) {
 			srcIds := make([]string, 0, len(batch))
@@ -150,6 +151,7 @@ func streamVarLengthExpand(qp *Processor, o *plan.VarLengthExpand, inputStream <
 				recordMap[id] = append(recordMap[id], r)
 			}
 
+			qp.countRoundTrip()
 			res, err := sess.Run(qp.ctx, finalQuery, map[string]interface{}{"ids": srcIds})
 			if err != nil {
 				return nil, err

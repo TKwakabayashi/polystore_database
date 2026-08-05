@@ -19,7 +19,7 @@ func executeRowStream(qp *Processor, op plan.PlanNode, counter *int, wg *sync.Wa
 
 	switch o := op.(type) {
 	case *plan.StorePushdown:
-		return spawnRowOp(qp, "Pushdown["+o.Store.String()+"]", counter, wg, func(out chan []Row) int {
+		return spawnRowOp(qp, "Pushdown["+o.Store.String()+"]", counter, wg, func(step int, out chan []Row) int {
 			return streamStorePushdown(qp, o, out)
 		}), nil
 
@@ -28,8 +28,8 @@ func executeRowStream(qp *Processor, op plan.PlanNode, counter *int, wg *sync.Wa
 		if err != nil {
 			return nil, err
 		}
-		return spawnRowOp(qp, "Projection", counter, wg, func(out chan []Row) int {
-			return streamProjection(qp, o, recCh, out)
+		return spawnRowOp(qp, "Projection", counter, wg, func(step int, out chan []Row) int {
+			return streamProjection(qp, o, step, recCh, out)
 		}), nil
 
 	case *plan.Aggregate:
@@ -37,7 +37,7 @@ func executeRowStream(qp *Processor, op plan.PlanNode, counter *int, wg *sync.Wa
 		if err != nil {
 			return nil, err
 		}
-		return spawnRowOp(qp, "Aggregate", counter, wg, func(out chan []Row) int {
+		return spawnRowOp(qp, "Aggregate", counter, wg, func(step int, out chan []Row) int {
 			return streamAggregate(o, in, out)
 		}), nil
 
@@ -46,7 +46,7 @@ func executeRowStream(qp *Processor, op plan.PlanNode, counter *int, wg *sync.Wa
 		if err != nil {
 			return nil, err
 		}
-		return spawnRowOp(qp, "Sort", counter, wg, func(out chan []Row) int {
+		return spawnRowOp(qp, "Sort", counter, wg, func(step int, out chan []Row) int {
 			return streamSort(o, in, out)
 		}), nil
 
@@ -55,7 +55,7 @@ func executeRowStream(qp *Processor, op plan.PlanNode, counter *int, wg *sync.Wa
 		if err != nil {
 			return nil, err
 		}
-		return spawnRowOp(qp, "Limit", counter, wg, func(out chan []Row) int {
+		return spawnRowOp(qp, "Limit", counter, wg, func(step int, out chan []Row) int {
 			return streamLimit(o, in, out)
 		}), nil
 
@@ -64,7 +64,7 @@ func executeRowStream(qp *Processor, op plan.PlanNode, counter *int, wg *sync.Wa
 		if err != nil {
 			return nil, err
 		}
-		return spawnRowOp(qp, "Return", counter, wg, func(out chan []Row) int {
+		return spawnRowOp(qp, "Return", counter, wg, func(step int, out chan []Row) int {
 			return streamReturn(o, in, out)
 		}), nil
 
@@ -73,7 +73,7 @@ func executeRowStream(qp *Processor, op plan.PlanNode, counter *int, wg *sync.Wa
 	}
 }
 
-func spawnRowOp(qp *Processor, name string, counter *int, wg *sync.WaitGroup, run func(out chan []Row) int) chan []Row {
+func spawnRowOp(qp *Processor, name string, counter *int, wg *sync.WaitGroup, run func(step int, out chan []Row) int) chan []Row {
 	out := make(chan []Row, 500)
 	*counter++
 	step := *counter
@@ -81,10 +81,14 @@ func spawnRowOp(qp *Processor, name string, counter *int, wg *sync.WaitGroup, ru
 	go func() {
 		defer wg.Done()
 		defer close(out)
-		rows := run(out)
-		qp.metricsMu.Lock()
-		qp.metrics[step] = Metrics{StepNum: step, OpType: name, RowCount: rows}
-		qp.metricsMu.Unlock()
+		t0 := time.Now()
+		rows := run(step, out)
+		t1 := time.Now()
+		qp.recordOp(step, name, t1.Sub(t0), rows)
+		// Projection は自身の per-batch フローを記録する（RecordFlow）ため二重計上を避ける。
+		if name != "Projection" {
+			qp.recordFlow(step, name, 0, 0, 0, int64(rows), 0, t0, t1)
+		}
 	}()
 	return out
 }

@@ -1,13 +1,16 @@
 package stream
 
 import (
+	"time"
+
 	"polystore_database/src/go/plan"
 	"polystore_database/src/go/store"
 )
 
 // streamProjection は record ストリームを消費し、必要列を単一パスでクロスストア収集して
 // wide row（キー: "alias.prop" と 束縛 uuid の "alias"）を row ストリームへ emit する。
-func streamProjection(qp *Processor, o *plan.Projection, inputStream <-chan []Record, out chan<- []Row) int {
+// フロー計測は per-batch で RecordFlow（RecordOp は呼び出し元 spawnRowOp が担当）。
+func streamProjection(qp *Processor, o *plan.Projection, step int, inputStream <-chan []Record, out chan<- []Row) int {
 	if qp == nil {
 		return 0
 	}
@@ -15,6 +18,8 @@ func streamProjection(qp *Processor, o *plan.Projection, inputStream <-chan []Re
 	emitted := 0
 
 	for batch := range inputStream {
+		t0 := time.Now()
+		var queries int64
 		// --- Unit ごとに ID 収集 ---
 		unitIDMap := make(map[string]map[string]struct{})
 		for _, unit := range o.Units {
@@ -46,6 +51,7 @@ func streamProjection(qp *Processor, o *plan.Projection, inputStream <-chan []Re
 			}
 			cache[unit.Alias] = make(map[string]map[string]interface{})
 			for fi := range unit.Fetches {
+				queries++
 				data := FetchPropertiesBulk(qp, ids, &unit, &unit.Fetches[fi])
 				for id, propsMap := range data {
 					if _, ok := cache[unit.Alias][id]; !ok {
@@ -82,6 +88,7 @@ func streamProjection(qp *Processor, o *plan.Projection, inputStream <-chan []Re
 			rows = append(rows, row)
 		}
 		emitted += len(rows)
+		qp.recordFlow(step, "Projection", 1, 0, int64(len(batch)), int64(len(rows)), queries, t0, time.Now())
 		out <- rows
 	}
 	return emitted

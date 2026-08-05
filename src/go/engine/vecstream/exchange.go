@@ -40,6 +40,10 @@ type exchangeIterator[R any] struct {
 	err   error
 }
 
+// noRes / noResClose は process が自前でセッションを確保する演算子（またはテスト）向けの空リソース。
+func noRes() struct{}       { return struct{}{} }
+func noResClose(_ struct{}) {}
+
 func newExchange[R any](
 	p *Processor, child Iterator, opKind OpKind, opName string, step int,
 	newRes func() R, closeRes func(R),
@@ -121,6 +125,7 @@ func (e *exchangeIterator[R]) Open(ctx context.Context) error {
 				}
 				start := time.Now()
 				out, err := e.process(res, b)
+				t1 := time.Now()
 				if e.p.sem != nil {
 					e.p.sem.Release(1)
 				}
@@ -133,8 +138,11 @@ func (e *exchangeIterator[R]) Open(ctx context.Context) error {
 				if out != nil {
 					rows = out.n
 				}
-				e.p.recordOp(e.step, e.opName, time.Since(start), rows)
-				for _, sub := range split(out, e.p.exec.vectorWidth()) {
+				e.p.recordOp(e.step, e.opName, t1.Sub(start), rows)
+				subs := split(out, e.p.exec.vectorWidth())
+				// 1 バッチ入力 = 1 DB クエリ、出力は len(subs) バッチへ再チャンク。
+				e.p.recordFlow(e.step, e.opName, 1, int64(len(subs)), int64(b.n), int64(rows), 1, start, t1)
+				for _, sub := range subs {
 					select {
 					case e.out <- sub:
 					case <-dctx.Done():

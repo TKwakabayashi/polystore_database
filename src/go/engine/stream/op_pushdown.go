@@ -39,6 +39,7 @@ func runGraphPushdown(qp *Processor, query string, params map[string]string, out
 	session := qp.neoDriver.NewSession(qp.ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead})
 	defer session.Close(qp.ctx)
 
+	qp.countRoundTrip()
 	res, err := session.Run(qp.ctx, query, core.TypeParams(params))
 	if err != nil {
 		fmt.Printf("StorePushdown[graph] run error: %v\n", err)
@@ -69,6 +70,7 @@ func runRelationalPushdown(qp *Processor, o *plan.StorePushdown, out chan<- []Ro
 		return 0
 	}
 	sql, args := core.BuildRelationalSQL(o)
+	qp.countRoundTrip()
 	rows, err := qp.sqlDb.QueryContext(qp.ctx, sql, args...)
 	if err != nil {
 		fmt.Printf("StorePushdown[relational] error: %v\n  SQL: %s\n", err, sql)
@@ -106,6 +108,7 @@ func runDocumentPushdown(qp *Processor, o *plan.StorePushdown, out chan<- []Row)
 		return 0
 	}
 	pipeline := core.BuildMongoPipeline(o)
+	qp.countRoundTrip()
 	cur, err := qp.mDb.Collection(o.Table).Aggregate(qp.ctx, pipeline)
 	if err != nil {
 		fmt.Printf("StorePushdown[document] error: %v\n", err)
@@ -151,6 +154,7 @@ func runColumnarPushdown(qp *Processor, o *plan.StorePushdown, out chan<- []Row)
 		return 0
 	}
 	cql, args := core.BuildColumnarCQL(o)
+	qp.countRoundTrip()
 	iter := qp.cqlSes.Query(cql, args...).Iter()
 
 	scanned := make(map[string]interface{})

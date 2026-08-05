@@ -6,6 +6,7 @@ import (
 	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 	"strings"
+	"time"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
@@ -17,7 +18,8 @@ func (qp *Processor) newReadSession() neo4j.SessionWithContext {
 func (qp *Processor) closeSession(s neo4j.SessionWithContext) { _ = s.Close(qp.ctx) }
 
 func ScanGraphStream(qp *Processor,
-	o *plan.EntityScan, output chan<- []Record) (int, error) {
+	o *plan.EntityScan, step int, output chan<- []Record) (int, error) {
+	t0 := time.Now()
 	var whereSections []string
 	params := make(map[string]interface{})
 
@@ -66,13 +68,14 @@ func ScanGraphStream(qp *Processor,
 	defer sess.Close(qp.ctx)
 
 	// 4. 実行
+	qp.countRoundTrip()
 	res, err := sess.Run(qp.ctx, query, params)
 	if err != nil {
 		return 0, err
 	}
 
-	// 5. ストリーミング処理
-	const outputBatchSize = 2000
+	// 5. ストリーミング処理（batch 幅は VectorWidth に統一）
+	outputBatchSize := qp.exec.vectorWidth()
 	rowCount := 0
 
 	newSlotCount := len(o.OutputSlot.VarToSlot)
@@ -97,11 +100,12 @@ func ScanGraphStream(qp *Processor,
 		output <- currentBatch
 	}
 
+	qp.recordScan(step, rowCount, t0)
 	return rowCount, res.Err()
 
 }
 
-func streamFilterGraph(qp *Processor, o *plan.Filter, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
+func streamFilterGraph(qp *Processor, o *plan.Filter, step int, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
 	filterIdxIn := o.InputSlot.VarToSlot[o.Alias]
 	newSlotCount := len(o.OutputSlot.VarToSlot)
 
@@ -153,7 +157,7 @@ func streamFilterGraph(qp *Processor, o *plan.Filter, inputStream <-chan []Recor
 	)
 
 	return runBatches(
-		qp.ctx, qp.exec, qp.sem, OpFilter, inputStream, outputStream,
+		qp.ctx, qp.exec, qp.sem, OpFilter, qp, step, inputStream, outputStream,
 		qp.newReadSession, qp.closeSession,
 		func(sess neo4j.SessionWithContext, batch []Record) ([]Record, error) {
 			idMap := make(map[uid.UUID]struct{})
@@ -171,6 +175,7 @@ func streamFilterGraph(qp *Processor, o *plan.Filter, inputStream <-chan []Recor
 			}
 			localParams["ids"] = uniqueIDs
 
+			qp.countRoundTrip()
 			res, err := sess.Run(qp.ctx, finalQuery, localParams)
 			if err != nil {
 				return nil, err
@@ -255,6 +260,7 @@ func fetchGraphPropsStream(qp *Processor,
 	sess := qp.neoDriver.NewSession(qp.ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead, FetchSize: neo4j.FetchAll})
 	defer sess.Close(qp.ctx)
 
+	qp.countRoundTrip()
 	res, err := sess.Run(qp.ctx, query, map[string]interface{}{"ids": ids})
 	if err != nil {
 

@@ -5,13 +5,15 @@ import (
 	"polystore_database/src/go/engine/core"
 	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
+	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func ScanDocStream(qp *Processor,
-	o *plan.EntityScan, output chan<- []Record) (int, error) {
+	o *plan.EntityScan, step int, output chan<- []Record) (int, error) {
+	t0 := time.Now()
 	// --- DB特有: bson クエリ構築 ---
 	query := bson.D{}
 	for _, cond := range o.Filter {
@@ -27,14 +29,15 @@ func ScanDocStream(qp *Processor,
 		query = append(query, bson.E{Key: cond.Property, Value: bson.M{core.MongoOp(cond.Type): val}})
 	}
 
-	// --- 以下 ScanGraphStream と同じストリーミング骨格 ---
-	const outputBatchSize = 500
+	// --- 以下 ScanGraphStream と同じストリーミング骨格（batch 幅は VectorWidth に統一）---
+	outputBatchSize := qp.exec.vectorWidth()
 	rowCount := 0
 	newSlotCount := len(o.OutputSlot.VarToSlot)
 	aliasIdx := o.OutputSlot.VarToSlot[o.Alias]
 	currentBatch := make([]Record, 0, outputBatchSize)
 
 	for _, label := range o.Labels {
+		qp.countRoundTrip()
 		cur, err := qp.mDb.Collection(label).Find(qp.ctx, query)
 		if err != nil {
 			return rowCount, err
@@ -60,11 +63,12 @@ func ScanDocStream(qp *Processor,
 	if len(currentBatch) > 0 {
 		output <- currentBatch
 	}
+	qp.recordScan(step, rowCount, t0)
 	return rowCount, nil
 }
 
 func FilterDocStream(qp *Processor,
-	o *plan.Filter, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
+	o *plan.Filter, step int, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
 	filterIdxIn := o.InputSlot.VarToSlot[o.Alias]
 	newSlotCount := len(o.OutputSlot.VarToSlot)
 
@@ -79,7 +83,7 @@ func FilterDocStream(qp *Processor,
 	}
 
 	return runBatches(
-		qp.ctx, qp.exec, qp.sem, OpFilter, inputStream, outputStream,
+		qp.ctx, qp.exec, qp.sem, OpFilter, qp, step, inputStream, outputStream,
 		noResource, closeNoResource,
 		func(_ struct{}, batch []Record) ([]Record, error) {
 			// id ユニーク化（graph と同じ）
@@ -96,6 +100,7 @@ func FilterDocStream(qp *Processor,
 			query := append(bson.D{{Key: "uuid", Value: bson.M{"$in": uniqueIDs}}}, commonConditions...)
 			validMap := make(map[uid.UUID]struct{})
 			for _, label := range o.Labels {
+				qp.countRoundTrip()
 				cur, err := qp.mDb.Collection(label).Find(qp.ctx, query, options.Find().SetProjection(bson.M{uid.PropName: 1}))
 				if err != nil {
 					return nil, err
@@ -136,6 +141,7 @@ func fetchDocPropsStream(qp *Processor, ids []string, unit *plan.ProjectionUnit,
 		return result
 	}
 	for _, label := range unit.Labels {
+		qp.countRoundTrip()
 		cur, err := qp.mDb.Collection(label).Find(qp.ctx, bson.M{"uuid": bson.M{"$in": ids}})
 		if err != nil {
 			continue

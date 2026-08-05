@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"sync"
+	"time"
 
 	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
@@ -35,13 +35,23 @@ type Processor struct {
 	sqlDb     *sql.DB
 	cqlSes    *gocql.Session
 
-	mu         sync.Mutex       // metrics / nextStep 保護
-	roundTrips int64            // DB 往復回数（atomic）
-	metrics    map[int]*Metrics // step -> 計測
-	nextStep   int              // build 時に演算子へ割り当てる連番
+	instr    *core.Instr // 往復・演算子時間・フロー計測（stream と共有する core 実装）
+	nextStep int         // build 時に演算子へ割り当てる連番（build/runRow は単一 goroutine）
 
 	results []map[string]interface{}
 }
+
+// 計測は core.Instr へ委譲する薄いラッパ（呼び出し点は volcano 由来のまま維持）。
+func (p *Processor) recordOp(step int, op string, dur time.Duration, rows int) {
+	p.instr.RecordOp(step, op, dur, rows)
+}
+func (p *Processor) recordFlow(step int, op string, batIn, batOut, rowIn, rowOut, queries int64, t0, t1 time.Time) {
+	p.instr.RecordFlow(step, op, batIn, batOut, rowIn, rowOut, queries, t0, t1)
+}
+func (p *Processor) countRoundTrip()                { p.instr.CountRoundTrip() }
+func (p *Processor) RoundTrips() int64              { return p.instr.RoundTrips() }
+func (p *Processor) StepMetrics() []core.StepMetric { return p.instr.StepMetrics() }
+func (p *Processor) FlowMetrics() []core.FlowMetric { return p.instr.FlowMetrics() }
 
 // NewProcessorWithConfig は cfg で 5 ストアへ接続し Processor を返す。
 // 並行度の既定は engine/stream と同一（globalMax=8 / Expand4・Filter4・VarLen2・Projection4）。
@@ -65,11 +75,11 @@ func NewProcessorWithConfig(ctx context.Context, cfg storage.Config) (*Processor
 	}
 
 	p := &Processor{
-		rg:      deps.Registry,
-		ctx:     ctx,
-		exec:    exec,
-		sem:     semaphore.NewWeighted(int64(exec.globalMax())),
-		metrics: make(map[int]*Metrics),
+		rg:    deps.Registry,
+		ctx:   ctx,
+		exec:  exec,
+		sem:   semaphore.NewWeighted(int64(exec.globalMax())),
+		instr: core.NewInstr(),
 	}
 	p.neoDriver = deps.Neo
 	p.mDb = deps.Mongo
@@ -89,11 +99,8 @@ func (p *Processor) Close() error {
 
 // Reset は試行間で計測・結果をクリアする（接続は維持）。
 func (p *Processor) Reset() {
-	p.mu.Lock()
-	p.metrics = make(map[int]*Metrics)
+	p.instr.Reset()
 	p.nextStep = 0
-	p.mu.Unlock()
-	p.roundTrips = 0
 	p.results = nil
 	p.sem = semaphore.NewWeighted(int64(p.exec.globalMax()))
 }
@@ -101,10 +108,8 @@ func (p *Processor) Reset() {
 // VectorWidth は現在のベクトル幅を返す（core.Result 用）。
 func (p *Processor) VectorWidth() int { return p.exec.vectorWidth() }
 
-// newStep は演算子へ step 番号を採番する（build/runRow は単一 goroutine 内で呼ぶ）。
+// newStep は演算子へ step 番号を採番する（build/runRow は単一 goroutine 内で呼ぶため排他不要）。
 func (p *Processor) newStep() int {
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	p.nextStep++
 	return p.nextStep
 }

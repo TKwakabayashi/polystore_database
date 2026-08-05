@@ -37,9 +37,15 @@ func (in *streamInstance) Run(op plan.PlanNode) (core.Result, error) {
 	if err != nil {
 		return core.Result{}, err
 	}
-	// stream は goroutine ベースで演算子別 Duration を計測しないため Steps は付けない
-	// （旧 RunCustom と同じ挙動）。
-	return core.Result{Rows: rows, ExecTime: elapsed, Engine: "stream"}, nil
+	// vecstream と揃えて往復数・ベクトル幅・演算子別計測を埋める（差は push/pull と行/列表現のみ）。
+	return core.Result{
+		Rows:        rows,
+		ExecTime:    elapsed,
+		Steps:       in.p.StepMetrics(),
+		RoundTrips:  in.p.RoundTrips(),
+		VectorWidth: in.p.exec.vectorWidth(),
+		Engine:      "stream",
+	}, nil
 }
 
 func (in *streamInstance) Close() error { return in.p.Close() }

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"golang.org/x/sync/semaphore"
+	"polystore_database/src/go/engine/core"
 	uid "polystore_database/src/go/id"
 )
 
@@ -45,7 +46,7 @@ func testProcessor(workers, globalMax, vecWidth int, withSem bool) *Processor {
 			GlobalMaxConcurrency: globalMax,
 			VectorWidth:          vecWidth,
 		},
-		metrics: make(map[int]*Metrics),
+		instr: core.NewInstr(),
 	}
 	if withSem {
 		p.sem = semaphore.NewWeighted(int64(globalMax))
