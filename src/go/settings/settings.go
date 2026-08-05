@@ -17,6 +17,7 @@ const (
 	EngineBulk       EngineKind = "bulk"
 	EngineVolcano    EngineKind = "volcano"
 	EngineVectorized EngineKind = "vectorized"
+	EngineVecStream  EngineKind = "vecstream" // push × 列 Batch × parallel
 )
 
 var (
@@ -45,7 +46,7 @@ var (
 	// BenchPlacements は P3b で []store.Kind へ型付け予定（現状は文字列）。
 	BenchPlacements = []string{"graph", "rdb", "doc", "col", "kvs"}
 	BenchPushdowns  = []string{"auto", "engine"}
-	BenchModels     = []string{"stream", "bulk", "volcano", "vectorized"}
+	BenchModels     = []string{"stream", "bulk", "volcano", "vectorized", "vecstream"}
 
 	MigrationDeleteSource = true // ★ 移行成功後にソース側を削除する（旧 -delete フラグ）
 )
