@@ -32,6 +32,15 @@ func (p *Processor) runRow(op plan.PlanNode) ([]Row, error) {
 		p.recordOp(p.newStep(), "Pushdown["+o.Store.String()+"]", time.Since(start), len(rows))
 		return rows, nil
 
+	case *plan.StoreFragment:
+		start := time.Now()
+		rows, err := p.runStorePushdown(plan.StorePushdownFromFragment(o))
+		if err != nil {
+			return nil, err
+		}
+		p.recordOp(p.newStep(), "Fragment["+o.Store.String()+"]", time.Since(start), len(rows))
+		return rows, nil
+
 	case *plan.Projection:
 		child, err := p.build(o.Input)
 		if err != nil {

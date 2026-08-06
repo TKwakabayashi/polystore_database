@@ -35,6 +35,20 @@ const (
 
 var Pushdown = PushdownAuto // ★ pushdown 方針（旧 planner.SelectedPushdown）
 
+// 以下は Pushdown==PushdownAuto のときだけ意味を持つ独立トグル（projection / aggregation を個別制御）。
+var (
+	// AggregationPushdown: 集約をストアへ委譲するか。OFF なら委譲せず engine で計算する
+	// （fusion の BuildPushdownPlan が判定に使用済み）。
+	AggregationPushdown = true
+	// ProjectionPushdown: 同一ストアの projection 列をネイティブクエリの SELECT/RETURN へ
+	// 畳み込むか。projection-only 畳み込み（P6）で有効化予定。現状は未配線（no-op）。
+	ProjectionPushdown = true
+)
+
+// IntegrateRowThreshold は統合演算子の実行時方式選択の閾値
+// （hash join / IN-list 押し込み / nested-loop の分岐）。
+var IntegrateRowThreshold = 1024
+
 // ===== 計測（bench） =====
 const (
 	Warmup = 3  // 計測から除外する先頭ウォームアップ回数

@@ -68,6 +68,42 @@ func ScanGraphBulk(qp *Processor, o *plan.EntityScan) ([]Record, error) {
 	return out, res.Err()
 }
 
+// bulkGraphRecordFragment は record-mode StoreFragment（融合済み graph traversal）を実行し、
+// 返された各 alias の uuid を OutputSlot に従って Record の slot へ格納する。
+// これにより record パイプライン（scan+filter+expand）を 1 往復の Cypher に畳み込む。
+func bulkGraphRecordFragment(qp *Processor, o *plan.StoreFragment) ([]Record, error) {
+	aliases := make([]string, 0, len(o.OutputSlot.VarToSlot))
+	for a := range o.OutputSlot.VarToSlot {
+		aliases = append(aliases, a)
+	}
+	cypher, params := core.BuildGraphRecordCypher(o.Ops, aliases)
+	if cypher == "" {
+		// 生成不能な構造（非線形 traversal 等）は元の部分木を通常実行してフォールバック（等価）。
+		var counter int
+		return ExecuteOperatorBulk(qp, o.Ops, &counter)
+	}
+	sess := qp.newReadSession()
+	defer qp.closeSession(sess)
+
+	res, err := sess.Run(qp.ctx, cypher, params)
+	if err != nil {
+		return nil, fmt.Errorf("StoreFragment[graph record] run error: %w\n  Cypher: %s", err, cypher)
+	}
+	slotCount := len(o.OutputSlot.VarToSlot)
+	out := make([]Record, 0)
+	for res.Next(qp.ctx) {
+		rec := res.Record()
+		slots := make([]uid.UUID, slotCount)
+		for alias, idx := range o.OutputSlot.VarToSlot {
+			if v, ok := rec.Get(alias); ok && v != nil {
+				slots[idx] = uid.FromAny(v)
+			}
+		}
+		out = append(out, Record{Slots: slots})
+	}
+	return out, res.Err()
+}
+
 func bulkFilterGraph(qp *Processor, o *plan.Filter, in []Record) ([]Record, error) {
 	filterIdxIn := o.InputSlot.VarToSlot[o.Alias]
 	newSlotCount := len(o.OutputSlot.VarToSlot)

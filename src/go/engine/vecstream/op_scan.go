@@ -65,6 +65,60 @@ func (s *scanIterator) Next(ctx context.Context) (*Batch, error) {
 
 func (s *scanIterator) Close(ctx context.Context) error { return nil }
 
+// fragmentIterator は record-mode StoreFragment（融合 graph traversal）の pull 実装。
+// Open で融合 Cypher を 1 往復実行して束縛 UUID 行をマテリアライズし、Next で VectorWidth 件ずつ払い出す。
+type fragmentIterator struct {
+	p       *Processor
+	cypher  string
+	params  map[string]interface{}
+	outSlot plan.SlotTable
+	step    int
+
+	slotCount int
+	rows      [][]string
+	pos       int
+}
+
+func (it *fragmentIterator) Open(ctx context.Context) error {
+	start := time.Now()
+	it.slotCount = len(it.outSlot.VarToSlot)
+	rows, err := it.p.runGraphRecordFragment(it.cypher, it.params, it.outSlot)
+	if err != nil {
+		return err
+	}
+	it.rows = rows
+	now := time.Now()
+	it.p.recordOp(it.step, "Fragment", now.Sub(start), 0)
+	it.p.recordFlow(it.step, "Fragment", 0, 0, 0, 0, 1, start, now) // 融合 traversal = 1 往復
+	return nil
+}
+
+func (it *fragmentIterator) Next(ctx context.Context) (*Batch, error) {
+	if it.pos >= len(it.rows) {
+		return nil, nil
+	}
+	start := time.Now()
+	end := it.pos + it.p.exec.vectorWidth()
+	if end > len(it.rows) {
+		end = len(it.rows)
+	}
+	b := newBatch(it.slotCount, end-it.pos)
+	for ; it.pos < end; it.pos++ {
+		r := it.rows[it.pos]
+		row := make([]uid.UUID, it.slotCount)
+		for s := range row {
+			row[s] = uid.UUID(r[s])
+		}
+		b.appendRow(row)
+	}
+	now := time.Now()
+	it.p.recordOp(it.step, "Fragment", now.Sub(start), b.n)
+	it.p.recordFlow(it.step, "Fragment", 0, 1, 0, int64(b.n), 0, start, now)
+	return b, nil
+}
+
+func (it *fragmentIterator) Close(ctx context.Context) error { return nil }
+
 // scanIDs はストア種別に応じて uuid 一覧を取得する（実装は access_<store>.go）。
 func (p *Processor) scanIDs(o *plan.EntityScan) ([]string, error) {
 	switch o.DataStore {

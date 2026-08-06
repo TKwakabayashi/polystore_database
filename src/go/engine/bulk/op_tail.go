@@ -28,6 +28,16 @@ func executeRowBulk(qp *Processor, op plan.PlanNode, counter *int) ([]Row, error
 		recordRowOp(qp, counter, "Pushdown["+o.Store.String()+"]", time.Since(start), 0, len(rows))
 		return rows, nil
 
+	case *plan.StoreFragment:
+		// 融合フラグメントは既存 StorePushdown 実行へブリッジ（graph=verbatim / 非graph=ネイティブ集約）。
+		start := time.Now()
+		rows, err := bulkStorePushdown(qp, plan.StorePushdownFromFragment(o))
+		if err != nil {
+			return nil, err
+		}
+		recordRowOp(qp, counter, "Fragment["+o.Store.String()+"]", time.Since(start), 0, len(rows))
+		return rows, nil
+
 	case *plan.Projection:
 		recs, err := ExecuteOperatorBulk(qp, o.Input, counter)
 		if err != nil {

@@ -55,6 +55,34 @@ func sqlToCypherOp(t plan.ConditionType) string { return core.SQLOp(t) }
 
 // ---------- EntityScan ----------
 
+// runGraphRecordFragment は record-mode StoreFragment の融合 Cypher を実行し、各行を
+// OutputSlot 長の uuid 文字列スライス（未束縛 slot は ""）として返す（1 往復）。
+func (p *Processor) runGraphRecordFragment(cypher string, params map[string]interface{}, outSlot plan.SlotTable) ([][]string, error) {
+	sess := p.newReadSession()
+	defer p.closeSession(sess)
+
+	p.countRoundTrip()
+	res, err := sess.Run(p.ctx, cypher, params)
+	if err != nil {
+		return nil, err
+	}
+	slotCount := len(outSlot.VarToSlot)
+	var rows [][]string
+	for res.Next(p.ctx) {
+		rec := res.Record()
+		row := make([]string, slotCount)
+		for alias, idx := range outSlot.VarToSlot {
+			if v, ok := rec.Get(alias); ok {
+				if s, ok := v.(string); ok {
+					row[idx] = s
+				}
+			}
+		}
+		rows = append(rows, row)
+	}
+	return rows, res.Err()
+}
+
 func (p *Processor) scanGraphIDs(o *plan.EntityScan) ([]string, error) {
 	var whereSections []string
 	params := make(map[string]interface{})

@@ -23,6 +23,12 @@ func executeRowStream(qp *Processor, op plan.PlanNode, counter *int, wg *sync.Wa
 			return streamStorePushdown(qp, o, out)
 		}), nil
 
+	case *plan.StoreFragment:
+		sp := plan.StorePushdownFromFragment(o)
+		return spawnRowOp(qp, "Fragment["+o.Store.String()+"]", counter, wg, func(step int, out chan []Row) int {
+			return streamStorePushdown(qp, sp, out)
+		}), nil
+
 	case *plan.Projection:
 		recCh, err := ExecuteOperatorStream(qp, o.Input, counter, wg)
 		if err != nil {

@@ -105,6 +105,45 @@ func ScanGraphStream(qp *Processor,
 
 }
 
+// streamGraphRecordFragment は record-mode StoreFragment の融合 Cypher を実行し、返された各 alias の
+// uuid を OutputSlot に従って Record slot へ格納しつつ batch 単位でストリーム出力する（source op）。
+func streamGraphRecordFragment(qp *Processor, cypher string, params map[string]interface{}, outSlot plan.SlotTable, step int, output chan<- []Record) (int, error) {
+	t0 := time.Now()
+	sess := qp.newReadSession()
+	defer qp.closeSession(sess)
+
+	qp.countRoundTrip()
+	res, err := sess.Run(qp.ctx, cypher, params)
+	if err != nil {
+		return 0, err
+	}
+
+	batchSize := qp.exec.vectorWidth()
+	slotCount := len(outSlot.VarToSlot)
+	rowCount := 0
+	cur := make([]Record, 0, batchSize)
+	for res.Next(qp.ctx) {
+		rec := res.Record()
+		slots := make([]uid.UUID, slotCount)
+		for alias, idx := range outSlot.VarToSlot {
+			if v, ok := rec.Get(alias); ok && v != nil {
+				slots[idx] = uid.FromAny(v)
+			}
+		}
+		cur = append(cur, Record{Slots: slots})
+		rowCount++
+		if len(cur) >= batchSize {
+			output <- cur
+			cur = make([]Record, 0, batchSize)
+		}
+	}
+	if len(cur) > 0 {
+		output <- cur
+	}
+	qp.recordScan(step, rowCount, t0)
+	return rowCount, res.Err()
+}
+
 func streamFilterGraph(qp *Processor, o *plan.Filter, step int, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
 	filterIdxIn := o.InputSlot.VarToSlot[o.Alias]
 	newSlotCount := len(o.OutputSlot.VarToSlot)

@@ -6,6 +6,7 @@ import (
 	parser "polystore_database/src/go/parser/output"
 	plan "polystore_database/src/go/plan"
 	schema "polystore_database/src/go/schema"
+	"polystore_database/src/go/settings"
 	stk "polystore_database/src/go/store"
 	"regexp"
 	"strconv"
@@ -553,9 +554,14 @@ func ParseQuery(query string, mappingPath string, params map[string]string) (pla
 
 	planner.RefinePlan()
 
-	// 集約 pushdown 判定: 単一ストアに解決できればそのストアへ委譲、散在ならコーディネータ木。
+	// pushdown の on/off で別プラン構築経路に分岐する（別々に設計できるよう分離）。
+	//   - OFF (PushdownForceEngine): コーディネータ木をそのまま（baseline）。
+	//   - ON  (それ以外): fusion（BuildPushdownPlan）で同一ストア連続演算子を StoreFragment へ融合。
 	// graph 委譲は baseline と同一の「原クエリ＋params」を session.Run で発行するため両者を渡す。
-	return planner.MaybePushdown(query, params), nil
+	if settings.Pushdown == settings.PushdownForceEngine {
+		return planner.planRoot, nil
+	}
+	return BuildPushdownPlan(planner.planRoot, query, params), nil
 }
 
 func replaceParameters(query string, params map[string]string) (string, error) {

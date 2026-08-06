@@ -155,6 +155,10 @@ func ExecuteOperatorBulk(qp *Processor, op plan.PlanNode, counter *int) ([]Recor
 	case *plan.Filter:
 		opType = "Filter"
 		output, err = filterByStore(qp, o, input)
+	case *plan.StoreFragment:
+		// record-mode: 融合した graph traversal を 1 本の Cypher で実行し束縛 UUID を得る（部分融合）。
+		opType = "Fragment[" + o.Store.String() + "]"
+		output, err = bulkGraphRecordFragment(qp, o)
 	default:
 		return nil, fmt.Errorf("unexpected record operator: %T", op)
 	}

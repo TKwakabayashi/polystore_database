@@ -193,6 +193,32 @@ func ExecuteOperatorStream(qp *Processor, op plan.PlanNode, counter *int, wg *sy
 		return nil, fmt.Errorf("Empty Operator Passed")
 	}
 
+	// record-mode StoreFragment（部分融合）: graph traversal を 1 本の Cypher に融合して束縛 UUID を
+	// source として流す。生成不能な構造は元の部分木を通常実行してフォールバック（結果は等価）。
+	if frag, ok := op.(*plan.StoreFragment); ok {
+		aliases := make([]string, 0, len(frag.OutputSlot.VarToSlot))
+		for a := range frag.OutputSlot.VarToSlot {
+			aliases = append(aliases, a)
+		}
+		cypher, params := core.BuildGraphRecordCypher(frag.Ops, aliases)
+		if cypher == "" {
+			return ExecuteOperatorStream(qp, frag.Ops, counter, wg)
+		}
+		outputStream := make(chan []Record, 500)
+		*counter++
+		step := *counter
+		outSlot := frag.OutputSlot
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer close(outputStream)
+			if _, err := streamGraphRecordFragment(qp, cypher, params, outSlot, step, outputStream); err != nil {
+				fmt.Printf("Error in step %d (Fragment): %v\n", step, err)
+			}
+		}()
+		return outputStream, nil
+	}
+
 	// 1. 再帰的に上流（Child）のチャネルを取得
 	var inputStream chan []Record
 	if len(op.Children()) > 0 {

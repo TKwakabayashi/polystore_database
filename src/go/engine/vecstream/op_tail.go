@@ -37,6 +37,20 @@ func (p *Processor) runRow(op plan.PlanNode) ([]Row, error) {
 		p.recordFlow(step, name, 0, 0, 0, int64(len(rows)), 1, start, now)
 		return rows, nil
 
+	case *plan.StoreFragment:
+		// 融合フラグメントは既存 StorePushdown 実行へブリッジ。
+		start := time.Now()
+		rows, err := p.runStorePushdown(plan.StorePushdownFromFragment(o))
+		if err != nil {
+			return nil, err
+		}
+		now := time.Now()
+		step := p.newStep()
+		name := "Fragment[" + o.Store.String() + "]"
+		p.recordOp(step, name, now.Sub(start), len(rows))
+		p.recordFlow(step, name, 0, 0, 0, int64(len(rows)), 1, start, now)
+		return rows, nil
+
 	case *plan.Projection:
 		child, err := p.build(o.Input)
 		if err != nil {

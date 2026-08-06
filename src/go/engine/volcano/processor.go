@@ -119,7 +119,7 @@ func (p *Processor) Run(op plan.PlanNode) ([]map[string]interface{}, error) {
 		return nil, fmt.Errorf("nil plan node")
 	}
 	switch op.(type) {
-	case *plan.StorePushdown, *plan.Projection, *plan.Aggregate, *plan.Sort, *plan.Limit, *plan.Return:
+	case *plan.StorePushdown, *plan.StoreFragment, *plan.Projection, *plan.Aggregate, *plan.Sort, *plan.Limit, *plan.Return:
 		rows, err := p.runRow(op)
 		if err != nil {
 			return nil, err
@@ -142,6 +142,20 @@ func (p *Processor) Run(op plan.PlanNode) ([]map[string]interface{}, error) {
 
 // build は plan.PlanNode を pull iterator へ変換する（葉→根で step 番号を付与）。
 func (p *Processor) build(op plan.PlanNode) (Iterator, error) {
+	// record-mode StoreFragment（部分融合）: graph traversal を 1 本の Cypher に融合して束縛 UUID を
+	// 払い出す source iterator を構築する。生成不能な構造は元の部分木でフォールバック（結果は等価）。
+	if frag, ok := op.(*plan.StoreFragment); ok {
+		aliases := make([]string, 0, len(frag.OutputSlot.VarToSlot))
+		for a := range frag.OutputSlot.VarToSlot {
+			aliases = append(aliases, a)
+		}
+		cypher, params := core.BuildGraphRecordCypher(frag.Ops, aliases)
+		if cypher == "" {
+			return p.build(frag.Ops)
+		}
+		p.nextStep++
+		return &fragmentIterator{p: p, cypher: cypher, params: params, outSlot: frag.OutputSlot, step: p.nextStep}, nil
+	}
 	switch o := op.(type) {
 	case *plan.EntityScan:
 		p.nextStep++

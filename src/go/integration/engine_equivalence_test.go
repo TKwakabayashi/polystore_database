@@ -49,10 +49,6 @@ var equivWorkloads = []string{"Q11", "IS2", "IS3", "AGG1", "AGG6"}
 // 結果の行集合（順序非依存の multiset）が一致することを検証する。coreMustPassAll のワークロードは
 // 全モデルの成功も要求する。
 func TestEngineEquivalence(t *testing.T) {
-	// go test は package ディレクトリを cwd にするため、アプリと同じ相対パス前提へ揃える。
-	if err := os.Chdir(".."); err != nil {
-		t.Fatalf("chdir to src/go: %v", err)
-	}
 	cfgPath := os.Getenv("POLYSTORE_CONFIG")
 	if cfgPath == "" {
 		cfgPath = "../../config/config.json"
