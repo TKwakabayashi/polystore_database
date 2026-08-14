@@ -118,6 +118,10 @@ func (p *Processor) Run(op plan.PlanNode) ([]map[string]interface{}, error) {
 	if op == nil {
 		return nil, fmt.Errorf("nil plan node")
 	}
+	// tail pushdown は bulk 専用。volcano は Fallback（元 coordinator tail）を実行（結果等価）。
+	if tp, ok := op.(*plan.TailPushdown); ok {
+		return p.Run(tp.Fallback)
+	}
 	switch op.(type) {
 	case *plan.StorePushdown, *plan.StoreFragment, *plan.Projection, *plan.Aggregate, *plan.Sort, *plan.Limit, *plan.Return:
 		rows, err := p.runRow(op)

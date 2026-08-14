@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"polystore_database/src/go/plan"
+	"polystore_database/src/go/store"
 )
 
 // executeRowBulk は tail（Projection/Aggregate/Sort/Limit/Return/StorePushdown）を
@@ -19,6 +20,15 @@ func executeRowBulk(qp *Processor, op plan.PlanNode, counter *int) ([]Row, error
 	}
 
 	switch o := op.(type) {
+	case *plan.TailPushdown:
+		// relational=一時テーブル＋SQL / document=一時コレクション＋$lookup でネイティブ実行。
+		// capability を満たさないストア（columnar/kvs）は fusion で弾かれ、ここへは来ないが、
+		// 念のため未対応ストアは Fallback（元 coordinator tail）を通常実行する。
+		if o.Store == store.Relational || o.Store == store.Document {
+			return bulkTailPushdown(qp, o, counter)
+		}
+		return executeRowBulk(qp, o.Fallback, counter)
+
 	case *plan.StorePushdown:
 		start := time.Now()
 		rows, err := bulkStorePushdown(qp, o)

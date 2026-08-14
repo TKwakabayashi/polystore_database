@@ -45,6 +45,16 @@ func BuildPushdownPlan(root plan.PlanNode, query string, params map[string]strin
 		}
 	}
 
+	// 1.5 tail pushdown（実験・settings.TailPushdown 有効時のみ）: all-graph traversal で集めた
+	//     中間 UUID を単一の非 graph ストアの一時テーブルへロードし、RETURN 句 tail
+	//     （Projection/Aggregate/GroupBy/Sort/Limit）をそのストアのネイティブエンジンで実行する。
+	//     Case 2 のより特殊な変種として先に試み、条件を満たさなければ Case 2 へ落ちる。
+	if settings.TailPushdown {
+		if tp := buildTailPushdown(root); tp != nil {
+			return tp
+		}
+	}
+
 	// 2. クロスストア部分融合（record-mode）: record パイプライン（scan+filter+expand）が全て graph で、
 	//    projection が別ストアの列を参照する場合、traversal を 1 本の Cypher（束縛 UUID 返却）へ融合する。
 	//    その上の既存 Projection が他ストア列を ID キーで材料化（＝統合）→ engine で集約。集約有無に依らず適用。
@@ -219,6 +229,199 @@ func fragmentSupported(single store.Kind, ops plan.PlanNode) bool {
 		n = ch[0]
 	}
 	return true
+}
+
+// buildTailPushdown は tail pushdown が適用可能なら TailPushdown を、不可なら nil を返す。
+// 適用条件:
+//   - record パイプライン（Projection.Input 以下）が all-graph（traversal は graph で完結）。
+//   - tail に Aggregate が存在する（sort/limit のみは対象外）。
+//   - tail が参照する全プロパティが単一の非 graph ストア S に解決できる。
+//   - S が Aggregate/Project（＋必要なら GroupBy/Sort/Limit）を capability 上サポートする。
+//   - staging するエンティティ（group/prop-agg の alias）の永続テーブル（Label）が判明する。
+func buildTailPushdown(root plan.PlanNode) *plan.TailPushdown {
+	proj := findProjection(root)
+	if proj == nil || !recordPipelineAllGraph(proj.Input) {
+		return nil
+	}
+	agg := findAggregate(root)
+	if agg == nil {
+		return nil
+	}
+	s, ok := tailStore(proj)
+	if !ok {
+		return nil
+	}
+	if !plan.Supports(s, plan.CapAggregate) || !plan.Supports(s, plan.CapProject) {
+		return nil
+	}
+	if len(agg.GroupKeys) > 0 && !plan.Supports(s, plan.CapGroupBy) {
+		return nil
+	}
+	sortNode := findSort(root)
+	if sortNode != nil && !plan.Supports(s, plan.CapSort) {
+		return nil
+	}
+	limitNode := findLimit(root)
+	if limitNode != nil && !plan.Supports(s, plan.CapLimit) {
+		return nil
+	}
+	ret := findReturn(root)
+	entities, ok := tailEntities(proj, agg, ret)
+	if !ok {
+		return nil
+	}
+
+	src := &plan.StoreFragment{
+		Store:       store.Graph,
+		Ops:         proj.Input,
+		AsRecords:   true,
+		OutputSlot:  proj.InputSlot,
+		OutputAlias: proj.InputAlias,
+	}
+	tp := &plan.TailPushdown{
+		Store:     s,
+		Input:     src,
+		Fallback:  root, // 未対応エンジンは元 coordinator tail を実行（結果等価）
+		InputSlot: proj.InputSlot,
+		Entities:  entities,
+		GroupKeys: agg.GroupKeys,
+		Aggs:      agg.Aggs,
+	}
+	if ret != nil {
+		tp.Return = ret.Items
+	}
+	if sortNode != nil {
+		tp.OrderItems = sortNode.OrderItems
+	}
+	if limitNode != nil {
+		tp.Limit = limitNode.Count
+	}
+	return tp
+}
+
+// tailStore は Projection の全 fetch（props を持つもの）が単一の非 graph ストアに解決できるか判定し、
+// できればそのストアを返す。graph の fetch が混在する／非 graph が複数ある場合は (_, false)。
+func tailStore(p *plan.Projection) (store.Kind, bool) {
+	var s store.Kind
+	found := false
+	for _, u := range p.Units {
+		for _, f := range u.Fetches {
+			if len(f.Props) == 0 {
+				continue // 純束縛（プロパティ無し）はストア制約を与えない
+			}
+			if f.Store == store.Graph {
+				return store.Graph, false // tail プロパティが graph に残る → 単一非 graph に載らない
+			}
+			if !found {
+				s, found = f.Store, true
+			} else if f.Store != s {
+				return store.Graph, false // 非 graph が複数
+			}
+		}
+	}
+	return s, found
+}
+
+// tailEntities は staging すべきエンティティ（group key の alias ＋ prop/distinct を持つ agg の alias ＋
+// 非集約 RETURN 項目の alias）を集め、各 alias の永続テーブル（Projection unit の Label）を解決する。
+// いずれかの alias でテーブルが不明なら (_, false)。
+func tailEntities(p *plan.Projection, agg *plan.Aggregate, ret *plan.Return) ([]plan.TailEntity, bool) {
+	need := map[string]bool{}
+	for _, gk := range agg.GroupKeys {
+		if gk.Alias != "" {
+			need[gk.Alias] = true
+		}
+	}
+	for _, a := range agg.Aggs {
+		if a.Alias != "" && (a.Prop != "" || a.Distinct) {
+			need[a.Alias] = true
+		}
+	}
+	if ret != nil {
+		for _, it := range ret.Items {
+			if !it.IsAggregate && it.Alias != "" {
+				need[it.Alias] = true
+			}
+		}
+	}
+
+	labelOf := map[string]string{}
+	propsOf := map[string][]string{}
+	for _, u := range p.Units {
+		if len(u.Labels) > 0 {
+			labelOf[u.Alias] = u.Labels[0]
+		}
+		for _, f := range u.Fetches {
+			propsOf[u.Alias] = append(propsOf[u.Alias], f.Props...)
+		}
+	}
+
+	entities := make([]plan.TailEntity, 0, len(need))
+	for alias := range need {
+		table := labelOf[alias]
+		if table == "" {
+			return nil, false // JOIN 先テーブルが不明
+		}
+		entities = append(entities, plan.TailEntity{Alias: alias, Table: table, Props: propsOf[alias]})
+	}
+	return entities, true
+}
+
+// findAggregate / findSort / findLimit / findReturn は tail チェーン（根→第1子）を辿って各ノードを返す。
+func findAggregate(root plan.PlanNode) *plan.Aggregate {
+	for n := root; n != nil; {
+		if a, ok := n.(*plan.Aggregate); ok {
+			return a
+		}
+		ch := n.Children()
+		if len(ch) == 0 {
+			return nil
+		}
+		n = ch[0]
+	}
+	return nil
+}
+
+func findSort(root plan.PlanNode) *plan.Sort {
+	for n := root; n != nil; {
+		if s, ok := n.(*plan.Sort); ok {
+			return s
+		}
+		ch := n.Children()
+		if len(ch) == 0 {
+			return nil
+		}
+		n = ch[0]
+	}
+	return nil
+}
+
+func findLimit(root plan.PlanNode) *plan.Limit {
+	for n := root; n != nil; {
+		if l, ok := n.(*plan.Limit); ok {
+			return l
+		}
+		ch := n.Children()
+		if len(ch) == 0 {
+			return nil
+		}
+		n = ch[0]
+	}
+	return nil
+}
+
+func findReturn(root plan.PlanNode) *plan.Return {
+	for n := root; n != nil; {
+		if r, ok := n.(*plan.Return); ok {
+			return r
+		}
+		ch := n.Children()
+		if len(ch) == 0 {
+			return nil
+		}
+		n = ch[0]
+	}
+	return nil
 }
 
 // returnAliases は Return 項目の出力名を返す（統合演算子の結線用の出力束縛）。

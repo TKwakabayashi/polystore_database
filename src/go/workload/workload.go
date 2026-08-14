@@ -29,6 +29,7 @@ var Registry = map[string]workloadDef{
 	"AGG4": DefineWorkloadAGG4,
 	"AGG5": DefineWorkloadAGG5,
 	"AGG6": DefineWorkloadAGG6,
+	"TP1":  DefineWorkloadTP1,
 }
 
 // AvailableWorkloads は登録済みワークロード名をソートして返す。
@@ -323,6 +324,30 @@ func DefineWorkloadAGG5(mode migrator.MigrationMode, isMigration bool) (string, 
 	if isMigration {
 		migs = []migrator.MigrationConfig{
 			{ObjType: plan.Entity, Entity: "Organisation", Properties: []string{"id"}, Mode: mode},
+		}
+	}
+	return cypher, params, migs
+}
+
+// TP1: tail pushdown 検証用。all-graph traversal で集めた comment 作者ごとの返信数を、
+// 集約キー（firstName/lastName）で GROUP BY する。seed フィルタは Person.id（graph に残す）を使い、
+// tail が参照するのは Person.{firstName,lastName} のみ。これらを単一ストアへ移すと traversal は
+// all-graph のまま tail だけが単一ストアに解決でき、tail pushdown（中間 UUID→一時テーブル→
+// ネイティブ集約）の A/B 計測が可能になる。AGG1 は author.id を GROUP BY するため id を移すと
+// seed フィルタも非 graph 化してしまい、この検証には使えない。
+func DefineWorkloadTP1(mode migrator.MigrationMode, isMigration bool) (string, map[string]string, []migrator.MigrationConfig) {
+	cypher := "MATCH (p:Person {id: $personId})<-[:HAS_CREATOR]-(m:Message)\n" +
+		"      <-[:REPLY_OF]-(comment:Comment)-[:HAS_CREATOR]->(author:Person)\n" +
+		"RETURN author.firstName, author.lastName, count(comment) AS replyCount\n" +
+		"ORDER BY replyCount DESC, author.lastName ASC\n" +
+		"LIMIT 20"
+	params := map[string]string{
+		"personId": "15393162799448",
+	}
+	var migs []migrator.MigrationConfig
+	if isMigration {
+		migs = []migrator.MigrationConfig{
+			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"firstName", "lastName"}, Mode: mode},
 		}
 	}
 	return cypher, params, migs

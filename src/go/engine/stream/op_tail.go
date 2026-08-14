@@ -18,6 +18,10 @@ func executeRowStream(qp *Processor, op plan.PlanNode, counter *int, wg *sync.Wa
 	}
 
 	switch o := op.(type) {
+	case *plan.TailPushdown:
+		// tail pushdown は bulk 専用。stream は Fallback（元 coordinator tail）を通常実行（結果等価）。
+		return executeRowStream(qp, o.Fallback, counter, wg)
+
 	case *plan.StorePushdown:
 		return spawnRowOp(qp, "Pushdown["+o.Store.String()+"]", counter, wg, func(step int, out chan []Row) int {
 			return streamStorePushdown(qp, o, out)

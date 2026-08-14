@@ -37,6 +37,11 @@ var Pushdown = PushdownAuto // ★ pushdown 方針（旧 planner.SelectedPushdow
 
 // 以下は Pushdown==PushdownAuto のときだけ意味を持つ独立トグル（projection / aggregation を個別制御）。
 var (
+	// TailPushdown: traversal 由来の中間 UUID を単一の非 graph ストア（現状 relational/MySQL）の
+	// 一時テーブルへロードし、RETURN 句 tail（Projection/Aggregate/GroupBy/Sort/Limit）を
+	// そのストアのネイティブエンジンで実行する実験的パス。OFF なら従来通り tail を自作エンジンで計算する。
+	// tail が参照する全プロパティが単一ストアに解決でき、そのストアが必要な能力を持つ場合のみ発火する。
+	TailPushdown = false
 	// AggregationPushdown: 集約をストアへ委譲するか。OFF なら委譲せず engine で計算する
 	// （fusion の BuildPushdownPlan が判定に使用済み）。
 	AggregationPushdown = true
@@ -63,6 +68,15 @@ var (
 	BenchModels     = []string{"stream", "bulk", "volcano", "vectorized", "vecstream"}
 
 	MigrationDeleteSource = true // ★ 移行成功後にソース側を削除する（旧 -delete フラグ）
+)
+
+// ===== verify（-mode verify：配置×pushdown×エンジン×バッチの性能検証マトリクス）=====
+var (
+	// VerifyEngines は verify マトリクスで横断計測する自作エンジン（Neo4j 直接は別途基準として測る）。
+	VerifyEngines = []string{"stream", "bulk", "vecstream"}
+	// VerifyBatchSizes は VectorSize を振るスイープ点。stream/vecstream のバッチ幅に効く
+	// （bulk はバッチ非依存のため 1 回のみ計測）。
+	VerifyBatchSizes = []int{256, 1024, 4096}
 )
 
 // ===== 出力 =====

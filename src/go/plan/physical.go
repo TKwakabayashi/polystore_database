@@ -49,6 +49,50 @@ func (f *StoreFragment) String() string {
 	return fmt.Sprintf("StoreFragment[%s]: %s", f.Store, ops)
 }
 
+// TailEntity は tail pushdown で一時テーブルへ staging する束縛エンティティ（alias）と、
+// その永続テーブル（Label）を表す。実行時に uuid をキーに永続テーブルへ JOIN してプロパティを引く。
+type TailEntity struct {
+	Alias string   // 束縛エイリアス（例 "author"）
+	Table string   // 永続テーブル/ラベル（例 "Person"）。JOIN 先
+	Props []string // この alias から tail が参照するプロパティ（SELECT/GROUP BY 用）
+}
+
+// TailPushdown は「traversal で集めた中間 UUID を単一の非 graph ストアの一時テーブルへロードし、
+// RETURN 句 tail（Projection/Aggregate/GroupBy/Sort/Limit）をそのストアのネイティブエンジンで
+// 実行する」物理演算子。融合パス（planner）が settings.TailPushdown 有効時に、
+// tail 参照プロパティが単一ストアに解決でき能力も満たす場合にのみ生成する。
+//
+// 実行対応エンジン（現状 bulk のみ）は Input を実行して中間 Record（束縛 UUID）を得てから
+// 一時テーブル＋SQL で tail を計算する。未対応エンジンは Fallback（元 coordinator tail）を通常実行する
+// （結果は等価）。これにより「tail を engine で計算」vs「ネイティブ実行」の A/B を同一プランで比較できる。
+type TailPushdown struct {
+	Store store.Kind
+
+	Input    PlanNode // record source（graph 融合フラグメント。束縛 UUID を返す）
+	Fallback PlanNode // 未対応エンジン用: 元 coordinator tail（Return→…→record pipeline）
+
+	InputSlot SlotTable // alias → Input 出力 Record のスロット番号
+
+	Entities   []TailEntity    // staging するエンティティ（uuid 列）＋ JOIN 先テーブル
+	Return     []ReturnItem    // 出力列（SELECT 別名＝ReturnItem.Name）
+	GroupKeys  []GroupKey      // GROUP BY キー（staging エンティティのプロパティ）
+	Aggs       []AggregateItem // 集約式
+	OrderItems []OrderItem     // ORDER BY（出力別名で並べる）
+	Limit      int             // LIMIT（0 以下で無し）
+}
+
+func (t *TailPushdown) Children() []PlanNode {
+	if t.Input != nil {
+		return []PlanNode{t.Input}
+	}
+	return nil
+}
+
+func (t *TailPushdown) String() string {
+	return fmt.Sprintf("TailPushdown[%s] entities=%d groups=%d aggs=%d limit=%d",
+		t.Store, len(t.Entities), len(t.GroupKeys), len(t.Aggs), t.Limit)
+}
+
 // IntegrateKeyKind は統合演算子の結合キー種別。
 type IntegrateKeyKind int
 
