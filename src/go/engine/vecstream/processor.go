@@ -121,7 +121,7 @@ func (p *Processor) Run(op plan.PlanNode) ([]map[string]interface{}, error) {
 		return nil, fmt.Errorf("nil plan node")
 	}
 	switch op.(type) {
-	case *plan.StoreFragment, *plan.Projection, *plan.Aggregate, *plan.Sort, *plan.Limit, *plan.Return:
+	case *plan.StoreFragment, *plan.Integrate, *plan.Projection, *plan.Aggregate, *plan.Sort, *plan.Limit, *plan.Return:
 		rows, err := p.runRow(op)
 		if err != nil {
 			return nil, err
@@ -148,7 +148,19 @@ func (p *Processor) build(op plan.PlanNode) (Iterator, error) {
 		}
 		cypher, params := core.BuildGraphRecordCypher(o.Plan, aliases)
 		if cypher == "" {
+			// traversal を含まないランは条件をマージして 1 スキャンに畳む。
+			if scan, ok := core.MergeRecordRun(o); ok {
+				return &scanIterator{p: p, o: scan, step: p.newStep()}, nil
+			}
 			return p.build(o.Plan)
+		}
+		// ラン境界: 下位ランを先に実行して束縛 uuid を IN-list として注入する。
+		if b := core.BoundaryFragment(o.Plan); b != nil {
+			recs, err := p.drainBindings(b)
+			if err != nil {
+				return nil, err
+			}
+			core.BindIncoming(params, b, recs)
 		}
 		step := p.newStep()
 		return &fragmentIterator{p: p, cypher: cypher, params: params, outSlot: o.OutputSlot, step: step}, nil
@@ -194,4 +206,32 @@ func (p *Processor) build(op plan.PlanNode) (Iterator, error) {
 	default:
 		return nil, fmt.Errorf("未知の演算子: %T", op)
 	}
+}
+
+// drainBindings は境界フラグメント（下位ラン）を実行し、束縛 UUID の Record 群へ落とす。
+// 一般セグメンタのラン境界で、上位ランのクエリへ IN-list を渡すために使う。
+func (p *Processor) drainBindings(b *plan.StoreFragment) ([]core.Record, error) {
+	it, err := p.build(b)
+	if err != nil {
+		return nil, err
+	}
+	if err := it.Open(p.ctx); err != nil {
+		return nil, err
+	}
+	defer it.Close(p.ctx)
+
+	var out []core.Record
+	for {
+		batch, err := it.Next(p.ctx)
+		if err != nil {
+			return nil, err
+		}
+		if batch == nil {
+			break
+		}
+		for i := 0; i < batch.n; i++ {
+			out = append(out, core.Record{Slots: batch.row(i)})
+		}
+	}
+	return out, nil
 }

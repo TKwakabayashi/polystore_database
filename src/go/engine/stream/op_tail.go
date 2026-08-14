@@ -28,6 +28,10 @@ func executeRowStream(qp *Processor, op plan.PlanNode, counter *int, wg *sync.Wa
 			return streamStoreFragment(qp, o, out)
 		}), nil
 
+	case *plan.Integrate:
+		// 統合演算子（ID 材料化）: 実体は Projection と同一なので既存実装へ委譲する。
+		return executeRowStream(qp, o.AsProjection(), counter, wg)
+
 	case *plan.Projection:
 		recCh, err := ExecuteOperatorStream(qp, o.Input, counter, wg)
 		if err != nil {

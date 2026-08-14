@@ -23,9 +23,12 @@ func BuildPushdownPlan(root plan.PlanNode, query string, params map[string]strin
 	a := analyzePlan(root)
 	single, ok := classifyStore(a.stores)
 
-	// 1. クエリ全体が単一ストアに解決 → 全体委譲（row-mode）。集約クエリに限定（現行トリガ維持）。
-	//    AggregationPushdown=OFF なら委譲せず engine 計算（集約 pushdown の個別トグル）。
-	if a.hasAggregate && settings.AggregationPushdown && ok {
+	// 1. クエリ全体が単一ストアに解決 → 全体委譲（row-mode）。
+	//    集約クエリは AggregationPushdown、非集約クエリは ProjectionPushdown（＝ RETURN 列を
+	//    ストアのネイティブ SELECT/RETURN へ畳み込み、materialize の往復を無くす）で個別に切り替える。
+	delegate := (a.hasAggregate && settings.AggregationPushdown) ||
+		(!a.hasAggregate && settings.ProjectionPushdown)
+	if delegate && ok {
 		// 全 graph（traversal 可）→ 原 Cypher を丸ごと委譲（baseline と同一発行）。
 		// Plan には論理木を持たせ、Verbatim は「その既知の忠実な lowering」として添える。
 		if single == store.Graph {
@@ -64,7 +67,8 @@ func BuildPushdownPlan(root plan.PlanNode, query string, params map[string]strin
 	//    その上の既存 Projection が他ストア列を ID キーで材料化（＝統合）→ engine で集約。集約有無に依らず適用。
 	//    融合クエリ生成は各エンジン（core.BuildGraphRecordCypher）が担い、生成不能なら Plan を通常実行。
 	if proj := findProjection(root); proj != nil {
-		if recordPipelineAllGraph(proj.Input) && projectionHasNonGraph(proj) {
+		switch {
+		case recordPipelineAllGraph(proj.Input) && projectionHasNonGraph(proj):
 			proj.Input = &plan.StoreFragment{
 				Store:       store.Graph,
 				Plan:        proj.Input,
@@ -72,19 +76,101 @@ func BuildPushdownPlan(root plan.PlanNode, query string, params map[string]strin
 				OutputSlot:  proj.InputSlot,
 				OutputAlias: proj.InputAlias,
 			}
-			return root
-		}
 
 		// 3. 一般セグメンタ: record パイプラインがストアをまたぐ場合、隣接同一ストアの最長ランへ
 		//    分割して融合する（境界は下位ランのフラグメントを入れ子にして表現）。
-		if settings.GeneralSegmentation {
+		case settings.GeneralSegmentation:
 			proj.Input = segmentRecordPipeline(proj.Input)
-			return root
 		}
 	}
 
-	// フォールバック: コーディネータ木（record パイプラインが非 graph 混在など）。
+	// 4. 統合の明示化: materialize するカラムが 2 ストア以上に散る Projection を Integrate へ置換する。
+	//    実行は同一（ID 材料化）だが、統合が起きる場所がプラン上に現れる。
+	//    record パイプラインの処理（戦略2/3）の後に適用する。
+	if settings.ExplicitIntegrate {
+		explicitIntegrate(root)
+	}
+
+	// 融合できなかった部分はコーディネータ木のまま（結果は等価）。
 	return root
+}
+
+// explicitIntegrate は tail 直下の Projection が複数ストアから materialize する場合、
+// それを Integrate（統合演算子）へ置き換える。親ノードの Input を差し替える必要があるため、
+// 根から辿って親を保持しながら走査する。
+func explicitIntegrate(root plan.PlanNode) {
+	var parent plan.PlanNode
+	for n := root; n != nil; {
+		if p, ok := n.(*plan.Projection); ok {
+			if parent == nil || len(projectionStores(p)) < 2 {
+				return
+			}
+			setTailInput(parent, integrateFromProjection(p))
+			return
+		}
+		ch := n.Children()
+		if len(ch) == 0 {
+			return
+		}
+		parent, n = n, ch[0]
+	}
+}
+
+// projectionStores は Projection が materialize するストア集合を返す。
+func projectionStores(p *plan.Projection) map[store.Kind]bool {
+	stores := map[store.Kind]bool{}
+	for _, u := range p.Units {
+		for _, f := range u.Fetches {
+			if len(f.Props) > 0 {
+				stores[f.Store] = true
+			}
+		}
+	}
+	return stores
+}
+
+// integrateFromProjection は Projection を等価な Integrate へ変換する
+// （結合キーは束縛 UUID＝KeyID、必要カラムは各 Fetch のプロパティ）。
+func integrateFromProjection(p *plan.Projection) *plan.Integrate {
+	ig := &plan.Integrate{
+		Units:      p.Units,
+		InputAlias: p.InputAlias,
+		InputSlot:  p.InputSlot,
+		OutputSlot: p.InputSlot,
+	}
+	if p.Input != nil {
+		ig.Inputs = []plan.PlanNode{p.Input}
+	}
+	for _, u := range p.Units {
+		hasProps := false
+		for _, f := range u.Fetches {
+			for _, prop := range f.Props {
+				ig.Needed = append(ig.Needed, plan.ColumnRef{Alias: u.Alias, Prop: prop})
+				hasProps = true
+			}
+		}
+		if hasProps {
+			ig.Keys = append(ig.Keys, plan.IntegrateKey{
+				Kind: plan.KeyID,
+				Refs: []plan.ColumnRef{{Alias: u.Alias}},
+			})
+		}
+	}
+	return ig
+}
+
+// setTailInput は tail 演算子の入力を差し替える（Projection → Integrate の置換用）。
+func setTailInput(parent plan.PlanNode, in plan.PlanNode) {
+	switch o := parent.(type) {
+	case *plan.Return:
+		o.Input = in
+	case *plan.Limit:
+		o.Input = in
+	case *plan.Sort:
+		o.Input = in
+	case *plan.Aggregate:
+		o.Input = in
+	}
 }
 
 // ===== 一般セグメンタ（capability 駆動） =====
@@ -131,8 +217,10 @@ func segmentRecordPipeline(sub plan.PlanNode) plan.PlanNode {
 		}
 		runs = append(runs, run{store: k, ops: []plan.PlanNode{op}})
 	}
-	if len(runs) <= 1 {
-		return sub // 単一ラン。既存の戦略2（部分融合）が扱う
+	// 単一ランでも 2 演算子以上なら畳む価値がある（例: all-graph traversal を 1 Cypher へ）。
+	// 1 演算子だけのランは既存の scan 実行と往復数が変わらないため包まない。
+	if len(runs) == 0 || (len(runs) == 1 && len(runs[0].ops) < 2) {
+		return sub
 	}
 
 	// 葉→根へ、各ランをフラグメントへ包む。lower は直前ランのフラグメント（＝境界）。

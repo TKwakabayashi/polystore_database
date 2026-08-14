@@ -6,6 +6,7 @@ import (
 	"polystore_database/src/go/engine/core"
 	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
+	"polystore_database/src/go/store"
 	"strings"
 	"time"
 )
@@ -156,7 +157,7 @@ func fetchRdbPropsStream(qp *Processor,
 		return result
 	}
 
-	const batchSize = 1000
+	batchSize := core.ChunkSize(store.Relational)
 	propList := strings.Join(fetch.Props, ", ")
 
 	for i := 0; i < len(ids); i += batchSize {

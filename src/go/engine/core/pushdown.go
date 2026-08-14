@@ -64,7 +64,9 @@ func BuildRelationalSQL(o FragmentSpec) (string, []interface{}) {
 	if len(where) > 0 {
 		q += " WHERE " + strings.Join(where, " AND ")
 	}
-	if len(groupCols) > 0 {
+	// GROUP BY は集約があるときだけ付ける。非集約の投影クエリ（projection pushdown）に
+	// GROUP BY を付けると DISTINCT 相当になり結果が変わってしまう。
+	if len(groupCols) > 0 && len(o.Aggs) > 0 {
 		q += " GROUP BY " + strings.Join(groupCols, ", ")
 	}
 	if len(o.OrderItems) > 0 {

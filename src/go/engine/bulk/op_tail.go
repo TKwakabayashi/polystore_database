@@ -39,6 +39,10 @@ func executeRowBulk(qp *Processor, op plan.PlanNode, counter *int) ([]Row, error
 		recordRowOp(qp, counter, "Fragment["+o.Store.String()+"]", time.Since(start), 0, len(rows))
 		return rows, nil
 
+	case *plan.Integrate:
+		// 統合演算子（ID 材料化）: 実体は Projection と同一なので既存実装へ委譲する。
+		return executeRowBulk(qp, o.AsProjection(), counter)
+
 	case *plan.Projection:
 		recs, err := ExecuteOperatorBulk(qp, o.Input, counter)
 		if err != nil {

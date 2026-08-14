@@ -7,6 +7,7 @@ import (
 	"polystore_database/src/go/codec"
 	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
+	"polystore_database/src/go/store"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
@@ -163,20 +164,22 @@ func (p *Processor) filterGraphValid(sess neo4j.SessionWithContext, o *plan.Filt
         RETURN %s.uuid AS id`,
 		matchPattern, labelFilter, targetVar, strings.Join(whereClauses, " AND "), targetVar,
 	)
-	params["ids"] = ids
-
-	p.countRoundTrip()
-	res, err := sess.Run(p.ctx, finalQuery, params)
-	if err != nil {
-		return nil, err
-	}
+	// ID はストアの実効チャンクサイズで分割して投げる（巨大な IN-list を作らない）。
 	valid := make(map[string]struct{})
-	for res.Next(p.ctx) {
-		if v, ok := res.Record().Get("id"); ok && v != nil {
-			valid[v.(string)] = struct{}{}
+	err := core.ForEachIDChunkParams(store.Graph, ids, params, "ids", func() error {
+		p.countRoundTrip()
+		res, err := sess.Run(p.ctx, finalQuery, params)
+		if err != nil {
+			return err
 		}
-	}
-	return valid, res.Err()
+		for res.Next(p.ctx) {
+			if v, ok := res.Record().Get("id"); ok && v != nil {
+				valid[v.(string)] = struct{}{}
+			}
+		}
+		return res.Err()
+	})
+	return valid, err
 }
 
 // ---------- Projection fetch ----------
@@ -212,11 +215,22 @@ func (p *Processor) fetchGraphProps(sess neo4j.SessionWithContext, ids []string,
         RETURN %s.uuid AS uuid, %s`,
 		matchPattern, labelFilter, targetVar, targetVar, strings.Join(propReturns, ", "))
 
-	p.countRoundTrip()
-	res, err := sess.Run(p.ctx, query, map[string]interface{}{"ids": ids})
-	if err != nil {
-		return result
-	}
+	// ID はストアの実効チャンクサイズで分割して投げる（巨大な IN-list を作らない）。
+	params := map[string]interface{}{}
+	_ = core.ForEachIDChunkParams(store.Graph, ids, params, "ids", func() error {
+		p.countRoundTrip()
+		res, err := sess.Run(p.ctx, query, params)
+		if err != nil {
+			return err
+		}
+		collectGraphProps(p, res, fetch, result)
+		return nil
+	})
+	return result
+}
+
+// collectGraphProps は 1 チャンク分の結果を result[uuid][prop] へ積む。
+func collectGraphProps(p *Processor, res neo4j.ResultWithContext, fetch *plan.FetchPlan, result map[string]map[string]interface{}) {
 	for res.Next(p.ctx) {
 		rec := res.Record()
 		idVal, _ := rec.Get("uuid")
@@ -232,5 +246,4 @@ func (p *Processor) fetchGraphProps(sess neo4j.SessionWithContext, ids []string,
 		}
 		result[id] = props
 	}
-	return result
 }

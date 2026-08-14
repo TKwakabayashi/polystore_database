@@ -42,6 +42,10 @@ func (p *Processor) runRow(op plan.PlanNode) ([]Row, error) {
 		p.recordFlow(step, name, 0, 0, 0, int64(len(rows)), 1, start, now)
 		return rows, nil
 
+	case *plan.Integrate:
+		// 統合演算子（ID 材料化）: 実体は Projection と同一なので既存実装へ委譲する。
+		return p.runRow(o.AsProjection())
+
 	case *plan.Projection:
 		child, err := p.build(o.Input)
 		if err != nil {

@@ -37,6 +37,10 @@ func (p *Processor) runRow(op plan.PlanNode) ([]Row, error) {
 		p.recordOp(p.newStep(), "Fragment["+o.Store.String()+"]", time.Since(start), len(rows))
 		return rows, nil
 
+	case *plan.Integrate:
+		// 統合演算子（ID 材料化）: 実体は Projection と同一なので既存実装へ委譲する。
+		return p.runRow(o.AsProjection())
+
 	case *plan.Projection:
 		child, err := p.build(o.Input)
 		if err != nil {

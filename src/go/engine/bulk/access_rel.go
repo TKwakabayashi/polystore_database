@@ -8,6 +8,7 @@ import (
 	"polystore_database/src/go/engine/core"
 	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
+	"polystore_database/src/go/store"
 )
 
 func ScanRdbBulk(qp *Processor, o *plan.EntityScan) ([]Record, error) {
@@ -88,28 +89,23 @@ func FilterRdbBulk(qp *Processor, o *plan.Filter, in []Record) ([]Record, error)
 	}
 
 	// --- DB特有: valid 抽出 ---
-	placeholders := strings.Repeat("?,", len(uniqueIDs)-1) + "?"
+	// ID はストアの実効チャンクサイズで分割する。全件を 1 クエリに載せると MySQL の
+	// プレースホルダ上限（65535）を超えてエラーになるため必須。
 	validMap := make(map[uid.UUID]struct{})
 	for _, label := range o.Labels {
-		query := fmt.Sprintf("SELECT uuid FROM %s WHERE %s AND uuid IN (%s)", label, whereBase, placeholders)
-		args := make([]interface{}, 0, len(commonArgs)+len(uniqueIDs))
-		args = append(args, commonArgs...)
-		for _, id := range uniqueIDs {
-			args = append(args, id)
-		}
-		rows, err := qp.sqlDb.QueryContext(qp.ctx, query, args...)
-		if err != nil {
+		if err := core.ForEachIDChunk(store.Relational, uniqueIDs, func(chunk []string) error {
+			placeholders := strings.Repeat("?,", len(chunk)-1) + "?"
+			query := fmt.Sprintf("SELECT uuid FROM %s WHERE %s AND uuid IN (%s)", label, whereBase, placeholders)
+			args := make([]interface{}, 0, len(commonArgs)+len(chunk))
+			args = append(args, commonArgs...)
+			for _, id := range chunk {
+				args = append(args, id)
+			}
+			return scanValidRdbIDs(qp, query, args, validMap)
+		}); err != nil {
 			return nil, err
 		}
-		for rows.Next() {
-			var id string
-			if err := rows.Scan(&id); err == nil {
-				validMap[uid.UUID(id)] = struct{}{}
-			}
-		}
-		rows.Close()
 	}
-
 	out := make([]Record, 0, len(in))
 	for _, r := range in {
 		if _, ok := validMap[r.Slots[filterIdxIn]]; ok {
@@ -131,7 +127,7 @@ func fetchRdbPropsBulk(qp *Processor, ids []string, unit *plan.ProjectionUnit, f
 		return result
 	}
 
-	const batchSize = 1000
+	batchSize := core.ChunkSize(store.Relational)
 	propList := strings.Join(fetch.Props, ", ")
 
 	for i := 0; i < len(ids); i += batchSize {
@@ -192,4 +188,20 @@ func fetchRdbPropsBulk(qp *Processor, ids []string, unit *plan.ProjectionUnit, f
 		rows.Close()
 	}
 	return result
+}
+
+// scanValidRdbIDs は 1 チャンク分のクエリを実行し、有効な uuid を validMap へ積む。
+func scanValidRdbIDs(qp *Processor, query string, args []interface{}, validMap map[uid.UUID]struct{}) error {
+	rows, err := qp.sqlDb.QueryContext(qp.ctx, query, args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err == nil {
+			validMap[uid.UUID(id)] = struct{}{}
+		}
+	}
+	return rows.Err()
 }

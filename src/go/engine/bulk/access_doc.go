@@ -5,6 +5,7 @@ import (
 	"polystore_database/src/go/engine/core"
 	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
+	"polystore_database/src/go/store"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -78,22 +79,28 @@ func FilterDocBulk(qp *Processor, o *plan.Filter, in []Record) ([]Record, error)
 	}
 
 	// --- DB特有: valid 抽出 ---
-	query := append(bson.D{{Key: uid.PropName, Value: bson.M{"$in": uniqueIDs}}}, commonConditions...)
+	// ID はストアの実効チャンクサイズで分割する（$in が BSON 上限へ迫らないように）。
 	validMap := make(map[uid.UUID]struct{})
 	for _, label := range o.Labels {
-		cur, err := qp.mDb.Collection(label).Find(qp.ctx, query, options.Find().SetProjection(bson.M{uid.PropName: 1}))
-		if err != nil {
+		if err := core.ForEachIDChunk(store.Document, uniqueIDs, func(chunk []string) error {
+			query := append(bson.D{{Key: uid.PropName, Value: bson.M{"$in": chunk}}}, commonConditions...)
+			cur, err := qp.mDb.Collection(label).Find(qp.ctx, query, options.Find().SetProjection(bson.M{uid.PropName: 1}))
+			if err != nil {
+				return err
+			}
+			for cur.Next(qp.ctx) {
+				var rec struct {
+					UUID string `bson:"uuid"`
+				}
+				if err := cur.Decode(&rec); err == nil {
+					validMap[uid.UUID(rec.UUID)] = struct{}{}
+				}
+			}
+			cur.Close(qp.ctx)
+			return nil
+		}); err != nil {
 			return nil, err
 		}
-		for cur.Next(qp.ctx) {
-			var rec struct {
-				UUID string `bson:"uuid"`
-			}
-			if err := cur.Decode(&rec); err == nil {
-				validMap[uid.UUID(rec.UUID)] = struct{}{}
-			}
-		}
-		cur.Close(qp.ctx)
 	}
 
 	out := make([]Record, 0, len(in))
@@ -117,29 +124,33 @@ func fetchDocPropsBulk(qp *Processor, ids []string, unit *plan.ProjectionUnit, f
 		return result
 	}
 	for _, label := range unit.Labels {
-		cur, err := qp.mDb.Collection(label).Find(qp.ctx, bson.M{uid.PropName: bson.M{"$in": ids}})
-		if err != nil {
-			continue
-		}
-		for cur.Next(qp.ctx) {
-			var raw bson.M
-			if err := cur.Decode(&raw); err != nil {
-				continue
+		// ID はストアの実効チャンクサイズで分割して投げる（$in が BSON 上限へ迫らないように）。
+		_ = core.ForEachIDChunk(store.Document, ids, func(chunk []string) error {
+			cur, err := qp.mDb.Collection(label).Find(qp.ctx, bson.M{uid.PropName: bson.M{"$in": chunk}})
+			if err != nil {
+				return nil // 既存挙動どおりエラーはスキップ
 			}
-			id, ok := raw[uid.PropName].(string)
-			if !ok {
-				continue
-			}
-			if _, exists := result[id]; !exists {
-				result[id] = make(map[string]interface{})
-			}
-			for _, p := range fetch.Props {
-				if val, ok := raw[p]; ok && val != nil {
-					result[id][p], _ = codec.ConvertToNativeType(val, fetch.TypeMap[p])
+			for cur.Next(qp.ctx) {
+				var raw bson.M
+				if err := cur.Decode(&raw); err != nil {
+					continue
+				}
+				id, ok := raw[uid.PropName].(string)
+				if !ok {
+					continue
+				}
+				if _, exists := result[id]; !exists {
+					result[id] = make(map[string]interface{})
+				}
+				for _, p := range fetch.Props {
+					if val, ok := raw[p]; ok && val != nil {
+						result[id][p], _ = codec.ConvertToNativeType(val, fetch.TypeMap[p])
+					}
 				}
 			}
-		}
-		cur.Close(qp.ctx)
+			cur.Close(qp.ctx)
+			return nil
+		})
 	}
 	return result
 }

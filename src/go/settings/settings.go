@@ -45,19 +45,32 @@ var (
 	// AggregationPushdown: 集約をストアへ委譲するか。OFF なら委譲せず engine で計算する
 	// （fusion の BuildPushdownPlan が判定に使用済み）。
 	AggregationPushdown = true
-	// ProjectionPushdown: 同一ストアの projection 列をネイティブクエリの SELECT/RETURN へ
-	// 畳み込むか。projection-only 畳み込み（P6）で有効化予定。現状は未配線（no-op）。
-	ProjectionPushdown = true
+	// ProjectionPushdown: 非集約クエリの RETURN 列をストアのネイティブ SELECT/RETURN へ畳み込むか
+	// （＝ materialize の往復を無くす）。単一ストアに解決する非集約クエリを丸ごと委譲する。
+	//
+	// 既定 false: ON にすると全 graph の非集約クエリが Neo4j へ verbatim 委譲されるため、
+	// 実行モデル比較（EngineEquivalence / bench-models）が engine 経路を測らなくなる。
+	ProjectionPushdown = false
 )
 
 // IntegrateRowThreshold は統合演算子の実行時方式選択の閾値
-// （hash join / IN-list 押し込み / nested-loop の分岐）。
+// （hash join / IN-list 押し込み / nested-loop の分岐）。※方式選択自体は未実装。
 var IntegrateRowThreshold = 1024
+
+// MaterializeChunkSize は ID 材料化で 1 クエリへ載せる識別子数の希望値（0 = ストア既定を使う）。
+// 実測スイープ用の全体上書きノブ。実効値は engine/core.ChunkSize が
+// min(この値 or ストア既定, ストアの物理上限 store.LimitsOf(k).MaxInList) で clamp する。
+var MaterializeChunkSize = 0
 
 // GeneralSegmentation は一般セグメンタ（record パイプラインを隣接同一ストアの最長ランへ分割して
 // 融合する）の有効化。ランの境界は下位ランの束縛 uuid を IN-list で上位ランへ渡す。
 // 現状 lowering があるのは graph ランのみ（非 graph ランは素の演算子のまま実行）。既定 false・実験。
 var GeneralSegmentation = false
+
+// ExplicitIntegrate は「複数ストアから materialize する Projection を Integrate（統合演算子）へ
+// 置き換える」プラン表現の明示化。実行は同一（ID 材料化）で結果は不変だが、統合が起きる場所が
+// プラン上に現れる。既定 false・実験。
+var ExplicitIntegrate = false
 
 // ===== 計測（bench） =====
 const (

@@ -8,6 +8,7 @@ import (
 	"polystore_database/src/go/engine/core"
 	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
+	"polystore_database/src/go/store"
 )
 
 func ScanColBulk(qp *Processor, o *plan.EntityScan) ([]Record, error) {
@@ -116,7 +117,7 @@ func fetchColPropsBulk(qp *Processor, ids []string, unit *plan.ProjectionUnit, f
 		return result
 	}
 
-	const batchSize = 500
+	batchSize := core.ChunkSize(store.Columnar)
 	quoted := make([]string, len(fetch.Props))
 	for i, p := range fetch.Props {
 		quoted[i] = fmt.Sprintf("\"%s\"", p)

@@ -100,16 +100,42 @@ type IntegrateKey struct {
 }
 
 // Integrate はストア境界をまたぐ結果統合の物理演算子。
+// 融合パス（planner）は「materialize するカラムが 2 ストア以上に散る」ときにこれを生成し、
+// 単一ストアで済む materialize は従来どおり Projection のままにする。これにより
+// **統合が起きる場所がプラン上に明示**される。
+//
 // 物理アルゴリズム（hash / nested-loop / batched-IN）は持たず、エンジンが実行時に
 // 件数等のヒューリスティック（settings.IntegrateRowThreshold）で選択する。
 // 計画段階では結合キーと必要カラムのみ宣言する（複数カラムの最適統合は計画時に不明なため）。
+//
+// 現状の Keys は全て KeyID（束縛 UUID をキーにしたプロパティ材料化）。値キー join（KeyValue）は
+// 現行 IR ではプランに現れ得ない（ConditionNode がプロパティ間比較を表現できず、直積も生成されない）。
 type Integrate struct {
-	Inputs []PlanNode
+	Inputs []PlanNode // 統合対象（ID 材料化では record ソース 1 つ）
 	Keys   []IntegrateKey
 	Needed []ColumnRef
 
+	// Units は材料化するプロパティ群（ストア別 Fetch・ラベル・型）。Projection と同じ表現を使い、
+	// 実行は既存の materialize 実装をそのまま再利用する。
+	Units []ProjectionUnit
+
+	InputAlias []string
 	InputSlot  SlotTable
 	OutputSlot SlotTable
+}
+
+// AsProjection は Integrate を既存の Projection 実行へ委譲するためのアダプタ。
+// ID 材料化の実体は Projection と同一なので、エンジンはこの変換を通して同じ実装を使う。
+func (i *Integrate) AsProjection() *Projection {
+	p := &Projection{
+		Units:      i.Units,
+		InputAlias: i.InputAlias,
+		InputSlot:  i.InputSlot,
+	}
+	if len(i.Inputs) > 0 {
+		p.Input = i.Inputs[0]
+	}
+	return p
 }
 
 func (i *Integrate) Children() []PlanNode { return i.Inputs }
@@ -127,10 +153,14 @@ func (i *Integrate) String() string {
 		}
 		keys = append(keys, fmt.Sprintf("%s(%s)", kind, strings.Join(refs, "=")))
 	}
-	var needed []string
-	for _, n := range i.Needed {
-		needed = append(needed, n.String())
+	var units []string
+	for _, u := range i.Units {
+		var fetches []string
+		for _, f := range u.Fetches {
+			fetches = append(fetches, fmt.Sprintf("%s%v", f.Store, f.Props))
+		}
+		units = append(units, fmt.Sprintf("%s(%s)", u.Alias, strings.Join(fetches, ", ")))
 	}
-	return fmt.Sprintf("Integrate[keys: %s | needs: %s]",
-		strings.Join(keys, ", "), strings.Join(needed, ", "))
+	return fmt.Sprintf("Integrate(keys: %s) [Materialize: %s]",
+		strings.Join(keys, ", "), strings.Join(units, " | "))
 }

@@ -8,6 +8,7 @@ import (
 	"polystore_database/src/go/engine/core"
 	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
+	"polystore_database/src/go/store"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
@@ -78,6 +79,10 @@ func bulkGraphRecordFragment(qp *Processor, o *plan.StoreFragment) ([]Record, er
 	}
 	cypher, params := core.BuildGraphRecordCypher(o.Plan, aliases)
 	if cypher == "" {
+		// traversal を含まないラン（scan＋同一 alias フィルタ）は条件をマージして 1 スキャンに畳む。
+		if scan, ok := core.MergeRecordRun(o); ok {
+			return scanByStore(qp, scan)
+		}
 		// 生成不能な構造（非線形 traversal 等）は元の部分木を通常実行してフォールバック（等価）。
 		var counter int
 		return ExecuteOperatorBulk(qp, o.Plan, &counter)
@@ -90,25 +95,7 @@ func bulkGraphRecordFragment(qp *Processor, o *plan.StoreFragment) ([]Record, er
 		if err != nil {
 			return nil, err
 		}
-		for alias, idx := range b.OutputSlot.VarToSlot {
-			seen := make(map[uid.UUID]struct{}, len(inRecs))
-			ids := make([]string, 0, len(inRecs))
-			for _, r := range inRecs {
-				if idx >= len(r.Slots) {
-					continue
-				}
-				u := r.Slots[idx]
-				if u.Empty() {
-					continue
-				}
-				if _, dup := seen[u]; dup {
-					continue
-				}
-				seen[u] = struct{}{}
-				ids = append(ids, u.String())
-			}
-			params[core.IncomingParam(alias)] = ids
-		}
+		core.BindIncoming(params, b, inRecs)
 	}
 
 	sess := qp.newReadSession()
@@ -178,22 +165,23 @@ func bulkFilterGraph(qp *Processor, o *plan.Filter, in []Record) ([]Record, erro
 	for id := range idMap {
 		uniqueIDs = append(uniqueIDs, id.String())
 	}
-	params["ids"] = uniqueIDs
-
 	sess := qp.newReadSession()
 	defer qp.closeSession(sess)
 
-	res, err := sess.Run(qp.ctx, finalQuery, params)
-	if err != nil {
-		return nil, err
-	}
+	// ID はストアの実効チャンクサイズで分割して投げる（巨大な IN-list を作らない）。
 	validMap := make(map[uid.UUID]struct{})
-	for res.Next(qp.ctx) {
-		if id, ok := res.Record().Get("id"); ok && id != nil {
-			validMap[uid.FromAny(id)] = struct{}{}
+	if err := core.ForEachIDChunkParams(store.Graph, uniqueIDs, params, "ids", func() error {
+		res, err := sess.Run(qp.ctx, finalQuery, params)
+		if err != nil {
+			return err
 		}
-	}
-	if err := res.Err(); err != nil {
+		for res.Next(qp.ctx) {
+			if id, ok := res.Record().Get("id"); ok && id != nil {
+				validMap[uid.FromAny(id)] = struct{}{}
+			}
+		}
+		return res.Err()
+	}); err != nil {
 		return nil, err
 	}
 
@@ -254,10 +242,20 @@ func fetchGraphPropsBulk(qp *Processor, ids []string, unit *plan.ProjectionUnit,
 	sess := qp.newReadSession()
 	defer qp.closeSession(sess)
 
-	res, err := sess.Run(qp.ctx, query, map[string]interface{}{"ids": ids})
-	if err != nil {
-		return result
-	}
+	// ID はストアの実効チャンクサイズで分割して投げる（巨大な IN-list を作らない）。
+	_ = core.ForEachIDChunk(store.Graph, ids, func(chunk []string) error {
+		res, err := sess.Run(qp.ctx, query, map[string]interface{}{"ids": chunk})
+		if err != nil {
+			return err
+		}
+		collectGraphProps(qp, res, fetch, result)
+		return nil
+	})
+	return result
+}
+
+// collectGraphProps は 1 チャンク分の結果を result[uuid][prop] へ積む。
+func collectGraphProps(qp *Processor, res neo4j.ResultWithContext, fetch *plan.FetchPlan, result map[string]map[string]interface{}) {
 	for res.Next(qp.ctx) {
 		rec := res.Record()
 		idVal, _ := rec.Get("uuid")
@@ -273,5 +271,4 @@ func fetchGraphPropsBulk(qp *Processor, ids []string, unit *plan.ProjectionUnit,
 		}
 		result[id] = propsMap
 	}
-	return result
 }

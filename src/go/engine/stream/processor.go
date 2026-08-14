@@ -207,7 +207,34 @@ func ExecuteOperatorStream(qp *Processor, op plan.PlanNode, counter *int, wg *sy
 		}
 		cypher, params := core.BuildGraphRecordCypher(frag.Plan, aliases)
 		if cypher == "" {
+			// traversal を含まないランは条件をマージして 1 スキャンに畳む。
+			if scan, ok := core.MergeRecordRun(frag); ok {
+				out := make(chan []Record, 500)
+				*counter++
+				step := *counter
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					defer close(out)
+					if _, err := scanByStore(qp, scan, step, out); err != nil {
+						fmt.Printf("Error in step %d (Fragment scan): %v\n", step, err)
+					}
+				}()
+				return out, nil
+			}
 			return ExecuteOperatorStream(qp, frag.Plan, counter, wg)
+		}
+		// ラン境界: 下位ランを先に実行し束縛 uuid を IN-list として注入する。
+		if b := core.BoundaryFragment(frag.Plan); b != nil {
+			inCh, err := ExecuteOperatorStream(qp, b, counter, wg)
+			if err != nil {
+				return nil, err
+			}
+			var inRecs []Record
+			for batch := range inCh {
+				inRecs = append(inRecs, batch...)
+			}
+			core.BindIncoming(params, b, inRecs)
 		}
 		outputStream := make(chan []Record, 500)
 		*counter++

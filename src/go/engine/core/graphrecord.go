@@ -162,6 +162,31 @@ func BuildGraphRecordCypher(sub plan.PlanNode, outAliases []string) (string, map
 // 生成側（BuildGraphRecordCypher）と実行側（各エンジン）で同じ規約を使う。
 func IncomingParam(alias string) string { return "in_" + alias }
 
+// BindIncoming は境界フラグメントが供給した中間 Record 群から alias ごとの uuid 配列を作り、
+// 上位ランのクエリパラメータへ束ねる（重複は除去する）。全エンジンで共通の結線規約。
+func BindIncoming(params map[string]interface{}, b *plan.StoreFragment, recs []Record) {
+	for alias, idx := range b.OutputSlot.VarToSlot {
+		seen := make(map[string]struct{}, len(recs))
+		ids := make([]string, 0, len(recs))
+		for _, r := range recs {
+			if idx >= len(r.Slots) {
+				continue
+			}
+			u := r.Slots[idx]
+			if u.Empty() {
+				continue
+			}
+			s := u.String()
+			if _, dup := seen[s]; dup {
+				continue
+			}
+			seen[s] = struct{}{}
+			ids = append(ids, s)
+		}
+		params[IncomingParam(alias)] = ids
+	}
+}
+
 // BoundaryFragment は Plan の連鎖に現れる下位フラグメント（境界入力）を返す（無ければ nil）。
 // 一般セグメンタが作るラン境界を実行側が見つけるために使う。
 func BoundaryFragment(p plan.PlanNode) *plan.StoreFragment {

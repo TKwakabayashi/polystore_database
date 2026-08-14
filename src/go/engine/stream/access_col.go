@@ -6,6 +6,7 @@ import (
 	"polystore_database/src/go/engine/core"
 	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
+	"polystore_database/src/go/store"
 	"strings"
 	"time"
 )
@@ -141,7 +142,7 @@ func fetchColPropsStream(qp *Processor,
 		return result
 	}
 
-	const batchSize = 500
+	batchSize := core.ChunkSize(store.Columnar)
 	quoted := make([]string, len(fetch.Props))
 	for i, p := range fetch.Props {
 		quoted[i] = fmt.Sprintf("\"%s\"", p)
