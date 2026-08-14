@@ -120,12 +120,8 @@ func (p *Processor) Run(op plan.PlanNode) ([]map[string]interface{}, error) {
 	if op == nil {
 		return nil, fmt.Errorf("nil plan node")
 	}
-	// tail pushdown は bulk 専用。vecstream は Fallback（元 coordinator tail）を実行（結果等価）。
-	if tp, ok := op.(*plan.TailPushdown); ok {
-		return p.Run(tp.Fallback)
-	}
 	switch op.(type) {
-	case *plan.StorePushdown, *plan.StoreFragment, *plan.Projection, *plan.Aggregate, *plan.Sort, *plan.Limit, *plan.Return:
+	case *plan.TailPushdown, *plan.StorePushdown, *plan.StoreFragment, *plan.Projection, *plan.Aggregate, *plan.Sort, *plan.Limit, *plan.Return:
 		rows, err := p.runRow(op)
 		if err != nil {
 			return nil, err
@@ -142,21 +138,20 @@ func (p *Processor) Run(op plan.PlanNode) ([]map[string]interface{}, error) {
 // Neo4j セッションを 1 本ずつ使い回して process を並列実行する。EntityScan は Open で
 // 1 回だけ全件取得し Next は純メモリなので包まず素通しする。
 func (p *Processor) build(op plan.PlanNode) (Iterator, error) {
-	// record-mode StoreFragment（部分融合）: graph traversal を 1 本の Cypher に融合して束縛 UUID を
-	// 払い出す source iterator を構築する。生成不能な構造は元の部分木でフォールバック（結果は等価）。
-	if frag, ok := op.(*plan.StoreFragment); ok {
-		aliases := make([]string, 0, len(frag.OutputSlot.VarToSlot))
-		for a := range frag.OutputSlot.VarToSlot {
+	switch o := op.(type) {
+	case *plan.StoreFragment:
+		// record-mode StoreFragment（部分融合）: graph traversal を 1 本の Cypher に融合して束縛 UUID を
+		// 払い出す source iterator を構築する。生成不能な構造は元の部分木でフォールバック（結果は等価）。
+		aliases := make([]string, 0, len(o.OutputSlot.VarToSlot))
+		for a := range o.OutputSlot.VarToSlot {
 			aliases = append(aliases, a)
 		}
-		cypher, params := core.BuildGraphRecordCypher(frag.Ops, aliases)
+		cypher, params := core.BuildGraphRecordCypher(o.Ops, aliases)
 		if cypher == "" {
-			return p.build(frag.Ops)
+			return p.build(o.Ops)
 		}
 		step := p.newStep()
-		return &fragmentIterator{p: p, cypher: cypher, params: params, outSlot: frag.OutputSlot, step: step}, nil
-	}
-	switch o := op.(type) {
+		return &fragmentIterator{p: p, cypher: cypher, params: params, outSlot: o.OutputSlot, step: step}, nil
 	case *plan.EntityScan:
 		step := p.newStep()
 		return &scanIterator{p: p, o: o, step: step}, nil

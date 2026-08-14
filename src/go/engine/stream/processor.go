@@ -195,6 +195,11 @@ func ExecuteOperatorStream(qp *Processor, op plan.PlanNode, counter *int, wg *sy
 
 	// record-mode StoreFragment（部分融合）: graph traversal を 1 本の Cypher に融合して束縛 UUID を
 	// source として流す。生成不能な構造は元の部分木を通常実行してフォールバック（結果は等価）。
+	//
+	// NOTE: 他エンジン（bulk/volcano/vecstream）は StoreFragment を switch case で分岐するが、stream は
+	// push/goroutine モデルのため switch 前で扱う: (1) StoreFragment は入力を持たない source で自前の
+	// 出力チャネルを返す（下の switch は input→output 前提）。(2) フォールバックは goroutine 起動前に
+	// 実行する必要がある（step counter を逐次に保つため。goroutine 内で再帰実行すると counter が競合する）。
 	if frag, ok := op.(*plan.StoreFragment); ok {
 		aliases := make([]string, 0, len(frag.OutputSlot.VarToSlot))
 		for a := range frag.OutputSlot.VarToSlot {

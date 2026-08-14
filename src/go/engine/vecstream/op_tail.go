@@ -23,6 +23,10 @@ func (p *Processor) runRow(op plan.PlanNode) ([]Row, error) {
 	}
 
 	switch o := op.(type) {
+	case *plan.TailPushdown:
+		// tail pushdown は bulk 専用。vecstream は Fallback（元 coordinator tail）を実行（結果等価）。
+		return p.runRow(o.Fallback)
+
 	case *plan.StorePushdown:
 		// 単一ストアへ集約委譲。record パイプラインを通らない（vectorization の hot path 外）。
 		start := time.Now()

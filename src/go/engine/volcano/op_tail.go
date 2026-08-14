@@ -23,6 +23,10 @@ func (p *Processor) runRow(op plan.PlanNode) ([]Row, error) {
 	}
 
 	switch o := op.(type) {
+	case *plan.TailPushdown:
+		// tail pushdown は bulk 専用。volcano は Fallback（元 coordinator tail）を実行（結果等価）。
+		return p.runRow(o.Fallback)
+
 	case *plan.StorePushdown:
 		start := time.Now()
 		rows, err := p.runStorePushdown(o)
