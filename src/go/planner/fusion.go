@@ -27,19 +27,23 @@ func BuildPushdownPlan(root plan.PlanNode, query string, params map[string]strin
 	//    AggregationPushdown=OFF なら委譲せず engine 計算（集約 pushdown の個別トグル）。
 	if a.hasAggregate && settings.AggregationPushdown && ok {
 		// 全 graph（traversal 可）→ 原 Cypher を丸ごと委譲（baseline と同一発行）。
+		// Plan には論理木を持たせ、Verbatim は「その既知の忠実な lowering」として添える。
 		if single == store.Graph {
 			return &plan.StoreFragment{
 				Store:       store.Graph,
-				RawQuery:    query,
+				Plan:        root,
+				Emits:       plan.EmitResult,
+				Verbatim:    query,
 				Params:      params,
 				OutputAlias: returnAliases(a.returnNode),
 			}
 		}
-		// 非 graph 単一ストア（traversal 無し）→ ネイティブ集約へ委譲（既存 StorePushdown 実行にブリッジ）。
+		// 非 graph 単一ストア（traversal 無し）→ ネイティブ集約へ委譲（Plan を lowering して発行）。
 		if single != store.Graph && !a.hasTraversal && fragmentSupported(single, root) {
 			return &plan.StoreFragment{
 				Store:       single,
-				Ops:         root,
+				Plan:        root,
+				Emits:       plan.EmitResult,
 				OutputAlias: returnAliases(a.returnNode),
 			}
 		}
@@ -58,13 +62,13 @@ func BuildPushdownPlan(root plan.PlanNode, query string, params map[string]strin
 	// 2. クロスストア部分融合（record-mode）: record パイプライン（scan+filter+expand）が全て graph で、
 	//    projection が別ストアの列を参照する場合、traversal を 1 本の Cypher（束縛 UUID 返却）へ融合する。
 	//    その上の既存 Projection が他ストア列を ID キーで材料化（＝統合）→ engine で集約。集約有無に依らず適用。
-	//    融合クエリ生成は各エンジン（core.BuildGraphRecordCypher）が担い、生成不能なら Ops を通常実行。
+	//    融合クエリ生成は各エンジン（core.BuildGraphRecordCypher）が担い、生成不能なら Plan を通常実行。
 	if proj := findProjection(root); proj != nil {
 		if recordPipelineAllGraph(proj.Input) && projectionHasNonGraph(proj) {
 			proj.Input = &plan.StoreFragment{
 				Store:       store.Graph,
-				Ops:         proj.Input,
-				AsRecords:   true,
+				Plan:        proj.Input,
+				Emits:       plan.EmitBindings,
 				OutputSlot:  proj.InputSlot,
 				OutputAlias: proj.InputAlias,
 			}
@@ -231,14 +235,21 @@ func fragmentSupported(single store.Kind, ops plan.PlanNode) bool {
 	return true
 }
 
-// buildTailPushdown は tail pushdown が適用可能なら TailPushdown を、不可なら nil を返す。
+// buildTailPushdown は tail pushdown が適用可能なら tail を包む StoreFragment を、不可なら nil を返す。
 // 適用条件:
 //   - record パイプライン（Projection.Input 以下）が all-graph（traversal は graph で完結）。
 //   - tail に Aggregate が存在する（sort/limit のみは対象外）。
 //   - tail が参照する全プロパティが単一の非 graph ストア S に解決できる。
 //   - S が Aggregate/Project（＋必要なら GroupBy/Sort/Limit）を capability 上サポートする。
-//   - staging するエンティティ（group/prop-agg の alias）の永続テーブル（Label）が判明する。
-func buildTailPushdown(root plan.PlanNode) *plan.TailPushdown {
+//   - staging するエンティティ（group/prop-agg の alias）の永続テーブル（Label）が判明する（plan.LowerTail）。
+//
+// 生成する形（＝tail pushdown 形状の唯一の判別子）:
+//
+//	StoreFragment{S, Emits:Result, Plan: Return→…→Projection→StoreFragment{graph, Emits:Bindings}}
+//
+// 平坦フィールドは持たず、実行側は plan.LowerTail(Plan) で必要情報を導出する。
+// 未対応エンジン／未対応ストアは Plan をそのまま通常実行すればよい（結果は等価）。
+func buildTailPushdown(root plan.PlanNode) *plan.StoreFragment {
 	proj := findProjection(root)
 	if proj == nil || !recordPipelineAllGraph(proj.Input) {
 		return nil
@@ -257,46 +268,32 @@ func buildTailPushdown(root plan.PlanNode) *plan.TailPushdown {
 	if len(agg.GroupKeys) > 0 && !plan.Supports(s, plan.CapGroupBy) {
 		return nil
 	}
-	sortNode := findSort(root)
-	if sortNode != nil && !plan.Supports(s, plan.CapSort) {
+	if findSort(root) != nil && !plan.Supports(s, plan.CapSort) {
 		return nil
 	}
-	limitNode := findLimit(root)
-	if limitNode != nil && !plan.Supports(s, plan.CapLimit) {
-		return nil
-	}
-	ret := findReturn(root)
-	entities, ok := tailEntities(proj, agg, ret)
-	if !ok {
+	if findLimit(root) != nil && !plan.Supports(s, plan.CapLimit) {
 		return nil
 	}
 
-	src := &plan.StoreFragment{
+	// record パイプラインを束縛フラグメントへ包み、tail の中に入れ子にする。
+	proj.Input = &plan.StoreFragment{
 		Store:       store.Graph,
-		Ops:         proj.Input,
-		AsRecords:   true,
+		Plan:        proj.Input,
+		Emits:       plan.EmitBindings,
 		OutputSlot:  proj.InputSlot,
 		OutputAlias: proj.InputAlias,
 	}
-	tp := &plan.TailPushdown{
-		Store:     s,
-		Input:     src,
-		Fallback:  root, // 未対応エンジンは元 coordinator tail を実行（結果等価）
-		InputSlot: proj.InputSlot,
-		Entities:  entities,
-		GroupKeys: agg.GroupKeys,
-		Aggs:      agg.Aggs,
+	frag := &plan.StoreFragment{
+		Store: s,
+		Plan:  root,
+		Emits: plan.EmitResult,
 	}
-	if ret != nil {
-		tp.Return = ret.Items
+	// 導出可能性（staging テーブル解決）を plan 時に確認しておく。不可なら融合しない。
+	if _, ok := plan.LowerTail(frag.Plan); !ok {
+		proj.Input = proj.Input.(*plan.StoreFragment).Plan // 包みを戻す
+		return nil
 	}
-	if sortNode != nil {
-		tp.OrderItems = sortNode.OrderItems
-	}
-	if limitNode != nil {
-		tp.Limit = limitNode.Count
-	}
-	return tp
+	return frag
 }
 
 // tailStore は Projection の全 fetch（props を持つもの）が単一の非 graph ストアに解決できるか判定し、
@@ -322,52 +319,9 @@ func tailStore(p *plan.Projection) (store.Kind, bool) {
 	return s, found
 }
 
-// tailEntities は staging すべきエンティティ（group key の alias ＋ prop/distinct を持つ agg の alias ＋
-// 非集約 RETURN 項目の alias）を集め、各 alias の永続テーブル（Projection unit の Label）を解決する。
-// いずれかの alias でテーブルが不明なら (_, false)。
-func tailEntities(p *plan.Projection, agg *plan.Aggregate, ret *plan.Return) ([]plan.TailEntity, bool) {
-	need := map[string]bool{}
-	for _, gk := range agg.GroupKeys {
-		if gk.Alias != "" {
-			need[gk.Alias] = true
-		}
-	}
-	for _, a := range agg.Aggs {
-		if a.Alias != "" && (a.Prop != "" || a.Distinct) {
-			need[a.Alias] = true
-		}
-	}
-	if ret != nil {
-		for _, it := range ret.Items {
-			if !it.IsAggregate && it.Alias != "" {
-				need[it.Alias] = true
-			}
-		}
-	}
-
-	labelOf := map[string]string{}
-	propsOf := map[string][]string{}
-	for _, u := range p.Units {
-		if len(u.Labels) > 0 {
-			labelOf[u.Alias] = u.Labels[0]
-		}
-		for _, f := range u.Fetches {
-			propsOf[u.Alias] = append(propsOf[u.Alias], f.Props...)
-		}
-	}
-
-	entities := make([]plan.TailEntity, 0, len(need))
-	for alias := range need {
-		table := labelOf[alias]
-		if table == "" {
-			return nil, false // JOIN 先テーブルが不明
-		}
-		entities = append(entities, plan.TailEntity{Alias: alias, Table: table, Props: propsOf[alias]})
-	}
-	return entities, true
-}
-
 // findAggregate / findSort / findLimit / findReturn は tail チェーン（根→第1子）を辿って各ノードを返す。
+// findReturn は現在この経路では未使用（Return 項目の取得は plan.LowerTail が担う）。一般セグメンタで
+// tail を畳む判定に使う想定のため helper 一式として残す。
 func findAggregate(root plan.PlanNode) *plan.Aggregate {
 	for n := root; n != nil; {
 		if a, ok := n.(*plan.Aggregate); ok {

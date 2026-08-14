@@ -14,7 +14,7 @@ import (
 // キーは "alias.prop"（取得プロパティ）/ "alias"（束縛 uuid）/ 集約出力名。
 type Row = map[string]interface{}
 
-// runRow は tail（StorePushdown/Projection/Aggregate/Sort/Limit/Return）を実行する。
+// runRow は tail（StoreFragment/Projection/Aggregate/Sort/Limit/Return）を実行する。
 // Projection が record(Batch) 経路と row 経路の橋渡し点。
 // step は葉→根の順に割り当てる（子を先に実行してから自身の step を採番する）。
 func (p *Processor) runRow(op plan.PlanNode) ([]Row, error) {
@@ -23,22 +23,14 @@ func (p *Processor) runRow(op plan.PlanNode) ([]Row, error) {
 	}
 
 	switch o := op.(type) {
-	case *plan.TailPushdown:
-		// tail pushdown は bulk 専用。volcano は Fallback（元 coordinator tail）を実行（結果等価）。
-		return p.runRow(o.Fallback)
-
-	case *plan.StorePushdown:
-		start := time.Now()
-		rows, err := p.runStorePushdown(o)
-		if err != nil {
-			return nil, err
-		}
-		p.recordOp(p.newStep(), "Pushdown["+o.Store.String()+"]", time.Since(start), len(rows))
-		return rows, nil
-
 	case *plan.StoreFragment:
+		// tail 委譲形（Plan に束縛フラグメントが入れ子）は bulk 専用。volcano は Plan を
+		// そのまま通常実行してフォールバックする（結果は等価）。
+		if _, ok := plan.LowerTail(o.Plan); ok {
+			return p.runRow(o.Plan)
+		}
 		start := time.Now()
-		rows, err := p.runStorePushdown(plan.StorePushdownFromFragment(o))
+		rows, err := p.runStoreFragment(o)
 		if err != nil {
 			return nil, err
 		}

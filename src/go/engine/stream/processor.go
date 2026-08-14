@@ -205,9 +205,9 @@ func ExecuteOperatorStream(qp *Processor, op plan.PlanNode, counter *int, wg *sy
 		for a := range frag.OutputSlot.VarToSlot {
 			aliases = append(aliases, a)
 		}
-		cypher, params := core.BuildGraphRecordCypher(frag.Ops, aliases)
+		cypher, params := core.BuildGraphRecordCypher(frag.Plan, aliases)
 		if cypher == "" {
-			return ExecuteOperatorStream(qp, frag.Ops, counter, wg)
+			return ExecuteOperatorStream(qp, frag.Plan, counter, wg)
 		}
 		outputStream := make(chan []Record, 500)
 		*counter++

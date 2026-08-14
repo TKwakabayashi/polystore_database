@@ -157,9 +157,12 @@ func planHasTailPushdown(cypher, mappingPath string, params map[string]string) b
 		if n == nil || found {
 			return
 		}
-		if _, ok := n.(*plan.TailPushdown); ok {
-			found = true
-			return
+		// tail 委譲形は「Plan に束縛フラグメントが入れ子の StoreFragment」で判別する。
+		if f, ok := n.(*plan.StoreFragment); ok {
+			if _, isTail := plan.LowerTail(f.Plan); isTail {
+				found = true
+				return
+			}
 		}
 		for _, c := range n.Children() {
 			walk(c)

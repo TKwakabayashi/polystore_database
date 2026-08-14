@@ -35,13 +35,16 @@ import (
 	"polystore_database/src/go/workload"
 )
 
-// findTailPushdown は論理木から最初の TailPushdown を返す（無ければ nil）。
-func findTailPushdown(n plan.PlanNode) *plan.TailPushdown {
+// findTailPushdown は論理木から最初の tail 委譲形 StoreFragment を返す（無ければ nil）。
+// tail 委譲形は「Plan に束縛フラグメント（EmitBindings）が入れ子」という構造で判別する。
+func findTailPushdown(n plan.PlanNode) *plan.StoreFragment {
 	if n == nil {
 		return nil
 	}
-	if tp, ok := n.(*plan.TailPushdown); ok {
-		return tp
+	if f, ok := n.(*plan.StoreFragment); ok {
+		if _, isTail := plan.LowerTail(f.Plan); isTail {
+			return f
+		}
 	}
 	for _, c := range n.Children() {
 		if r := findTailPushdown(c); r != nil {

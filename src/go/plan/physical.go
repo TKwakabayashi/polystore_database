@@ -7,25 +7,47 @@ import (
 	"polystore_database/src/go/store"
 )
 
-// StoreFragment は連続する同一ストアアクセスの演算子を 1 ネイティブクエリへ融合した物理演算子。
-// 融合パス（planner/fusion.go）が生成し、各エンジンの op_fragment.go が実行する。
-//   - RawQuery != "": graph 全体委譲の高速路。原 Cypher をそのまま発行し Neo4j baseline と一致させる。
-//   - RawQuery == "": Ops 部分木を engine/core.LowerFragment でネイティブクエリへ翻訳する。
-//   - Input != nil:   下位フラグメント/統合演算子からの境界入力（IN-list 等の供給元）。
+// EmitKind は StoreFragment が下流へ何を出力するかを表す（パイプライン上の出力種別）。
+// 行指向/列指向とは無関係な直交軸である点に注意（それはエンジン内部表現の違い）。
+type EmitKind int
+
+const (
+	// EmitResult は材料化・集約済みの最終行（Row）を出力する（tail まで委譲した場合）。
+	EmitResult EmitKind = iota
+	// EmitBindings は束縛 UUID の中間レコード（core.Record）を出力する
+	//（record パイプラインの source として上位演算子へ流す）。
+	EmitBindings
+)
+
+func (e EmitKind) String() string {
+	if e == EmitBindings {
+		return "bindings"
+	}
+	return "result"
+}
+
+// StoreFragment は「1 つのストアへ委譲する 1 クエリ」を表す物理演算子。
+// 融合パス（planner/fusion.go）が生成し、各エンジンが実行する。
+//
+// 意味の源泉は常に Plan（委譲する論理サブプラン＝最小演算子の木）であり、ネイティブクエリは
+// Plan を走査して生成（lowering）する。委譲できないエンジン／生成不能な構造では Plan を
+// コーディネータでそのまま実行すればよい（結果は等価）ため、専用の fallback は持たない。
+//
+//   - Emits:    Bindings（束縛 UUID を流す source）/ Result（最終行）。
+//   - Verbatim: Plan の既知の忠実な lowering（graph 全体委譲時の原 Cypher）。空なら Plan から生成する。
+//   - Input:    下位フラグメント/統合からの境界入力（IN-list 等の供給元。葉ソースなら nil）。
 type StoreFragment struct {
 	Store store.Kind
 
-	Ops   PlanNode // 融合した論理演算子の部分木（非 graph 全体委譲時に翻訳対象）
+	Plan  PlanNode // 委譲する論理サブプラン（意味の源泉。lowering の対象）
 	Input PlanNode // 境界入力（葉ソースなら nil）
 
-	RawQuery string            // graph 全体委譲(row-mode): 原 Cypher（$param 付き）
-	Params   map[string]string // graph 全体委譲(row-mode): $param（実行時に型付け）
+	Emits EmitKind
 
-	// AsRecords=true は record-mode（部分融合）: record パイプライン（scan+filter+expand）を
-	// 融合した source。各エンジンが Ops（graph record 部分木）から束縛 UUID を返す 1 本のクエリを
-	// 生成し（core.BuildGraphRecordCypher）、結果を OutputSlot に従って Record slot へ格納する。
-	// 融合実行未対応のエンジンや生成不能な構造では Ops を通常実行してフォールバックする（結果は等価）。
-	AsRecords bool
+	// Verbatim は Plan に対する既知の忠実な lowering（graph 全体委譲の原 Cypher）。
+	// 原文をそのまま発行することで Neo4j baseline と同一クエリになることを保証する。
+	Verbatim string
+	Params   map[string]string // Verbatim 用パラメータ（実行時に型付け）
 
 	OutputAlias []string // 統合演算子が結線するための出力束縛
 	OutputSlot  SlotTable
@@ -39,58 +61,14 @@ func (f *StoreFragment) Children() []PlanNode {
 }
 
 func (f *StoreFragment) String() string {
-	if f.RawQuery != "" {
-		return fmt.Sprintf("StoreFragment[%s raw]: %s", f.Store, strings.Join(strings.Fields(f.RawQuery), " "))
+	if f.Verbatim != "" {
+		return fmt.Sprintf("StoreFragment[%s verbatim]: %s", f.Store, strings.Join(strings.Fields(f.Verbatim), " "))
 	}
-	ops := "∅"
-	if f.Ops != nil {
-		ops = f.Ops.String()
+	sub := "∅"
+	if f.Plan != nil {
+		sub = f.Plan.String()
 	}
-	return fmt.Sprintf("StoreFragment[%s]: %s", f.Store, ops)
-}
-
-// TailEntity は tail pushdown で一時テーブルへ staging する束縛エンティティ（alias）と、
-// その永続テーブル（Label）を表す。実行時に uuid をキーに永続テーブルへ JOIN してプロパティを引く。
-type TailEntity struct {
-	Alias string   // 束縛エイリアス（例 "author"）
-	Table string   // 永続テーブル/ラベル（例 "Person"）。JOIN 先
-	Props []string // この alias から tail が参照するプロパティ（SELECT/GROUP BY 用）
-}
-
-// TailPushdown は「traversal で集めた中間 UUID を単一の非 graph ストアの一時テーブルへロードし、
-// RETURN 句 tail（Projection/Aggregate/GroupBy/Sort/Limit）をそのストアのネイティブエンジンで
-// 実行する」物理演算子。融合パス（planner）が settings.TailPushdown 有効時に、
-// tail 参照プロパティが単一ストアに解決でき能力も満たす場合にのみ生成する。
-//
-// 実行対応エンジン（現状 bulk のみ）は Input を実行して中間 Record（束縛 UUID）を得てから
-// 一時テーブル＋SQL で tail を計算する。未対応エンジンは Fallback（元 coordinator tail）を通常実行する
-// （結果は等価）。これにより「tail を engine で計算」vs「ネイティブ実行」の A/B を同一プランで比較できる。
-type TailPushdown struct {
-	Store store.Kind
-
-	Input    PlanNode // record source（graph 融合フラグメント。束縛 UUID を返す）
-	Fallback PlanNode // 未対応エンジン用: 元 coordinator tail（Return→…→record pipeline）
-
-	InputSlot SlotTable // alias → Input 出力 Record のスロット番号
-
-	Entities   []TailEntity    // staging するエンティティ（uuid 列）＋ JOIN 先テーブル
-	Return     []ReturnItem    // 出力列（SELECT 別名＝ReturnItem.Name）
-	GroupKeys  []GroupKey      // GROUP BY キー（staging エンティティのプロパティ）
-	Aggs       []AggregateItem // 集約式
-	OrderItems []OrderItem     // ORDER BY（出力別名で並べる）
-	Limit      int             // LIMIT（0 以下で無し）
-}
-
-func (t *TailPushdown) Children() []PlanNode {
-	if t.Input != nil {
-		return []PlanNode{t.Input}
-	}
-	return nil
-}
-
-func (t *TailPushdown) String() string {
-	return fmt.Sprintf("TailPushdown[%s] entities=%d groups=%d aggs=%d limit=%d",
-		t.Store, len(t.Entities), len(t.GroupKeys), len(t.Aggs), t.Limit)
+	return fmt.Sprintf("StoreFragment[%s %s]: %s", f.Store, f.Emits, sub)
 }
 
 // IntegrateKeyKind は統合演算子の結合キー種別。
@@ -132,46 +110,6 @@ type Integrate struct {
 
 	InputSlot  SlotTable
 	OutputSlot SlotTable
-}
-
-// StorePushdownFromFragment は StoreFragment を実行時に既存の StorePushdown 実行経路へ
-// ブリッジするための変換。graph 全体委譲は RawQuery をそのまま、非 graph は Ops 部分木
-// （Return を含む論理木）を走査して Table/Filters/GroupKeys/Aggs/OrderItems/Limit/Items を
-// 復元する。ネイティブクエリ生成は各エンジンの実績ある run*Pushdown をそのまま再利用する。
-//   - P5 で FragmentSpec ベースの生成へ一本化し、StorePushdown ごと退役する予定の橋渡し。
-func StorePushdownFromFragment(f *StoreFragment) *StorePushdown {
-	sp := &StorePushdown{Store: f.Store}
-	if f.RawQuery != "" {
-		sp.Query = f.RawQuery
-		sp.Params = f.Params
-		return sp
-	}
-	for n := f.Ops; n != nil; {
-		switch op := n.(type) {
-		case *Return:
-			sp.Items = op.Items
-		case *Limit:
-			sp.Limit = op.Count
-		case *Sort:
-			sp.OrderItems = append(sp.OrderItems, op.OrderItems...)
-		case *Aggregate:
-			sp.Aggs = append(sp.Aggs, op.Aggs...)
-			sp.GroupKeys = append(sp.GroupKeys, op.GroupKeys...)
-		case *Filter:
-			sp.Filters = append(sp.Filters, op.Filter...)
-		case *EntityScan:
-			if sp.Table == "" && len(op.Labels) > 0 {
-				sp.Table = op.Labels[0]
-			}
-			sp.Filters = append(sp.Filters, op.Filter...)
-		}
-		ch := n.Children()
-		if len(ch) == 0 {
-			break
-		}
-		n = ch[0]
-	}
-	return sp
 }
 
 func (i *Integrate) Children() []PlanNode { return i.Inputs }

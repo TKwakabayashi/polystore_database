@@ -2,7 +2,7 @@
 
 // pushdown_equivalence_test は「pushdown ON（fusion→StoreFragment 委譲）と OFF（コーディネータ
 // エンジンで計算）で結果が一致する」ことを確認する等価性テスト。P3(3a) で ParseQuery を on/off の
-// 別プラン構築経路に分岐し、集約クエリを StoreFragment 経由で既存 StorePushdown 実行へブリッジした
+// 別プラン構築経路に分岐し、集約クエリを StoreFragment へ委譲（Plan を lowering してネイティブ発行）した
 // 変更の回帰ガード。
 //
 //	実行: cwd=src/go で docker スタックを up した状態（graph 配置）で

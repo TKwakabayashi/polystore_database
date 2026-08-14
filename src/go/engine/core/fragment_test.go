@@ -11,7 +11,7 @@ import (
 func TestLowerFragmentProjectionOnly(t *testing.T) {
 	frag := &plan.StoreFragment{
 		Store: store.Relational,
-		Ops: &plan.Projection{
+		Plan: &plan.Projection{
 			Units: []plan.ProjectionUnit{{
 				Alias:   "p",
 				Fetches: []plan.FetchPlan{{Store: store.Relational, Props: []string{"firstName", "lastName"}}},
@@ -33,7 +33,7 @@ func TestLowerFragmentProjectionOnly(t *testing.T) {
 		t.Fatalf("spec = %+v", spec)
 	}
 
-	sql, args := BuildRelationalSQLFromSpec(spec)
+	sql, args := BuildRelationalSQL(spec)
 	want := "SELECT `firstName` AS `p.firstName`, `lastName` AS `p.lastName` FROM `Person` WHERE `id` = ?"
 	if sql != want {
 		t.Errorf("SQL:\n got %q\nwant %q", sql, want)
@@ -47,7 +47,7 @@ func TestLowerFragmentProjectionOnly(t *testing.T) {
 func TestLowerFragmentAggregate(t *testing.T) {
 	frag := &plan.StoreFragment{
 		Store: store.Relational,
-		Ops: &plan.Aggregate{
+		Plan: &plan.Aggregate{
 			GroupKeys: []plan.GroupKey{{Alias: "p", Prop: "gender", OutName: "gender"}},
 			Aggs:      []plan.AggregateItem{{Func: plan.AggCount, OutName: "cnt"}},
 			Input:     &plan.EntityScan{Alias: "p", Labels: []string{"Person"}, DataStore: store.Relational},
@@ -55,7 +55,7 @@ func TestLowerFragmentAggregate(t *testing.T) {
 	}
 
 	spec := LowerFragment(frag)
-	sql, _ := BuildRelationalSQLFromSpec(spec)
+	sql, _ := BuildRelationalSQL(spec)
 	want := "SELECT `gender` AS `gender`, COUNT(*) AS `cnt` FROM `Person` GROUP BY `gender`"
 	if sql != want {
 		t.Errorf("SQL:\n got %q\nwant %q", sql, want)

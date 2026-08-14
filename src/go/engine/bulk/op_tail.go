@@ -11,7 +11,7 @@ import (
 	"polystore_database/src/go/store"
 )
 
-// executeRowBulk は tail（Projection/Aggregate/Sort/Limit/Return/StorePushdown）を
+// executeRowBulk は tail（StoreFragment/Projection/Aggregate/Sort/Limit/Return）を
 // row（map[string]interface{}）で全件マテリアライズ実行する。Projection が record-stream と
 // row-stream の橋渡し点。演算子ごとに step 番号（葉→根）・入出力件数・時間を記録する。
 func executeRowBulk(qp *Processor, op plan.PlanNode, counter *int) ([]Row, error) {
@@ -20,28 +20,19 @@ func executeRowBulk(qp *Processor, op plan.PlanNode, counter *int) ([]Row, error
 	}
 
 	switch o := op.(type) {
-	case *plan.TailPushdown:
-		// relational=一時テーブル＋SQL / document=一時コレクション＋$lookup でネイティブ実行。
-		// capability を満たさないストア（columnar/kvs）は fusion で弾かれ、ここへは来ないが、
-		// 念のため未対応ストアは Fallback（元 coordinator tail）を通常実行する。
-		if o.Store == store.Relational || o.Store == store.Document {
-			return bulkTailPushdown(qp, o, counter)
-		}
-		return executeRowBulk(qp, o.Fallback, counter)
-
-	case *plan.StorePushdown:
-		start := time.Now()
-		rows, err := bulkStorePushdown(qp, o)
-		if err != nil {
-			return nil, err
-		}
-		recordRowOp(qp, counter, "Pushdown["+o.Store.String()+"]", time.Since(start), 0, len(rows))
-		return rows, nil
-
 	case *plan.StoreFragment:
-		// 融合フラグメントは既存 StorePushdown 実行へブリッジ（graph=verbatim / 非graph=ネイティブ集約）。
+		// tail 委譲形（Plan に束縛フラグメントが入れ子）なら中間 UUID を staging してネイティブ実行。
+		// relational=一時テーブル＋SQL / document=一時コレクション＋$lookup。
+		if spec, ok := plan.LowerTail(o.Plan); ok {
+			if o.Store == store.Relational || o.Store == store.Document {
+				return bulkTailFragment(qp, o, spec, counter)
+			}
+			// 未対応ストアは Plan をそのまま通常実行（結果は等価）。
+			return executeRowBulk(qp, o.Plan, counter)
+		}
+		// 全体委譲: Plan を lowering してネイティブ発行（graph=verbatim / 非graph=ネイティブ集約）。
 		start := time.Now()
-		rows, err := bulkStorePushdown(qp, plan.StorePushdownFromFragment(o))
+		rows, err := bulkStoreFragment(qp, o)
 		if err != nil {
 			return nil, err
 		}

@@ -14,17 +14,17 @@ import (
 // tailInsertBatch は一時テーブルへの 1 回の INSERT でまとめる行数。
 const tailInsertBatch = 2000
 
-// bulkTailPushdown は TailPushdown を実行する。
-//  1. record source（graph 融合フラグメント）を実行して束縛 UUID の Record 群を得る。
+// bulkTailFragment は tail 委譲形の StoreFragment を実行する。
+//  1. Plan に入れ子の束縛フラグメント（spec.Source）を実行して束縛 UUID の Record 群を得る。
 //  2. 単一の *sql.Conn を pin し、CREATE TEMPORARY TABLE に staging エンティティの uuid を bulk INSERT。
 //  3. 一時テーブルを各エンティティの永続テーブルへ uuid で JOIN し、GROUP BY/集約/ORDER BY/LIMIT を
-//     ネイティブ SQL で実行して最終行を得る（tail を MySQL エンジンで計算）。
-//  4. 一時テーブルを DROP し conn を解放。
+//     ネイティブクエリで実行して最終行を得る（tail を対象ストアのエンジンで計算）。
+//  4. 一時テーブル/コレクションを破棄。
 //
-// 対応ストアは現状 relational(MySQL) のみ。それ以外は呼び出し側が Fallback を実行する。
-func bulkTailPushdown(qp *Processor, o *plan.TailPushdown, counter *int) ([]Row, error) {
-	// 1. record source を実行（record パイプラインとして別途 step 計測される）。
-	recs, err := ExecuteOperatorBulk(qp, o.Input, counter)
+// 対応ストアは relational(MySQL) / document(Mongo)。それ以外は呼び出し側が Plan を通常実行する。
+func bulkTailFragment(qp *Processor, o *plan.StoreFragment, spec plan.TailSpec, counter *int) ([]Row, error) {
+	// 1. 束縛フラグメントを実行（record パイプラインとして別途 step 計測される）。
+	recs, err := ExecuteOperatorBulk(qp, spec.Source, counter)
 	if err != nil {
 		return nil, err
 	}
@@ -37,11 +37,11 @@ func bulkTailPushdown(qp *Processor, o *plan.TailPushdown, counter *int) ([]Row,
 	)
 	switch o.Store {
 	case store.Relational:
-		rows, loadDur, queryDur, err = runRelationalTail(qp, o, recs)
+		rows, loadDur, queryDur, err = runRelationalTail(qp, spec, recs)
 	case store.Document:
-		rows, loadDur, queryDur, err = runDocumentTail(qp, o, recs)
+		rows, loadDur, queryDur, err = runDocumentTail(qp, spec, recs)
 	default:
-		return nil, fmt.Errorf("TailPushdown: unsupported store %q", o.Store)
+		return nil, fmt.Errorf("TailFragment: unsupported store %q", o.Store)
 	}
 	if err != nil {
 		return nil, err
@@ -56,7 +56,7 @@ func bulkTailPushdown(qp *Processor, o *plan.TailPushdown, counter *int) ([]Row,
 // runRelationalTail は MySQL 上で tail を実行し、(結果行, load時間, query時間, err) を返す。
 //   - load時間: CREATE TEMPORARY TABLE ＋ 中間 UUID の bulk INSERT（クロスストア由来のオーバーヘッド）。
 //   - query時間: JOIN + GROUP BY + ORDER BY + LIMIT の SQL 実行＋結果 scan（＝tail 計算そのもの）。
-func runRelationalTail(qp *Processor, o *plan.TailPushdown, recs []Record) ([]Row, time.Duration, time.Duration, error) {
+func runRelationalTail(qp *Processor, o plan.TailSpec, recs []Record) ([]Row, time.Duration, time.Duration, error) {
 	if qp.sqlDb == nil {
 		return nil, 0, 0, fmt.Errorf("TailPushdown[relational]: sqlDb is nil")
 	}
@@ -178,7 +178,7 @@ func insertTailRows(qp *Processor, conn *sql.Conn, tmp string, nCols int, slotId
 
 // buildTailSQL は tail の SELECT / JOIN / GROUP BY / ORDER BY / LIMIT を組み立てる。
 // 出力列名は ReturnItem.Name（＝コーディネータ経路の行キーと一致）。
-func buildTailSQL(o *plan.TailPushdown, tmp string, idxOf map[string]int) string {
+func buildTailSQL(o plan.TailSpec, tmp string, idxOf map[string]int) string {
 	// SELECT
 	var selects []string
 	for _, it := range o.Return {

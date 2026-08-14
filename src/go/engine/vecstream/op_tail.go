@@ -14,7 +14,7 @@ import (
 // キーは "alias.prop"（取得プロパティ）/ "alias"（束縛 uuid）/ 集約出力名。
 type Row = map[string]interface{}
 
-// runRow は tail（StorePushdown/Projection/Aggregate/Sort/Limit/Return）を実行する。
+// runRow は tail（StoreFragment/Projection/Aggregate/Sort/Limit/Return）を実行する。
 // Projection が record(Batch) 経路と row 経路の橋渡し点で、そこで push 並列パイプラインを起動する。
 // Aggregate/Sort/Limit/Return は pipeline breaker のためメモリ内・直列（並列化の対象は record 側）。
 func (p *Processor) runRow(op plan.PlanNode) ([]Row, error) {
@@ -23,28 +23,15 @@ func (p *Processor) runRow(op plan.PlanNode) ([]Row, error) {
 	}
 
 	switch o := op.(type) {
-	case *plan.TailPushdown:
-		// tail pushdown は bulk 専用。vecstream は Fallback（元 coordinator tail）を実行（結果等価）。
-		return p.runRow(o.Fallback)
-
-	case *plan.StorePushdown:
-		// 単一ストアへ集約委譲。record パイプラインを通らない（vectorization の hot path 外）。
-		start := time.Now()
-		rows, err := p.runStorePushdown(o)
-		if err != nil {
-			return nil, err
-		}
-		now := time.Now()
-		step := p.newStep()
-		name := "Pushdown[" + o.Store.String() + "]"
-		p.recordOp(step, name, now.Sub(start), len(rows))
-		p.recordFlow(step, name, 0, 0, 0, int64(len(rows)), 1, start, now)
-		return rows, nil
-
 	case *plan.StoreFragment:
-		// 融合フラグメントは既存 StorePushdown 実行へブリッジ。
+		// tail 委譲形（Plan に束縛フラグメントが入れ子）は bulk 専用。vecstream は Plan を
+		// そのまま通常実行してフォールバックする（結果は等価）。
+		if _, ok := plan.LowerTail(o.Plan); ok {
+			return p.runRow(o.Plan)
+		}
+		// 全体委譲: Plan を lowering してネイティブ発行。
 		start := time.Now()
-		rows, err := p.runStorePushdown(plan.StorePushdownFromFragment(o))
+		rows, err := p.runStoreFragment(o)
 		if err != nil {
 			return nil, err
 		}

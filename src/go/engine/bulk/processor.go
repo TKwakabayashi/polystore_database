@@ -100,7 +100,7 @@ func (qp *Processor) StepMetrics() []Metrics {
 }
 
 // ProcessQueryBulk は plan ツリーを全件マテリアライズ実行し、最終結果行を返す。
-// tail（Projection/Aggregate/Sort/Limit/Return/StorePushdown）は row ストリームで、
+// tail（StoreFragment/Projection/Aggregate/Sort/Limit/Return）は row ストリームで、
 // record パイプライン（EntityScan/Filter/Expand）は []Record で実行する。
 func (qp *Processor) ProcessQueryBulk(op plan.PlanNode) ([]map[string]interface{}, error) {
 	counter := 0

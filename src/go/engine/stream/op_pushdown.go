@@ -10,12 +10,13 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// streamStorePushdown は集約を単一ストアへ委譲して最終行を得る。
+// streamStoreFragment は委譲フラグメントを単一ストアで実行して最終行を得る（Plan を lowering して発行）。
 // 出力行のキーは RETURN 別名（＝ ReturnItem.Name）に一致させ、コーディネータ経路と揃える。
-func streamStorePushdown(qp *Processor, o *plan.StorePushdown, out chan<- []Row) int {
+func streamStoreFragment(qp *Processor, f *plan.StoreFragment, out chan<- []Row) int {
+	o := core.LowerFragment(f)
 	switch o.Store {
 	case store.Graph:
-		return runGraphPushdown(qp, o.Query, o.Params, out)
+		return runGraphPushdown(qp, o.Verbatim, o.Params, out)
 	case store.Relational:
 		return runRelationalPushdown(qp, o, out)
 	case store.Document:
@@ -23,7 +24,7 @@ func streamStorePushdown(qp *Processor, o *plan.StorePushdown, out chan<- []Row)
 	case store.Columnar:
 		return runColumnarPushdown(qp, o, out)
 	default:
-		fmt.Printf("StorePushdown: unsupported store %q\n", o.Store)
+		fmt.Printf("StoreFragment: unsupported store %q\n", o.Store)
 		return 0
 	}
 }
@@ -33,7 +34,7 @@ func streamStorePushdown(qp *Processor, o *plan.StorePushdown, out chan<- []Row)
 // baseline(RunNeo4j) と同じ session.Run(原クエリ, params) に揃えて公平に比較する。
 func runGraphPushdown(qp *Processor, query string, params map[string]string, out chan<- []Row) int {
 	if qp.neoDriver == nil {
-		fmt.Println("StorePushdown[graph]: neo4j driver is nil")
+		fmt.Println("StoreFragment[graph]: neo4j driver is nil")
 		return 0
 	}
 	session := qp.neoDriver.NewSession(qp.ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead})
@@ -42,7 +43,7 @@ func runGraphPushdown(qp *Processor, query string, params map[string]string, out
 	qp.countRoundTrip()
 	res, err := session.Run(qp.ctx, query, core.TypeParams(params))
 	if err != nil {
-		fmt.Printf("StorePushdown[graph] run error: %v\n", err)
+		fmt.Printf("StoreFragment[graph] run error: %v\n", err)
 		return 0
 	}
 	var rows []Row
@@ -55,7 +56,7 @@ func runGraphPushdown(qp *Processor, query string, params map[string]string, out
 		rows = append(rows, row)
 	}
 	if err := res.Err(); err != nil {
-		fmt.Printf("StorePushdown[graph] iterate error: %v\n", err)
+		fmt.Printf("StoreFragment[graph] iterate error: %v\n", err)
 	}
 	if len(rows) > 0 {
 		out <- rows
@@ -65,7 +66,7 @@ func runGraphPushdown(qp *Processor, query string, params map[string]string, out
 
 // ===== relational (MySQL): SELECT ... aggexprs ... GROUP BY ... ORDER BY ... LIMIT =====
 
-func runRelationalPushdown(qp *Processor, o *plan.StorePushdown, out chan<- []Row) int {
+func runRelationalPushdown(qp *Processor, o core.FragmentSpec, out chan<- []Row) int {
 	if qp.sqlDb == nil {
 		return 0
 	}
@@ -73,7 +74,7 @@ func runRelationalPushdown(qp *Processor, o *plan.StorePushdown, out chan<- []Ro
 	qp.countRoundTrip()
 	rows, err := qp.sqlDb.QueryContext(qp.ctx, sql, args...)
 	if err != nil {
-		fmt.Printf("StorePushdown[relational] error: %v\n  SQL: %s\n", err, sql)
+		fmt.Printf("StoreFragment[relational] error: %v\n  SQL: %s\n", err, sql)
 		return 0
 	}
 	defer rows.Close()
@@ -103,7 +104,7 @@ func runRelationalPushdown(qp *Processor, o *plan.StorePushdown, out chan<- []Ro
 
 // ===== document (Mongo): $match → $group → ($addFields for DISTINCT) → $sort → $limit =====
 
-func runDocumentPushdown(qp *Processor, o *plan.StorePushdown, out chan<- []Row) int {
+func runDocumentPushdown(qp *Processor, o core.FragmentSpec, out chan<- []Row) int {
 	if qp.mDb == nil {
 		return 0
 	}
@@ -111,7 +112,7 @@ func runDocumentPushdown(qp *Processor, o *plan.StorePushdown, out chan<- []Row)
 	qp.countRoundTrip()
 	cur, err := qp.mDb.Collection(o.Table).Aggregate(qp.ctx, pipeline)
 	if err != nil {
-		fmt.Printf("StorePushdown[document] error: %v\n", err)
+		fmt.Printf("StoreFragment[document] error: %v\n", err)
 		return 0
 	}
 	defer cur.Close(qp.ctx)
@@ -149,7 +150,7 @@ func runDocumentPushdown(qp *Processor, o *plan.StorePushdown, out chan<- []Row)
 
 // ===== columnar (Cassandra): 全体集約のみ（GROUP BY / ORDER BY / DISTINCT はプランナで除外済み） =====
 
-func runColumnarPushdown(qp *Processor, o *plan.StorePushdown, out chan<- []Row) int {
+func runColumnarPushdown(qp *Processor, o core.FragmentSpec, out chan<- []Row) int {
 	if qp.cqlSes == nil {
 		return 0
 	}
@@ -165,7 +166,7 @@ func runColumnarPushdown(qp *Processor, o *plan.StorePushdown, out chan<- []Row)
 		}
 	}
 	if err := iter.Close(); err != nil {
-		fmt.Printf("StorePushdown[columnar] error: %v\n  CQL: %s\n", err, cql)
+		fmt.Printf("StoreFragment[columnar] error: %v\n  CQL: %s\n", err, cql)
 		return 0
 	}
 	if len(row) > 0 {

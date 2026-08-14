@@ -18,16 +18,34 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func BuildRelationalSQL(o *plan.StorePushdown) (string, []interface{}) {
+func BuildRelationalSQL(o FragmentSpec) (string, []interface{}) {
 	var selects, groupCols []string
-	for _, it := range o.Items {
-		alias := sqlIdent(it.Name)
-		if it.IsAggregate {
-			selects = append(selects, sqlAggExpr(*it.Agg)+" AS "+alias)
-		} else {
-			col := itemProp(it)
-			selects = append(selects, sqlIdent(col)+" AS "+alias)
-			groupCols = append(groupCols, sqlIdent(col))
+	switch {
+	case len(o.Items) > 0:
+		// RETURN 項目駆動（主経路）: 出力順のまま SELECT を組み、非集約列を GROUP BY にする。
+		for _, it := range o.Items {
+			alias := sqlIdent(it.Name)
+			if it.IsAggregate {
+				selects = append(selects, sqlAggExpr(*it.Agg)+" AS "+alias)
+			} else {
+				col := itemProp(it)
+				selects = append(selects, sqlIdent(col)+" AS "+alias)
+				groupCols = append(groupCols, sqlIdent(col))
+			}
+		}
+	case len(o.Aggs) > 0 || len(o.GroupKeys) > 0:
+		// RETURN を含まないサブプラン: GroupKeys → Aggs の順で組む。
+		for _, g := range o.GroupKeys {
+			selects = append(selects, sqlIdent(g.Prop)+" AS "+sqlIdent(g.OutName))
+			groupCols = append(groupCols, sqlIdent(g.Prop))
+		}
+		for _, a := range o.Aggs {
+			selects = append(selects, sqlAggExpr(a)+" AS "+sqlIdent(a.OutName))
+		}
+	default:
+		// projection-only（純投影）: GROUP BY は付けない。
+		for _, p := range o.Projections {
+			selects = append(selects, sqlIdent(p.Prop)+" AS "+sqlIdent(p.OutName))
 		}
 	}
 
@@ -82,7 +100,7 @@ func sqlIdent(s string) string {
 	return "`" + strings.ReplaceAll(s, "`", "``") + "`"
 }
 
-func BuildMongoPipeline(o *plan.StorePushdown) mongo.Pipeline {
+func BuildMongoPipeline(o FragmentSpec) mongo.Pipeline {
 	var pipeline mongo.Pipeline
 
 	if len(o.Filters) > 0 {
@@ -164,7 +182,7 @@ func mongoAggExpr(a plan.AggregateItem) interface{} {
 	return nil
 }
 
-func mongoSortField(o *plan.StorePushdown, oi plan.OrderItem) string {
+func mongoSortField(o FragmentSpec, oi plan.OrderItem) string {
 	for i, gk := range o.GroupKeys {
 		if oi.Key == gk.OutName || oi.Key == gk.Alias+"."+gk.Prop {
 			return fmt.Sprintf("_id.g%d", i)
@@ -178,7 +196,7 @@ func mongoSortField(o *plan.StorePushdown, oi plan.OrderItem) string {
 	return oi.Key
 }
 
-func BuildColumnarCQL(o *plan.StorePushdown) (string, []interface{}) {
+func BuildColumnarCQL(o FragmentSpec) (string, []interface{}) {
 	var selects []string
 	for i, it := range o.Items {
 		if !it.IsAggregate || it.Agg == nil {

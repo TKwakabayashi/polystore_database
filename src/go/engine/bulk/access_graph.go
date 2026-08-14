@@ -76,11 +76,11 @@ func bulkGraphRecordFragment(qp *Processor, o *plan.StoreFragment) ([]Record, er
 	for a := range o.OutputSlot.VarToSlot {
 		aliases = append(aliases, a)
 	}
-	cypher, params := core.BuildGraphRecordCypher(o.Ops, aliases)
+	cypher, params := core.BuildGraphRecordCypher(o.Plan, aliases)
 	if cypher == "" {
 		// 生成不能な構造（非線形 traversal 等）は元の部分木を通常実行してフォールバック（等価）。
 		var counter int
-		return ExecuteOperatorBulk(qp, o.Ops, &counter)
+		return ExecuteOperatorBulk(qp, o.Plan, &counter)
 	}
 	sess := qp.newReadSession()
 	defer qp.closeSession(sess)

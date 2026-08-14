@@ -18,7 +18,7 @@ import (
 //   - query: 一時コレクションから各永続コレクションへ $lookup（uuid 結合）→ $group → $sort → $limit。
 //
 // 出力列名は ReturnItem.Name（コーディネータ経路の行キーと一致）。
-func runDocumentTail(qp *Processor, o *plan.TailPushdown, recs []Record) ([]Row, time.Duration, time.Duration, error) {
+func runDocumentTail(qp *Processor, o plan.TailSpec, recs []Record) ([]Row, time.Duration, time.Duration, error) {
 	if qp.mDb == nil {
 		return nil, 0, 0, fmt.Errorf("TailPushdown[document]: mDb is nil")
 	}
@@ -119,7 +119,7 @@ func runDocumentTail(qp *Processor, o *plan.TailPushdown, recs []Record) ([]Row,
 // buildDocTailPipeline は $lookup（uuid 結合）→ $group → $sort → $limit のパイプラインを組む。
 // _id.g{gi} は非集約 RETURN 項目（＝GROUP BY キー）を RETURN 順に、a{ai} は集約を RETURN 順に並べる
 // （runDocumentTail の結果マッピングと一致させる）。
-func buildDocTailPipeline(o *plan.TailPushdown, idxOf map[string]int) mongo.Pipeline {
+func buildDocTailPipeline(o plan.TailSpec, idxOf map[string]int) mongo.Pipeline {
 	var pipeline mongo.Pipeline
 
 	// staging エンティティごとに $lookup + $unwind（INNER JOIN 相当）。
@@ -237,7 +237,7 @@ func docTailAggExpr(a plan.AggregateItem, idxOf map[string]int) interface{} {
 }
 
 // docTailSortField は ORDER BY の出力別名（oi.Key）を $group 後のフィールド（_id.g{gi} / a{ai}）へ解決する。
-func docTailSortField(o *plan.TailPushdown, oi plan.OrderItem) string {
+func docTailSortField(o plan.TailSpec, oi plan.OrderItem) string {
 	key := oi.Key
 	if key == "" {
 		key = oi.Alias + "." + oi.Prop

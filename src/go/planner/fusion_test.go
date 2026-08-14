@@ -8,7 +8,7 @@ import (
 	"polystore_database/src/go/store"
 )
 
-// 集約クエリで参照が全て graph → クエリ全体を graph へ委譲（RawQuery）。
+// 集約クエリで参照が全て graph → クエリ全体を graph へ委譲（Verbatim）。
 func TestBuildPushdownPlanGraphWhole(t *testing.T) {
 	root := &plan.Return{
 		Items: []plan.ReturnItem{{Name: "cnt", IsAggregate: true, Agg: &plan.AggregateItem{Func: plan.AggCount, OutName: "cnt"}}},
@@ -25,7 +25,7 @@ func TestBuildPushdownPlanGraphWhole(t *testing.T) {
 	if !ok {
 		t.Fatalf("got %T, want *plan.StoreFragment", got)
 	}
-	if frag.Store != store.Graph || frag.RawQuery == "" {
+	if frag.Store != store.Graph || frag.Verbatim == "" {
 		t.Errorf("frag = %+v, want graph raw", frag)
 	}
 }
@@ -67,7 +67,7 @@ func TestBuildPushdownPlanGraphNonAggFallback(t *testing.T) {
 	}
 }
 
-// 単一 relational ストアの集約 → 融合フラグメント（Ops に Return 含む論理木）。
+// 単一 relational ストアの集約 → 融合フラグメント（Plan に Return 含む論理木）。
 func TestBuildPushdownPlanRelationalAggregate(t *testing.T) {
 	root := &plan.Return{
 		Items: []plan.ReturnItem{
@@ -88,13 +88,15 @@ func TestBuildPushdownPlanRelationalAggregate(t *testing.T) {
 	if !ok {
 		t.Fatalf("got %T, want *plan.StoreFragment", got)
 	}
-	if frag.Store != store.Relational || frag.RawQuery != "" {
+	if frag.Store != store.Relational || frag.Verbatim != "" {
 		t.Errorf("frag = %+v, want relational fused (no raw)", frag)
 	}
-	// Ops は Return を含む論理木全体。StorePushdown 変換で Items 等を復元できること。
-	sp := plan.StorePushdownFromFragment(frag)
-	if sp.Table != "Person" || len(sp.Aggs) != 1 || len(sp.GroupKeys) != 1 || len(sp.Items) != 2 {
-		t.Errorf("bridged StorePushdown = %+v", sp)
+	// Plan は Return を含む論理木全体（lowering は実行時に engine/core が行う）。
+	if frag.Plan != plan.PlanNode(root) {
+		t.Errorf("frag.Plan = %T, want 元の論理木全体", frag.Plan)
+	}
+	if frag.Emits != plan.EmitResult {
+		t.Errorf("frag.Emits = %v, want EmitResult", frag.Emits)
 	}
 }
 
@@ -124,11 +126,11 @@ func TestBuildPushdownPlanCrossStorePartialFusion(t *testing.T) {
 	if !ok {
 		t.Fatalf("proj.Input = %T, want record-mode *plan.StoreFragment", proj.Input)
 	}
-	if !frag.AsRecords || frag.Store != store.Graph {
-		t.Errorf("fragment = %+v, want AsRecords graph record-mode", frag)
+	if frag.Emits != plan.EmitBindings || frag.Store != store.Graph {
+		t.Errorf("fragment = %+v, want EmitBindings graph record-mode", frag)
 	}
-	if _, ok := frag.Ops.(*plan.EntityScan); !ok {
-		t.Errorf("frag.Ops = %T, want original *plan.EntityScan subtree", frag.Ops)
+	if _, ok := frag.Plan.(*plan.EntityScan); !ok {
+		t.Errorf("frag.Plan = %T, want original *plan.EntityScan subtree", frag.Plan)
 	}
 }
 

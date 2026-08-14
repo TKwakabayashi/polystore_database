@@ -280,32 +280,3 @@ func (r *Return) String() string {
 	}
 	return fmt.Sprintf("Return[%s]", strings.Join(items, ", "))
 }
-
-// StorePushdown は集約(＋group/order/limit)を単一ストアへ委譲する物理演算子。
-// 参照する全プロパティが1つのストアに解決できる場合にプランナが生成する。
-//   - graph: パラメータ埋め込み済みの Cypher をそのまま Neo4j で実行する。
-//   - 非graph: Table/Filters/GroupKeys/Aggs/... からネイティブ集約クエリを生成する（拡張点）。
-type StorePushdown struct {
-	Store  store.Kind        // "graph","relational","columnar","document","kvs"
-	Query  string            // graph 用: 原クエリ（$param 付き。baseline と同一発行）
-	Params map[string]string // graph 用: パラメータ（実行時に型付けして渡す）
-
-	// 非graph 生成用（traversal 無しの単一スキャン集約）
-	Table      string
-	Filters    []*ConditionNode
-	GroupKeys  []GroupKey
-	Aggs       []AggregateItem
-	OrderItems []OrderItem
-	Limit      int
-	Items      []ReturnItem
-}
-
-func (s *StorePushdown) Children() []PlanNode { return nil }
-
-func (s *StorePushdown) String() string {
-	if s.Store == store.Graph {
-		return fmt.Sprintf("StorePushdown[graph]: %s", strings.Join(strings.Fields(s.Query), " "))
-	}
-	return fmt.Sprintf("StorePushdown[%s] table=%s groups=%d aggs=%d limit=%d",
-		s.Store, s.Table, len(s.GroupKeys), len(s.Aggs), s.Limit)
-}

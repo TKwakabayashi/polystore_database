@@ -39,7 +39,7 @@ func hasRecordFragment(n plan.PlanNode) bool {
 	if n == nil {
 		return false
 	}
-	if f, ok := n.(*plan.StoreFragment); ok && f.AsRecords {
+	if f, ok := n.(*plan.StoreFragment); ok && f.Emits == plan.EmitBindings {
 		return true
 	}
 	for _, c := range n.Children() {

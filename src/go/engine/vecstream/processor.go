@@ -115,13 +115,13 @@ func (p *Processor) newStep() int {
 }
 
 // Run は plan ツリーを実行し最終結果行を返す。
-// 現行 IR の root は tail 演算子（Return/Limit/Sort/Aggregate/Projection/StorePushdown）。
+// 現行 IR の root は tail 演算子（Return/Limit/Sort/Aggregate/Projection/StoreFragment）。
 func (p *Processor) Run(op plan.PlanNode) ([]map[string]interface{}, error) {
 	if op == nil {
 		return nil, fmt.Errorf("nil plan node")
 	}
 	switch op.(type) {
-	case *plan.TailPushdown, *plan.StorePushdown, *plan.StoreFragment, *plan.Projection, *plan.Aggregate, *plan.Sort, *plan.Limit, *plan.Return:
+	case *plan.StoreFragment, *plan.Projection, *plan.Aggregate, *plan.Sort, *plan.Limit, *plan.Return:
 		rows, err := p.runRow(op)
 		if err != nil {
 			return nil, err
@@ -146,9 +146,9 @@ func (p *Processor) build(op plan.PlanNode) (Iterator, error) {
 		for a := range o.OutputSlot.VarToSlot {
 			aliases = append(aliases, a)
 		}
-		cypher, params := core.BuildGraphRecordCypher(o.Ops, aliases)
+		cypher, params := core.BuildGraphRecordCypher(o.Plan, aliases)
 		if cypher == "" {
-			return p.build(o.Ops)
+			return p.build(o.Plan)
 		}
 		step := p.newStep()
 		return &fragmentIterator{p: p, cypher: cypher, params: params, outSlot: o.OutputSlot, step: step}, nil
