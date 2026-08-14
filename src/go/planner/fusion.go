@@ -74,10 +74,150 @@ func BuildPushdownPlan(root plan.PlanNode, query string, params map[string]strin
 			}
 			return root
 		}
+
+		// 3. 一般セグメンタ: record パイプラインがストアをまたぐ場合、隣接同一ストアの最長ランへ
+		//    分割して融合する（境界は下位ランのフラグメントを入れ子にして表現）。
+		if settings.GeneralSegmentation {
+			proj.Input = segmentRecordPipeline(proj.Input)
+			return root
+		}
 	}
 
 	// フォールバック: コーディネータ木（record パイプラインが非 graph 混在など）。
 	return root
+}
+
+// ===== 一般セグメンタ（capability 駆動） =====
+
+// segmentRecordPipeline は record パイプライン（Projection.Input 以下）を「隣接する同一ストアの
+// 最長ラン」へ分割し、融合可能なランを StoreFragment（Emits:Bindings）へ包んで返す。
+// ラン境界は「上位ランの Plan 連鎖の末端に下位ランのフラグメントが入れ子になる」形で表現し、
+// 実行側は境界フラグメントの束縛 uuid を IN-list として上位ランのクエリへ注入する。
+//
+// 実行順序は変えない（隣接演算子をまとめるだけ）。融合できないランはそのままの論理演算子として残り、
+// コーディネータが従来どおり実行する（結果は等価）。
+//
+// 現状 lowering があるのは graph ラン（core.BuildGraphRecordCypher）のみ。非 graph ランは
+// フラグメント化しても lowering 不能でフォールバックするため、無駄な入れ子を避けて包まない。
+func segmentRecordPipeline(sub plan.PlanNode) plan.PlanNode {
+	// 葉→根の順に演算子を並べる。
+	var chain []plan.PlanNode
+	for n := sub; n != nil; {
+		chain = append(chain, n)
+		ch := n.Children()
+		if len(ch) == 0 {
+			break
+		}
+		n = ch[0]
+	}
+	for i, j := 0, len(chain)-1; i < j; i, j = i+1, j-1 {
+		chain[i], chain[j] = chain[j], chain[i]
+	}
+
+	// 隣接同一ストアでランに区切る。
+	type run struct {
+		store store.Kind
+		ops   []plan.PlanNode
+	}
+	var runs []run
+	for _, op := range chain {
+		k, ok := recordOpStore(op)
+		if !ok {
+			return sub // 想定外の演算子 → 融合しない
+		}
+		if len(runs) > 0 && runs[len(runs)-1].store == k {
+			runs[len(runs)-1].ops = append(runs[len(runs)-1].ops, op)
+			continue
+		}
+		runs = append(runs, run{store: k, ops: []plan.PlanNode{op}})
+	}
+	if len(runs) <= 1 {
+		return sub // 単一ラン。既存の戦略2（部分融合）が扱う
+	}
+
+	// 葉→根へ、各ランをフラグメントへ包む。lower は直前ランのフラグメント（＝境界）。
+	//
+	// 全ランを包むのが要点: 上位ランの lowering が「連鎖の末端に別ストアの素の演算子」を見ると
+	// 必ず生成失敗するため、境界は常にフラグメントとして現れる必要がある。lowering を持たない
+	// ストアのランはフラグメントのまま Plan を通常実行してフォールバックする（結果は等価）。
+	var lower plan.PlanNode
+	for _, r := range runs {
+		top := r.ops[len(r.ops)-1] // ラン内で最も根に近い演算子
+		if lower != nil {
+			setRecordInput(r.ops[0], lower) // ラン先頭の入力を下位ランのフラグメントへ繋ぎ直す
+		}
+		if !runSupported(r.store, r.ops) {
+			return sub // capability を満たさないランがある → 融合しない
+		}
+		lower = &plan.StoreFragment{
+			Store:      r.store,
+			Plan:       top,
+			Emits:      plan.EmitBindings,
+			OutputSlot: recordOutputSlot(top),
+		}
+	}
+	return lower
+}
+
+// recordOpStore は record 演算子のアクセス先ストアを返す（traversal は graph 固定）。
+func recordOpStore(op plan.PlanNode) (store.Kind, bool) {
+	switch o := op.(type) {
+	case *plan.EntityScan:
+		return o.DataStore, true
+	case *plan.Filter:
+		return o.DataStore, true
+	case *plan.Expand, *plan.VarLengthExpand:
+		return store.Graph, true
+	}
+	return store.Graph, false
+}
+
+// runSupported はラン内の全演算子を対象ストアが capability 上ネイティブ実行できるかを返す。
+func runSupported(k store.Kind, ops []plan.PlanNode) bool {
+	for _, op := range ops {
+		var cap plan.OpCapability
+		switch op.(type) {
+		case *plan.EntityScan, *plan.Filter:
+			cap = plan.CapFilter
+		case *plan.Expand:
+			cap = plan.CapExpand
+		case *plan.VarLengthExpand:
+			cap = plan.CapVarExpand
+		default:
+			return false
+		}
+		if !plan.Supports(k, cap) {
+			return false
+		}
+	}
+	return true
+}
+
+// setRecordInput は record 演算子の入力を差し替える（ラン境界の結線）。
+func setRecordInput(op plan.PlanNode, in plan.PlanNode) {
+	switch o := op.(type) {
+	case *plan.Filter:
+		o.Input = in
+	case *plan.Expand:
+		o.Input = in
+	case *plan.VarLengthExpand:
+		o.Input = in
+	}
+}
+
+// recordOutputSlot は record 演算子の出力スロット表を返す（フラグメントの出力束縛）。
+func recordOutputSlot(op plan.PlanNode) plan.SlotTable {
+	switch o := op.(type) {
+	case *plan.EntityScan:
+		return o.OutputSlot
+	case *plan.Filter:
+		return o.OutputSlot
+	case *plan.Expand:
+		return o.OutputSlot
+	case *plan.VarLengthExpand:
+		return o.OutputSlot
+	}
+	return plan.SlotTable{}
 }
 
 // findProjection は論理木を根→葉へ辿って最初の Projection を返す（tail の直下）。

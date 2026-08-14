@@ -175,3 +175,63 @@ func TestBuildPushdownPlanColumnarGroupByFallback(t *testing.T) {
 		t.Errorf("columnar + GROUP BY should fall back, got StoreFragment")
 	}
 }
+
+// 一般セグメンタ: record パイプラインがストアをまたぐ（rdb scan → graph expand）場合、
+// 隣接同一ストアの最長ランへ分割し、graph ランをフラグメントへ包む。
+// 境界は「graph ランの Plan 連鎖の末端に下位ラン（rdb scan）が繋がる」形で表現される。
+func TestSegmentRecordPipelineCrossStoreRuns(t *testing.T) {
+	prev := settings.GeneralSegmentation
+	settings.GeneralSegmentation = true
+	defer func() { settings.GeneralSegmentation = prev }()
+
+	scan := &plan.EntityScan{
+		Alias: "p", Labels: []string{"Person"}, DataStore: store.Relational,
+		OutputSlot: plan.SlotTable{VarToSlot: map[string]int{"p": 0}, SlotToVar: []string{"p"}},
+	}
+	exp := &plan.Expand{
+		Alias: "r", RelLabel: "KNOWS", Dir: plan.Outgoing,
+		SourceEntity: "p", TargetEntity: "friend", TargetLabels: []string{"Person"},
+		Input:      scan,
+		OutputSlot: plan.SlotTable{VarToSlot: map[string]int{"friend": 0}, SlotToVar: []string{"friend"}},
+	}
+	// graph ランを 2 演算子にするため Expand の上に graph Filter を積む。
+	filt := &plan.Filter{
+		Alias: "friend", DataStore: store.Graph, Input: exp,
+		OutputSlot: plan.SlotTable{VarToSlot: map[string]int{"friend": 0}, SlotToVar: []string{"friend"}},
+	}
+	proj := &plan.Projection{
+		InputSlot: plan.SlotTable{VarToSlot: map[string]int{"friend": 0}, SlotToVar: []string{"friend"}},
+		Units: []plan.ProjectionUnit{{Alias: "friend", Fetches: []plan.FetchPlan{
+			{Store: store.Graph, Props: []string{"name"}},
+		}}},
+		Input: filt,
+	}
+	root := &plan.Return{
+		Items: []plan.ReturnItem{{Name: "friend.name", Alias: "friend", Props: []string{"name"}}},
+		Input: proj,
+	}
+
+	BuildPushdownPlan(root, "irrelevant", nil)
+
+	frag, ok := proj.Input.(*plan.StoreFragment)
+	if !ok {
+		t.Fatalf("proj.Input = %T, want graph run *plan.StoreFragment", proj.Input)
+	}
+	if frag.Store != store.Graph || frag.Emits != plan.EmitBindings {
+		t.Errorf("fragment = %+v, want graph EmitBindings", frag)
+	}
+	if frag.Plan != plan.PlanNode(filt) {
+		t.Errorf("frag.Plan = %T, want graph ラン先頭(Filter)", frag.Plan)
+	}
+	// 境界: 下位ラン（rdb scan）もフラグメント化され、Expand の入力として繋がっていること。
+	lower, ok := exp.Input.(*plan.StoreFragment)
+	if !ok {
+		t.Fatalf("Expand.Input = %T, want 下位ラン *plan.StoreFragment", exp.Input)
+	}
+	if lower.Store != store.Relational || lower.Emits != plan.EmitBindings {
+		t.Errorf("下位ラン = %+v, want relational EmitBindings", lower)
+	}
+	if lower.Plan != plan.PlanNode(scan) {
+		t.Errorf("下位ラン.Plan = %T, want EntityScan(rdb)", lower.Plan)
+	}
+}

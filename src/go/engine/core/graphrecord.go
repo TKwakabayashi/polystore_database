@@ -34,11 +34,25 @@ func BuildGraphRecordCypher(sub plan.PlanNode, outAliases []string) (string, map
 	}
 
 	var pattern strings.Builder
-	placed := map[string]bool{} // パターンに登場済みの alias
-	last := ""                  // 直近に置いたノード alias（線形連結の検証用）
+	placed := map[string]bool{}   // パターンに登場済みの alias
+	incoming := map[string]bool{} // 下位フラグメント（境界）から束縛が供給される alias
+	last := ""                    // 直近に置いたノード alias（線形連結の検証用）
 	var whereParts []string
 	params := map[string]interface{}{}
 	pi := 0
+
+	// placeIncoming は境界から供給される alias をパターン起点として置き、uuid IN 条件を付ける。
+	// 実際の uuid 配列は実行時にエンジンが IncomingParam(alias) へ束縛する。
+	placeIncoming := func(alias string) bool {
+		if last != "" || !incoming[alias] {
+			return false
+		}
+		pattern.WriteString("(" + alias + ")")
+		placed[alias] = true
+		last = alias
+		whereParts = append(whereParts, fmt.Sprintf("%s.uuid IN $%s", alias, IncomingParam(alias)))
+		return true
+	}
 
 	addLabelCond := func(alias string, labels []string) {
 		if len(labels) == 0 {
@@ -74,13 +88,24 @@ func BuildGraphRecordCypher(sub plan.PlanNode, outAliases []string) (string, map
 			last = op.Alias
 			addLabelCond(op.Alias, op.Labels)
 			addFilters(op.Filter)
+		case *plan.StoreFragment:
+			// 境界: 下位ラン（別ストア）が供給する束縛。ここでは起点だけ控え、
+			// 最初にこの alias を使う演算子でパターンへ置く。
+			if op.Emits != plan.EmitBindings {
+				return "", nil
+			}
+			for a := range op.OutputSlot.VarToSlot {
+				incoming[a] = true
+			}
 		case *plan.Filter:
 			if op.DataStore != store.Graph {
 				return "", nil // 非 graph filter があれば部分融合の対象外
 			}
+			placeIncoming(op.Alias)
 			addLabelCond(op.Alias, op.Labels)
 			addFilters(op.Filter)
 		case *plan.Expand:
+			placeIncoming(op.SourceEntity)
 			if op.SourceEntity != last {
 				return "", nil // 非線形（分岐）traversal は非対応 → フォールバック
 			}
@@ -93,6 +118,7 @@ func BuildGraphRecordCypher(sub plan.PlanNode, outAliases []string) (string, map
 			last = op.TargetEntity
 			addLabelCond(op.TargetEntity, op.TargetLabels)
 		case *plan.VarLengthExpand:
+			placeIncoming(op.SourceEntity)
 			if op.SourceEntity != last {
 				return "", nil
 			}
@@ -130,6 +156,26 @@ func BuildGraphRecordCypher(sub plan.PlanNode, outAliases []string) (string, map
 	}
 	q += " RETURN " + strings.Join(rets, ", ")
 	return q, params
+}
+
+// IncomingParam は境界（下位フラグメント）から供給される束縛 uuid 配列を渡す Cypher パラメータ名。
+// 生成側（BuildGraphRecordCypher）と実行側（各エンジン）で同じ規約を使う。
+func IncomingParam(alias string) string { return "in_" + alias }
+
+// BoundaryFragment は Plan の連鎖に現れる下位フラグメント（境界入力）を返す（無ければ nil）。
+// 一般セグメンタが作るラン境界を実行側が見つけるために使う。
+func BoundaryFragment(p plan.PlanNode) *plan.StoreFragment {
+	for n := p; n != nil; {
+		if f, ok := n.(*plan.StoreFragment); ok && f.Emits == plan.EmitBindings {
+			return f
+		}
+		ch := n.Children()
+		if len(ch) == 0 {
+			return nil
+		}
+		n = ch[0]
+	}
+	return nil
 }
 
 // edgePattern は方向付きの関係パターン片を返す（rangeLit は可変長時のみ）。

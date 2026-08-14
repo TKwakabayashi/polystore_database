@@ -82,6 +82,35 @@ func bulkGraphRecordFragment(qp *Processor, o *plan.StoreFragment) ([]Record, er
 		var counter int
 		return ExecuteOperatorBulk(qp, o.Plan, &counter)
 	}
+
+	// ラン境界: 下位ラン（別ストア）のフラグメントを先に実行し、束縛 uuid を IN-list として注入する。
+	if b := core.BoundaryFragment(o.Plan); b != nil {
+		var counter int
+		inRecs, err := ExecuteOperatorBulk(qp, b, &counter)
+		if err != nil {
+			return nil, err
+		}
+		for alias, idx := range b.OutputSlot.VarToSlot {
+			seen := make(map[uid.UUID]struct{}, len(inRecs))
+			ids := make([]string, 0, len(inRecs))
+			for _, r := range inRecs {
+				if idx >= len(r.Slots) {
+					continue
+				}
+				u := r.Slots[idx]
+				if u.Empty() {
+					continue
+				}
+				if _, dup := seen[u]; dup {
+					continue
+				}
+				seen[u] = struct{}{}
+				ids = append(ids, u.String())
+			}
+			params[core.IncomingParam(alias)] = ids
+		}
+	}
+
 	sess := qp.newReadSession()
 	defer qp.closeSession(sess)
 

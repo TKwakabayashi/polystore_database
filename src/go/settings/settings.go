@@ -54,6 +54,11 @@ var (
 // （hash join / IN-list 押し込み / nested-loop の分岐）。
 var IntegrateRowThreshold = 1024
 
+// GeneralSegmentation は一般セグメンタ（record パイプラインを隣接同一ストアの最長ランへ分割して
+// 融合する）の有効化。ランの境界は下位ランの束縛 uuid を IN-list で上位ランへ渡す。
+// 現状 lowering があるのは graph ランのみ（非 graph ランは素の演算子のまま実行）。既定 false・実験。
+var GeneralSegmentation = false
+
 // ===== 計測（bench） =====
 const (
 	Warmup = 3  // 計測から除外する先頭ウォームアップ回数
