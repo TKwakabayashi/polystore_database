@@ -72,3 +72,28 @@ var capabilities = map[store.Kind]map[OpCapability]bool{
 func Supports(k store.Kind, c OpCapability) bool {
 	return capabilities[k][c]
 }
+
+// CanExpressCondition は store k が条件 c をネイティブフィルタとして表現できるかを返す。
+// 融合パス（fusion.go）が、単一ストアへ委譲するフラグメントの各条件を検査し、表現不能な
+// 述語があればそのフラグメントを融合対象から外してコーディネータ評価へフォールバックさせる。
+//
+//   - CondVarCmp（クロスエイリアス比較）: どのストアでも表現不可（PostFilter で評価）。
+//   - IS NULL / IS NOT NULL: CQL（columnar）は表現不可。他ストアは可。
+//   - IN・比較（=,<>,<,>,<=,>=）: 全ストアで可（KVS はアクセス層のメモリ評価で吸収）。
+func CanExpressCondition(k store.Kind, c *ConditionNode) bool {
+	if c == nil {
+		return true
+	}
+	switch c.Type {
+	case CondVarCmp:
+		return false
+	case CondAnd, CondOr:
+		return CanExpressCondition(k, c.Left) && CanExpressCondition(k, c.Right)
+	case CondNot, CondParen:
+		return CanExpressCondition(k, c.Child)
+	case CondIsNull, CondIsNotNull:
+		return k != store.Columnar
+	default:
+		return true
+	}
+}

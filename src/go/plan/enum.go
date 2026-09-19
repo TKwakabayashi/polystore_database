@@ -102,7 +102,37 @@ const (
 	CondNone   //
 	CondAny    //
 	CondSingle //
+
+	CondIn        // expr IN [v1, v2, ...]
+	CondIsNull    // expr IS NULL
+	CondIsNotNull // expr IS NOT NULL
+	CondVarCmp    // a.x <op> b.y（クロスエイリアス比較。実比較子は ConditionNode.CmpOp）
 )
+
+// IsQuantifier は要素述語（パスフィルタ）の量化子（all/any/none/single）かを返す。
+func (t ConditionType) IsQuantifier() bool {
+	switch t {
+	case CondAll, CondAny, CondNone, CondSingle:
+		return true
+	}
+	return false
+}
+
+// CypherQuant は量化子 ConditionType の Cypher 関数名を返す（パスフィルタ生成用）。
+func (t ConditionType) CypherQuant() string {
+	switch t {
+	case CondAll:
+		return "all"
+	case CondAny:
+		return "any"
+	case CondNone:
+		return "none"
+	case CondSingle:
+		return "single"
+	default:
+		return ""
+	}
+}
 
 type AggFunc int
 

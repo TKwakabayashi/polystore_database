@@ -10,6 +10,10 @@ type ReturnItem struct {
 
 	IsAggregate bool
 	Agg         *AggregateItem
+
+	// Expr は計算式（CASE/算術/関数）の項目。非 nil なら Return はこの式を Row 上で評価して出力する
+	// （Alias/Props より優先）。参照するプロパティは Projection が事前材料化する。
+	Expr Expr
 }
 
 type ProjectionUnit struct {
