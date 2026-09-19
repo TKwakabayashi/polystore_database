@@ -43,7 +43,16 @@ var coreMustPassAll = map[string]bool{"Q11": true}
 //   - 範囲フィルタ（>= / <=）を使う Q2/AGG4/AGG5 は auto-pushdown で単一ストアへ委譲され
 //     record パイプラインを通らないため、ここでは扱わず bench-models（PushdownForceEngine）で
 //     全配置を確認する。Q9 は結果 0 件かつ低速のため除外。
-var equivWorkloads = []string{"Q11", "IS2", "IS3", "AGG1", "AGG6"}
+//
+// クエリ表現拡充（feat/query_expansipn）のワークロードを追加する。graph 配置で 4 モデルの
+// 結果 multiset 一致を確認し、IN/IS NULL の graph access・PostFilter・可変長パスフィルタが
+// 各エンジンで等価に動くことを担保する（合成 seed で 0 件でも「等価」は保たれる。実 dump では非空）。
+var equivWorkloads = []string{"Q11", "IS2", "IS3", "AGG1", "AGG6",
+	"INLIST", "ISNULL", "VARCMP", "MULTIPAT", "PATHFILT",
+	"BI3", "BI9",
+	// Phase A: graph verbatim 委譲（全4エンジンで同一 Cypher を発行するため一致は自明。実行エラー検出用）。
+	"IS7", "IC1", "IC3", "IC4", "IC6", "IC12",
+	"BI5", "BI6", "BI7", "BI8", "BI11", "BI12", "BI14", "BI18"}
 
 // TestEngineEquivalence は graph 配置で各ワークロードを 4 モデルで実行し、成功したモデル間で
 // 結果の行集合（順序非依存の multiset）が一致することを検証する。coreMustPassAll のワークロードは
