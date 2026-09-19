@@ -2,6 +2,7 @@ package stream
 
 import (
 	"fmt"
+	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
 	"sort"
 	"strconv"
@@ -18,18 +19,27 @@ func executeRowStream(qp *Processor, op plan.PlanNode, counter *int, wg *sync.Wa
 	}
 
 	switch o := op.(type) {
-	case *plan.StorePushdown:
-		return spawnRowOp(qp, "Pushdown["+o.Store.String()+"]", counter, wg, func(out chan []Row) int {
-			return streamStorePushdown(qp, o, out)
+	case *plan.StoreFragment:
+		// tail 委譲形（Plan に束縛フラグメントが入れ子）は bulk 専用。stream は Plan を
+		// そのまま通常実行してフォールバックする（結果は等価）。
+		if _, ok := plan.LowerTail(o.Plan); ok {
+			return executeRowStream(qp, o.Plan, counter, wg)
+		}
+		return spawnRowOp(qp, "Fragment["+o.Store.String()+"]", counter, wg, func(step int, out chan []Row) int {
+			return streamStoreFragment(qp, o, out)
 		}), nil
+
+	case *plan.Integrate:
+		// 統合演算子（ID 材料化）: 実体は Projection と同一なので既存実装へ委譲する。
+		return executeRowStream(qp, o.AsProjection(), counter, wg)
 
 	case *plan.Projection:
 		recCh, err := ExecuteOperatorStream(qp, o.Input, counter, wg)
 		if err != nil {
 			return nil, err
 		}
-		return spawnRowOp(qp, "Projection", counter, wg, func(out chan []Row) int {
-			return streamProjection(qp, o, recCh, out)
+		return spawnRowOp(qp, "Projection", counter, wg, func(step int, out chan []Row) int {
+			return streamProjection(qp, o, step, recCh, out)
 		}), nil
 
 	case *plan.Aggregate:
@@ -37,7 +47,7 @@ func executeRowStream(qp *Processor, op plan.PlanNode, counter *int, wg *sync.Wa
 		if err != nil {
 			return nil, err
 		}
-		return spawnRowOp(qp, "Aggregate", counter, wg, func(out chan []Row) int {
+		return spawnRowOp(qp, "Aggregate", counter, wg, func(step int, out chan []Row) int {
 			return streamAggregate(o, in, out)
 		}), nil
 
@@ -46,7 +56,7 @@ func executeRowStream(qp *Processor, op plan.PlanNode, counter *int, wg *sync.Wa
 		if err != nil {
 			return nil, err
 		}
-		return spawnRowOp(qp, "Sort", counter, wg, func(out chan []Row) int {
+		return spawnRowOp(qp, "Sort", counter, wg, func(step int, out chan []Row) int {
 			return streamSort(o, in, out)
 		}), nil
 
@@ -55,7 +65,7 @@ func executeRowStream(qp *Processor, op plan.PlanNode, counter *int, wg *sync.Wa
 		if err != nil {
 			return nil, err
 		}
-		return spawnRowOp(qp, "Limit", counter, wg, func(out chan []Row) int {
+		return spawnRowOp(qp, "Limit", counter, wg, func(step int, out chan []Row) int {
 			return streamLimit(o, in, out)
 		}), nil
 
@@ -64,8 +74,35 @@ func executeRowStream(qp *Processor, op plan.PlanNode, counter *int, wg *sync.Wa
 		if err != nil {
 			return nil, err
 		}
-		return spawnRowOp(qp, "Return", counter, wg, func(out chan []Row) int {
+		return spawnRowOp(qp, "Return", counter, wg, func(step int, out chan []Row) int {
 			return streamReturn(o, in, out)
+		}), nil
+
+	case *plan.RowFilter:
+		in, err := executeRowStream(qp, o.Input, counter, wg)
+		if err != nil {
+			return nil, err
+		}
+		return spawnRowOp(qp, "RowFilter", counter, wg, func(step int, out chan []Row) int {
+			return streamRowFilter(o, in, out)
+		}), nil
+
+	case *plan.RowProject:
+		in, err := executeRowStream(qp, o.Input, counter, wg)
+		if err != nil {
+			return nil, err
+		}
+		return spawnRowOp(qp, "RowProject", counter, wg, func(step int, out chan []Row) int {
+			n := 0
+			for batch := range in {
+				outb := make([]Row, len(batch))
+				for i, row := range batch {
+					outb[i] = core.ProjectRow(row, o.Cols)
+				}
+				out <- outb
+				n += len(outb)
+			}
+			return n
 		}), nil
 
 	default:
@@ -73,7 +110,29 @@ func executeRowStream(qp *Processor, op plan.PlanNode, counter *int, wg *sync.Wa
 	}
 }
 
-func spawnRowOp(qp *Processor, name string, counter *int, wg *sync.WaitGroup, run func(out chan []Row) int) chan []Row {
+// streamRowFilter は post-WITH の WHERE を Row 上で評価する（式は Expr、判定は core.EvalExpr+Truthy）。
+func streamRowFilter(o *plan.RowFilter, in <-chan []Row, out chan<- []Row) int {
+	emitted := 0
+	for batch := range in {
+		kept := make([]Row, 0, len(batch))
+		for _, row := range batch {
+			v, err := core.EvalExpr(o.Cond, row)
+			if err != nil {
+				continue // 評価不能行は除外（保守的）
+			}
+			if core.Truthy(v) {
+				kept = append(kept, row)
+			}
+		}
+		if len(kept) > 0 {
+			out <- kept
+			emitted += len(kept)
+		}
+	}
+	return emitted
+}
+
+func spawnRowOp(qp *Processor, name string, counter *int, wg *sync.WaitGroup, run func(step int, out chan []Row) int) chan []Row {
 	out := make(chan []Row, 500)
 	*counter++
 	step := *counter
@@ -81,10 +140,14 @@ func spawnRowOp(qp *Processor, name string, counter *int, wg *sync.WaitGroup, ru
 	go func() {
 		defer wg.Done()
 		defer close(out)
-		rows := run(out)
-		qp.metricsMu.Lock()
-		qp.metrics[step] = Metrics{StepNum: step, OpType: name, RowCount: rows}
-		qp.metricsMu.Unlock()
+		t0 := time.Now()
+		rows := run(step, out)
+		t1 := time.Now()
+		qp.recordOp(step, name, t1.Sub(t0), rows)
+		// Projection は自身の per-batch フローを記録する（RecordFlow）ため二重計上を避ける。
+		if name != "Projection" {
+			qp.recordFlow(step, name, 0, 0, 0, int64(rows), 0, t0, t1)
+		}
 	}()
 	return out
 }
@@ -278,6 +341,10 @@ func streamReturn(o *plan.Return, in <-chan []Row, out chan<- []Row) int {
 }
 
 func shapeValue(item plan.ReturnItem, r Row) interface{} {
+	if item.Expr != nil {
+		v, _ := core.EvalExpr(item.Expr, r)
+		return v
+	}
 	if item.IsAggregate {
 		return r[item.Agg.OutName]
 	}

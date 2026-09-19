@@ -17,6 +17,7 @@ const (
 	EngineBulk       EngineKind = "bulk"
 	EngineVolcano    EngineKind = "volcano"
 	EngineVectorized EngineKind = "vectorized"
+	EngineVecStream  EngineKind = "vecstream" // push × 列 Batch × parallel
 )
 
 var (
@@ -34,6 +35,49 @@ const (
 
 var Pushdown = PushdownAuto // ★ pushdown 方針（旧 planner.SelectedPushdown）
 
+// 以下は Pushdown==PushdownAuto のときだけ意味を持つ独立トグル（projection / aggregation を個別制御）。
+var (
+	// TailPushdown: traversal 由来の中間 UUID を単一の非 graph ストア（現状 relational/MySQL）の
+	// 一時テーブルへロードし、RETURN 句 tail（Projection/Aggregate/GroupBy/Sort/Limit）を
+	// そのストアのネイティブエンジンで実行する実験的パス。OFF なら従来通り tail を自作エンジンで計算する。
+	// tail が参照する全プロパティが単一ストアに解決でき、そのストアが必要な能力を持つ場合のみ発火する。
+	TailPushdown = false
+	// AggregationPushdown: 集約をストアへ委譲するか。OFF なら委譲せず engine で計算する
+	// （fusion の BuildPushdownPlan が判定に使用済み）。
+	AggregationPushdown = true
+	// ProjectionPushdown: 非集約クエリの RETURN 列をストアのネイティブ SELECT/RETURN へ畳み込むか
+	// （＝ materialize の往復を無くす）。単一ストアに解決する非集約クエリを丸ごと委譲する。
+	//
+	// 既定 false: ON にすると全 graph の非集約クエリが Neo4j へ verbatim 委譲されるため、
+	// 実行モデル比較（EngineEquivalence / bench-models）が engine 経路を測らなくなる。
+	ProjectionPushdown = false
+)
+
+// IntegrateRowThreshold は統合演算子の実行時方式選択の閾値
+// （hash join / IN-list 押し込み / nested-loop の分岐）。※方式選択自体は未実装。
+var IntegrateRowThreshold = 1024
+
+// MaterializeChunkSize は ID 材料化で 1 クエリへ載せる識別子数の希望値（0 = ストア既定を使う）。
+// 実測スイープ用の全体上書きノブ。実効値は engine/core.ChunkSize が
+// min(この値 or ストア既定, ストアの物理上限 store.LimitsOf(k).MaxInList) で clamp する。
+var MaterializeChunkSize = 0
+
+// GeneralSegmentation は一般セグメンタ（record パイプラインを隣接同一ストアの最長ランへ分割して
+// 融合する）の有効化。ランの境界は下位ランの束縛 uuid を IN-list で上位ランへ渡す。
+// 現状 lowering があるのは graph ランのみ（非 graph ランは素の演算子のまま実行）。既定 false・実験。
+var GeneralSegmentation = false
+
+// ExplicitIntegrate は「複数ストアから materialize する Projection を Integrate（統合演算子）へ
+// 置き換える」プラン表現の明示化。実行は同一（ID 材料化）で結果は不変だが、統合が起きる場所が
+// プラン上に現れる。既定 false・実験。
+var ExplicitIntegrate = false
+
+// MultiStage は WITH 多段クエリ（Phase B2）を structured 経路（RowSource/RowFilter・多段プラン）で
+// 実行するか。既定 false のときは多段クエリを graph verbatim 委譲へフォールバックし、従来挙動を保つ
+// （Neo4j がネイティブ処理）。true にすると自作エンジンで多段実行し、非graph 配置でも動く。
+// 段階導入のためのトグル: 文法・リスナ・プランナが整うまで既定 OFF で既存結果を不変に保つ。
+var MultiStage = false
+
 // ===== 計測（bench） =====
 const (
 	Warmup = 3  // 計測から除外する先頭ウォームアップ回数
@@ -45,9 +89,18 @@ var (
 	// BenchPlacements は P3b で []store.Kind へ型付け予定（現状は文字列）。
 	BenchPlacements = []string{"graph", "rdb", "doc", "col", "kvs"}
 	BenchPushdowns  = []string{"auto", "engine"}
-	BenchModels     = []string{"stream", "bulk", "volcano", "vectorized"}
+	BenchModels     = []string{"stream", "bulk", "volcano", "vectorized", "vecstream"}
 
 	MigrationDeleteSource = true // ★ 移行成功後にソース側を削除する（旧 -delete フラグ）
+)
+
+// ===== verify（-mode verify：配置×pushdown×エンジン×バッチの性能検証マトリクス）=====
+var (
+	// VerifyEngines は verify マトリクスで横断計測する自作エンジン（Neo4j 直接は別途基準として測る）。
+	VerifyEngines = []string{"stream", "bulk", "vecstream"}
+	// VerifyBatchSizes は VectorSize を振るスイープ点。stream/vecstream のバッチ幅に効く
+	// （bulk はバッチ非依存のため 1 回のみ計測）。
+	VerifyBatchSizes = []int{256, 1024, 4096}
 )
 
 // ===== 出力 =====

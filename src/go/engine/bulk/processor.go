@@ -100,7 +100,7 @@ func (qp *Processor) StepMetrics() []Metrics {
 }
 
 // ProcessQueryBulk は plan ツリーを全件マテリアライズ実行し、最終結果行を返す。
-// tail（Projection/Aggregate/Sort/Limit/Return/StorePushdown）は row ストリームで、
+// tail（StoreFragment/Projection/Aggregate/Sort/Limit/Return）は row ストリームで、
 // record パイプライン（EntityScan/Filter/Expand）は []Record で実行する。
 func (qp *Processor) ProcessQueryBulk(op plan.PlanNode) ([]map[string]interface{}, error) {
 	counter := 0
@@ -118,6 +118,17 @@ func (qp *Processor) ProcessQueryBulk(op plan.PlanNode) ([]map[string]interface{
 func ExecuteOperatorBulk(qp *Processor, op plan.PlanNode, counter *int) ([]Record, error) {
 	if op == nil {
 		return nil, fmt.Errorf("Empty Operator Passed")
+	}
+
+	// RowSource（WITH ステージ境界）: 子は Row 世界なので record 世界の汎用 child 実行の前に扱う。
+	// 前段 Row を executeRowBulk で得て Record へ変換する（束縛→スロット、値→Vals）。
+	if rs, ok := op.(*plan.RowSource); ok {
+		rows, err := executeRowBulk(qp, rs.Input, counter)
+		if err != nil {
+			return nil, err
+		}
+		*counter++
+		return core.BuildStageRecords(rows, rs.BindCols, rs.ValCols, rs.OutputSlot), nil
 	}
 
 	// 1. 再帰的に上流（Child）を全件実行（この時間は計測に含めない）
@@ -155,6 +166,13 @@ func ExecuteOperatorBulk(qp *Processor, op plan.PlanNode, counter *int) ([]Recor
 	case *plan.Filter:
 		opType = "Filter"
 		output, err = filterByStore(qp, o, input)
+	case *plan.PostFilter:
+		opType = "PostFilter"
+		output, err = bulkPostFilter(qp, o, input)
+	case *plan.StoreFragment:
+		// record-mode: 融合した graph traversal を 1 本の Cypher で実行し束縛 UUID を得る（部分融合）。
+		opType = "Fragment[" + o.Store.String() + "]"
+		output, err = bulkGraphRecordFragment(qp, o)
 	default:
 		return nil, fmt.Errorf("unexpected record operator: %T", op)
 	}

@@ -19,7 +19,7 @@ import (
 // パッケージ（編集→再ビルド）で切り替える。
 func main() {
 	var (
-		mode       = flag.String("mode", "run", "実行モード: setup | migrate | run | workflow | bench | bench-models")
+		mode       = flag.String("mode", "run", "実行モード: setup | migrate | run | workflow | bench | bench-models | verify")
 		workload   = flag.String("workload", "Q11", "ワークロード名（bench はカンマ区切り複数 or all）")
 		configPath = flag.String("config", "../../config/config.json", "設定ファイル(JSON)")
 		migMode    = flag.String("migmode", "graph_to_rdb", "移行モード（a_to_b）: migrate / workflow で使用")
@@ -86,6 +86,26 @@ func main() {
 		}
 		if err := bench.RunModelBenchmark(ctx, cfg, wls, *outPath); err != nil {
 			log.Fatalf("bench-models に失敗: %v", err)
+		}
+
+	case "verify":
+		// 配置 × pushdown × エンジン × バッチの性能検証マトリクス（横断=行数+全体時間、
+		// stream/vecstream は演算子別 Detail も採取）。基準は全 graph 配置での Neo4j 直接。
+		// スイープ軸は settings.VerifyEngines / VerifyBatchSizes / BenchPlacements / BenchPushdowns。
+		// 例: -mode verify -workload AGG1,AGG6 -out ../../results/bench/verify_matrix.csv
+		wls := workloads.AllWorkloadNames()
+		if *workload != "all" && *workload != "" {
+			wls = splitCSV(*workload)
+		}
+		if err := bench.RunVerifyMatrix(ctx, cfg, wls, *outPath); err != nil {
+			log.Fatalf("verify に失敗: %v", err)
+		}
+
+	case "tailab":
+		// tail pushdown の A/B 計測（bulk 固定）: rdb 配置で tail を engine 計算 vs MySQL ネイティブ実行。
+		// 例: -mode tailab -workload TP1
+		if err := bench.RunTailAB(ctx, cfg, *workload); err != nil {
+			log.Fatalf("tailab に失敗: %v", err)
 		}
 
 	default: // "run"

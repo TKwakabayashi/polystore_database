@@ -7,6 +7,7 @@ import (
 	"polystore_database/src/go/codec"
 	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
+	"polystore_database/src/go/store"
 )
 
 // ---------- EntityScan ----------
@@ -90,7 +91,7 @@ func (p *Processor) fetchColProps(ids []string, unit *plan.ProjectionUnit, fetch
 	if p.cqlSes == nil || len(ids) == 0 || len(unit.Labels) == 0 || len(fetch.Props) == 0 {
 		return result
 	}
-	const batchSize = 500
+	batchSize := core.ChunkSize(store.Columnar)
 	quoted := make([]string, len(fetch.Props))
 	for i, prop := range fetch.Props {
 		quoted[i] = fmt.Sprintf("\"%s\"", prop)

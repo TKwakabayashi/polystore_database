@@ -3,6 +3,7 @@ package stream
 import (
 	"context"
 	"sync/atomic"
+	"time"
 
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -45,6 +46,7 @@ type ExecPolicy struct {
 	PerOp                map[OpKind]OpConcurrency
 	Default              OpConcurrency
 	GlobalMaxConcurrency int
+	VectorWidth          int // record パイプラインの batch 幅（scan 払い出し・emit 再チャンクの単一の真実）
 }
 
 func (p ExecPolicy) For(op OpKind) OpConcurrency {
@@ -61,6 +63,14 @@ func (p ExecPolicy) globalMax() int {
 	return p.GlobalMaxConcurrency
 }
 
+// vectorWidth は record パイプラインの batch 幅（<1 なら 1）。vecstream と同じ VectorWidth ノブ。
+func (p ExecPolicy) vectorWidth() int {
+	if p.VectorWidth < 1 {
+		return 1
+	}
+	return p.VectorWidth
+}
+
 // runBatches は並行戦略とリソース R の生存管理を担う。特定DBに非依存。
 //   - process: 1バッチを処理して生成レコードを返す（emit はしない / DBアクセスはこの中）。
 //   - 動的モードは sem（システム全体で共有）を DB 区間だけ acquire/release し、
@@ -70,6 +80,8 @@ func runBatches[R any](
 	policy ExecPolicy,
 	sem *semaphore.Weighted, // 動的モードのみ使用。全演算子で同一インスタンスを共有
 	op OpKind,
+	qp *Processor, // 計測の記録先（vecstream と同一意味論）
+	step int, // 葉→根で採番した演算子番号
 	inputStream <-chan []Record,
 	outputStream chan<- []Record,
 	newRes func() R,
@@ -80,7 +92,7 @@ func runBatches[R any](
 	var g errgroup.Group
 
 	emit := func(rows []Record) {
-		const chunk = 2000
+		chunk := policy.vectorWidth()
 		for len(rows) > 0 {
 			n := len(rows)
 			if n > chunk {
@@ -89,6 +101,18 @@ func runBatches[R any](
 			outputStream <- rows[:n:n]
 			rows = rows[n:]
 		}
+	}
+
+	// record は 1 バッチ処理の計測（Duration 合算・フロー）を記録する。vecstream の exchange と同型:
+	// 1 入力バッチ = 1 DB クエリ、出力は VectorWidth 幅へ再チャンク（batOut）。
+	record := func(inRows, outRows int, t0, t1 time.Time) {
+		qp.recordOp(step, string(op), t1.Sub(t0), outRows)
+		vw := policy.vectorWidth()
+		batOut := 0
+		if outRows > 0 {
+			batOut = (outRows + vw - 1) / vw
+		}
+		qp.recordFlow(step, string(op), 1, int64(batOut), int64(inRows), int64(outRows), 1, t0, t1)
 	}
 
 	switch policy.Mode {
@@ -103,12 +127,15 @@ func runBatches[R any](
 			}
 			g.Go(func() error {
 				res := newRes()
+				t0 := time.Now()
 				out, err := process(res, b) // DB区間（permit 保持）
+				t1 := time.Now()
 				closeRes(res)
 				sem.Release(1) // emit 前に解放
 				if err != nil {
 					return err
 				}
+				record(len(b), len(out), t0, t1)
 				emit(out) // permit 無しで送信
 				atomic.AddInt64(&total, int64(len(out)))
 				return nil
@@ -124,13 +151,16 @@ func runBatches[R any](
 				defer closeRes(res)
 				var werr error
 				for b := range batchChan {
+					t0 := time.Now()
 					out, err := process(res, b)
+					t1 := time.Now()
 					if err != nil {
 						if werr == nil {
 							werr = err
 						}
 						continue
 					}
+					record(len(b), len(out), t0, t1)
 					emit(out)
 					atomic.AddInt64(&total, int64(len(out)))
 				}

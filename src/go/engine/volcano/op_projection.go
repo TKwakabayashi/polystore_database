@@ -3,6 +3,7 @@ package volcano
 import (
 	"time"
 
+	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
 	"polystore_database/src/go/store"
 )
@@ -88,6 +89,10 @@ func (p *Processor) runProjection(o *plan.Projection, child Iterator) ([]Row, er
 						row[unit.Alias+"."+pr] = props[pr]
 					}
 				}
+			}
+			// WITH 多段: 前段が持ち越した carried 値（Batch.vals）を Row へマージ。
+			if v := batch.valsAt(i); v != nil {
+				core.MergeVals(row, v)
 			}
 			out = append(out, row)
 		}

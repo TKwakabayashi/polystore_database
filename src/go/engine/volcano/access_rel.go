@@ -7,6 +7,7 @@ import (
 	"polystore_database/src/go/codec"
 	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
+	"polystore_database/src/go/store"
 )
 
 // ---------- EntityScan ----------
@@ -103,7 +104,7 @@ func (p *Processor) fetchRdbProps(ids []string, unit *plan.ProjectionUnit, fetch
 	if p.sqlDb == nil || len(ids) == 0 || len(unit.Labels) == 0 || len(fetch.Props) == 0 {
 		return result
 	}
-	const batchSize = 1000
+	batchSize := core.ChunkSize(store.Relational)
 	propList := strings.Join(fetch.Props, ", ")
 
 	for i := 0; i < len(ids); i += batchSize {

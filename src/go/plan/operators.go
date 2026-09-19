@@ -75,6 +75,32 @@ func (f *Filter) String() string {
 }
 func (f *Filter) Children() []PlanNode { return []PlanNode{f.Input} }
 
+// PostFilter は複数エイリアスを跨ぐ述語（変数間比較 a.id <op> b.id）をコーディネータで
+// 評価する論理演算子。どのストアにも push できないため、record パイプラインで全束縛が
+// 揃った後段に置く。融合パス（fusion.go）から見ると未知の record 演算子となり、融合境界
+// として扱われる（結果は等価）。現状は束縛 UUID（スロット）同士の比較のみを想定する。
+type PostFilter struct {
+	InputAlias  []string
+	OutputAlias []string
+
+	InputSlot  SlotTable
+	OutputSlot SlotTable
+
+	Cond  *ConditionNode // Type==CondVarCmp: Alias.Property CmpOp RAlias.RProperty
+	Input PlanNode
+}
+
+func (f *PostFilter) Children() []PlanNode { return []PlanNode{f.Input} }
+
+func (f *PostFilter) String() string {
+	condStr := "None"
+	if f.Cond != nil {
+		condStr = f.Cond.Print()
+	}
+	return fmt.Sprintf("PostFilter(input:%s, slot:%v) [Condition: {%s}]",
+		strings.Join(f.InputAlias, ","), f.InputSlot.VarToSlot, condStr)
+}
+
 // Expandは１段階のみの固定長であるため、これに対するフィルターはtargetと一緒に行う
 type Expand struct {
 	InputAlias  []string // for Interim results
@@ -167,9 +193,18 @@ func (e *VarLengthExpand) String() string {
 		target = fmt.Sprintf("%s:%s", e.TargetEntity, strings.Join(e.TargetLabels, "|"))
 	}
 
-	return fmt.Sprintf("VarLengthExpand(input:%s, slot:%v) (output:%s, slot:%v) [(%s)%s(%s), Condition:{}]",
+	condStr := "{}"
+	if len(e.Filters) > 0 {
+		var parts []string
+		for _, f := range e.Filters {
+			parts = append(parts, f.String())
+		}
+		condStr = "{" + strings.Join(parts, " AND ") + "}"
+	}
+
+	return fmt.Sprintf("VarLengthExpand(input:%s, slot:%v) (output:%s, slot:%v) [(%s)%s(%s), Condition:%s]",
 		strings.Join(e.InputAlias, ","), e.InputSlot.VarToSlot, strings.Join(e.OutputAlias, ","),
-		e.OutputSlot.VarToSlot, e.SourceEntity, pattern, target)
+		e.OutputSlot.VarToSlot, e.SourceEntity, pattern, target, condStr)
 }
 
 func (e *VarLengthExpand) Children() []PlanNode { return []PlanNode{e.Input} }
@@ -279,33 +314,4 @@ func (r *Return) String() string {
 		items = append(items, it.Name)
 	}
 	return fmt.Sprintf("Return[%s]", strings.Join(items, ", "))
-}
-
-// StorePushdown は集約(＋group/order/limit)を単一ストアへ委譲する物理演算子。
-// 参照する全プロパティが1つのストアに解決できる場合にプランナが生成する。
-//   - graph: パラメータ埋め込み済みの Cypher をそのまま Neo4j で実行する。
-//   - 非graph: Table/Filters/GroupKeys/Aggs/... からネイティブ集約クエリを生成する（拡張点）。
-type StorePushdown struct {
-	Store  store.Kind        // "graph","relational","columnar","document","kvs"
-	Query  string            // graph 用: 原クエリ（$param 付き。baseline と同一発行）
-	Params map[string]string // graph 用: パラメータ（実行時に型付けして渡す）
-
-	// 非graph 生成用（traversal 無しの単一スキャン集約）
-	Table      string
-	Filters    []*ConditionNode
-	GroupKeys  []GroupKey
-	Aggs       []AggregateItem
-	OrderItems []OrderItem
-	Limit      int
-	Items      []ReturnItem
-}
-
-func (s *StorePushdown) Children() []PlanNode { return nil }
-
-func (s *StorePushdown) String() string {
-	if s.Store == store.Graph {
-		return fmt.Sprintf("StorePushdown[graph]: %s", strings.Join(strings.Fields(s.Query), " "))
-	}
-	return fmt.Sprintf("StorePushdown[%s] table=%s groups=%d aggs=%d limit=%d",
-		s.Store, s.Table, len(s.GroupKeys), len(s.Aggs), s.Limit)
 }

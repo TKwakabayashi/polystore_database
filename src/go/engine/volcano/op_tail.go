@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
 )
 
@@ -14,7 +15,7 @@ import (
 // キーは "alias.prop"（取得プロパティ）/ "alias"（束縛 uuid）/ 集約出力名。
 type Row = map[string]interface{}
 
-// runRow は tail（StorePushdown/Projection/Aggregate/Sort/Limit/Return）を実行する。
+// runRow は tail（StoreFragment/Projection/Aggregate/Sort/Limit/Return）を実行する。
 // Projection が record(Batch) 経路と row 経路の橋渡し点。
 // step は葉→根の順に割り当てる（子を先に実行してから自身の step を採番する）。
 func (p *Processor) runRow(op plan.PlanNode) ([]Row, error) {
@@ -23,14 +24,23 @@ func (p *Processor) runRow(op plan.PlanNode) ([]Row, error) {
 	}
 
 	switch o := op.(type) {
-	case *plan.StorePushdown:
+	case *plan.StoreFragment:
+		// tail 委譲形（Plan に束縛フラグメントが入れ子）は bulk 専用。volcano は Plan を
+		// そのまま通常実行してフォールバックする（結果は等価）。
+		if _, ok := plan.LowerTail(o.Plan); ok {
+			return p.runRow(o.Plan)
+		}
 		start := time.Now()
-		rows, err := p.runStorePushdown(o)
+		rows, err := p.runStoreFragment(o)
 		if err != nil {
 			return nil, err
 		}
-		p.recordOp(p.newStep(), "Pushdown["+o.Store.String()+"]", time.Since(start), len(rows))
+		p.recordOp(p.newStep(), "Fragment["+o.Store.String()+"]", time.Since(start), len(rows))
 		return rows, nil
+
+	case *plan.Integrate:
+		// 統合演算子（ID 材料化）: 実体は Projection と同一なので既存実装へ委譲する。
+		return p.runRow(o.AsProjection())
 
 	case *plan.Projection:
 		child, err := p.build(o.Input)
@@ -83,9 +93,47 @@ func (p *Processor) runRow(op plan.PlanNode) ([]Row, error) {
 		p.recordOp(p.newStep(), "Return", time.Since(start), len(rows))
 		return rows, nil
 
+	case *plan.RowFilter:
+		in, err := p.runRow(o.Input)
+		if err != nil {
+			return nil, err
+		}
+		start := time.Now()
+		rows := volcanoRowFilter(o, in)
+		p.recordOp(p.newStep(), "RowFilter", time.Since(start), len(rows))
+		return rows, nil
+
+	case *plan.RowProject:
+		in, err := p.runRow(o.Input)
+		if err != nil {
+			return nil, err
+		}
+		start := time.Now()
+		rows := make([]Row, len(in))
+		for i, row := range in {
+			rows[i] = core.ProjectRow(row, o.Cols)
+		}
+		p.recordOp(p.newStep(), "RowProject", time.Since(start), len(rows))
+		return rows, nil
+
 	default:
 		return nil, fmt.Errorf("unexpected row operator: %T", op)
 	}
+}
+
+// volcanoRowFilter は post-WITH の WHERE を Row 上で評価する（式 Expr、判定 core.EvalExpr+Truthy）。
+func volcanoRowFilter(o *plan.RowFilter, in []Row) []Row {
+	out := make([]Row, 0, len(in))
+	for _, row := range in {
+		v, err := core.EvalExpr(o.Cond, row)
+		if err != nil {
+			continue
+		}
+		if core.Truthy(v) {
+			out = append(out, row)
+		}
+	}
+	return out
 }
 
 // ---- Aggregate（pipeline breaker）----
@@ -249,6 +297,10 @@ func volcanoReturn(o *plan.Return, in []Row) []Row {
 }
 
 func shapeValue(item plan.ReturnItem, r Row) interface{} {
+	if item.Expr != nil {
+		v, _ := core.EvalExpr(item.Expr, r)
+		return v
+	}
 	if item.IsAggregate {
 		return r[item.Agg.OutName]
 	}

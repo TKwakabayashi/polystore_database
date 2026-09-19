@@ -3,9 +3,11 @@ package stream
 import (
 	"fmt"
 	"polystore_database/src/go/codec"
+	"polystore_database/src/go/engine/core"
 	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 	"strings"
+	"time"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
@@ -17,7 +19,8 @@ func (qp *Processor) newReadSession() neo4j.SessionWithContext {
 func (qp *Processor) closeSession(s neo4j.SessionWithContext) { _ = s.Close(qp.ctx) }
 
 func ScanGraphStream(qp *Processor,
-	o *plan.EntityScan, output chan<- []Record) (int, error) {
+	o *plan.EntityScan, step int, output chan<- []Record) (int, error) {
+	t0 := time.Now()
 	var whereSections []string
 	params := make(map[string]interface{})
 
@@ -30,29 +33,14 @@ func ScanGraphStream(qp *Processor,
 		whereSections = append(whereSections, "("+strings.Join(labelConditions, " OR ")+")")
 	}
 
-	// 2. プロパティフィルタ条件の構築 (n.prop = $val ...)
-	for i, cond := range o.Filter {
-		var operator string
-		switch cond.Type {
-		case plan.CondEq:
-			operator = "="
-		case plan.CondNeq:
-			operator = "<>"
-		case plan.CondGreater:
-			operator = ">"
-		case plan.CondLess:
-			operator = "<"
-		case plan.CondGreaterEq:
-			operator = ">="
-		case plan.CondLessEq:
-			operator = "<="
-		default:
-			return 0, fmt.Errorf("unknown operator")
+	// 2. プロパティフィルタ条件の構築（比較 / IN / IS NULL を共通ヘルパで生成）
+	seq := 0
+	for _, cond := range o.Filter {
+		frag, err := core.BuildCypherPredicate("n", cond, params, &seq)
+		if err != nil {
+			return 0, err
 		}
-
-		paramName := fmt.Sprintf("val%d", i)
-		whereSections = append(whereSections, fmt.Sprintf("n.%s %s $%s", cond.Property, operator, paramName))
-		params[paramName], _ = codec.ConvertToNativeType(cond.Value, cond.DataType)
+		whereSections = append(whereSections, frag)
 	}
 
 	// 3. クエリの組み立て
@@ -66,13 +54,14 @@ func ScanGraphStream(qp *Processor,
 	defer sess.Close(qp.ctx)
 
 	// 4. 実行
+	qp.countRoundTrip()
 	res, err := sess.Run(qp.ctx, query, params)
 	if err != nil {
 		return 0, err
 	}
 
-	// 5. ストリーミング処理
-	const outputBatchSize = 2000
+	// 5. ストリーミング処理（batch 幅は VectorWidth に統一）
+	outputBatchSize := qp.exec.vectorWidth()
 	rowCount := 0
 
 	newSlotCount := len(o.OutputSlot.VarToSlot)
@@ -97,11 +86,51 @@ func ScanGraphStream(qp *Processor,
 		output <- currentBatch
 	}
 
+	qp.recordScan(step, rowCount, t0)
 	return rowCount, res.Err()
 
 }
 
-func streamFilterGraph(qp *Processor, o *plan.Filter, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
+// streamGraphRecordFragment は record-mode StoreFragment の融合 Cypher を実行し、返された各 alias の
+// uuid を OutputSlot に従って Record slot へ格納しつつ batch 単位でストリーム出力する（source op）。
+func streamGraphRecordFragment(qp *Processor, cypher string, params map[string]interface{}, outSlot plan.SlotTable, step int, output chan<- []Record) (int, error) {
+	t0 := time.Now()
+	sess := qp.newReadSession()
+	defer qp.closeSession(sess)
+
+	qp.countRoundTrip()
+	res, err := sess.Run(qp.ctx, cypher, params)
+	if err != nil {
+		return 0, err
+	}
+
+	batchSize := qp.exec.vectorWidth()
+	slotCount := len(outSlot.VarToSlot)
+	rowCount := 0
+	cur := make([]Record, 0, batchSize)
+	for res.Next(qp.ctx) {
+		rec := res.Record()
+		slots := make([]uid.UUID, slotCount)
+		for alias, idx := range outSlot.VarToSlot {
+			if v, ok := rec.Get(alias); ok && v != nil {
+				slots[idx] = uid.FromAny(v)
+			}
+		}
+		cur = append(cur, Record{Slots: slots})
+		rowCount++
+		if len(cur) >= batchSize {
+			output <- cur
+			cur = make([]Record, 0, batchSize)
+		}
+	}
+	if len(cur) > 0 {
+		output <- cur
+	}
+	qp.recordScan(step, rowCount, t0)
+	return rowCount, res.Err()
+}
+
+func streamFilterGraph(qp *Processor, o *plan.Filter, step int, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
 	filterIdxIn := o.InputSlot.VarToSlot[o.Alias]
 	newSlotCount := len(o.OutputSlot.VarToSlot)
 
@@ -122,25 +151,13 @@ func streamFilterGraph(qp *Processor, o *plan.Filter, inputStream <-chan []Recor
 
 	var whereClauses []string
 	params := make(map[string]interface{})
-	for i, cond := range o.Filter {
-		operator := "="
-		switch cond.Type {
-		case plan.CondEq:
-			operator = "="
-		case plan.CondNeq:
-			operator = "<>"
-		case plan.CondGreater:
-			operator = ">"
-		case plan.CondLess:
-			operator = "<"
-		case plan.CondGreaterEq:
-			operator = ">="
-		case plan.CondLessEq:
-			operator = "<="
+	seq := 0
+	for _, cond := range o.Filter {
+		frag, err := core.BuildCypherPredicate(targetVar, cond, params, &seq)
+		if err != nil {
+			return 0, err
 		}
-		paramName := fmt.Sprintf("val%d", i)
-		whereClauses = append(whereClauses, fmt.Sprintf("%s.%s %s $%s", targetVar, cond.Property, operator, paramName))
-		params[paramName], _ = codec.ConvertToNativeType(cond.Value, cond.DataType)
+		whereClauses = append(whereClauses, frag)
 	}
 
 	finalQuery := fmt.Sprintf(`
@@ -153,7 +170,7 @@ func streamFilterGraph(qp *Processor, o *plan.Filter, inputStream <-chan []Recor
 	)
 
 	return runBatches(
-		qp.ctx, qp.exec, qp.sem, OpFilter, inputStream, outputStream,
+		qp.ctx, qp.exec, qp.sem, OpFilter, qp, step, inputStream, outputStream,
 		qp.newReadSession, qp.closeSession,
 		func(sess neo4j.SessionWithContext, batch []Record) ([]Record, error) {
 			idMap := make(map[uid.UUID]struct{})
@@ -171,6 +188,7 @@ func streamFilterGraph(qp *Processor, o *plan.Filter, inputStream <-chan []Recor
 			}
 			localParams["ids"] = uniqueIDs
 
+			qp.countRoundTrip()
 			res, err := sess.Run(qp.ctx, finalQuery, localParams)
 			if err != nil {
 				return nil, err
@@ -189,7 +207,7 @@ func streamFilterGraph(qp *Processor, o *plan.Filter, inputStream <-chan []Recor
 			out := make([]Record, 0, len(batch))
 			for _, r := range batch {
 				if _, ok := validMap[r.Slots[filterIdxIn]]; ok {
-					newRec := Record{Slots: make([]uid.UUID, newSlotCount)}
+					newRec := Record{Slots: make([]uid.UUID, newSlotCount), Vals: r.Vals}
 					for alias, outIdx := range o.OutputSlot.VarToSlot {
 						if inIdx, exists := o.InputSlot.VarToSlot[alias]; exists {
 							newRec.Slots[outIdx] = r.Slots[inIdx]
@@ -255,6 +273,7 @@ func fetchGraphPropsStream(qp *Processor,
 	sess := qp.neoDriver.NewSession(qp.ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead, FetchSize: neo4j.FetchAll})
 	defer sess.Close(qp.ctx)
 
+	qp.countRoundTrip()
 	res, err := sess.Run(qp.ctx, query, map[string]interface{}{"ids": ids})
 	if err != nil {
 

@@ -7,17 +7,19 @@ import (
 	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 	"strconv"
+	"time"
 
 	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
 func ScanKvsStream(qp *Processor,
-	o *plan.EntityScan, output chan<- []Record) (int, error) {
+	o *plan.EntityScan, step int, output chan<- []Record) (int, error) {
 	if qp.ldb == nil {
 		return 0, nil
 	}
+	t0 := time.Now()
 
-	const outputBatchSize = 500
+	outputBatchSize := qp.exec.vectorWidth()
 	rowCount := 0
 	newSlotCount := len(o.OutputSlot.VarToSlot)
 	aliasIdx := o.OutputSlot.VarToSlot[o.Alias]
@@ -56,6 +58,7 @@ func ScanKvsStream(qp *Processor,
 			prefix = []byte(label + codec.Sep)
 		}
 
+		qp.countRoundTrip()
 		iter := qp.ldb.NewIterator(util.BytesPrefix(prefix), nil)
 		for iter.Next() {
 			key := iter.Key()
@@ -87,16 +90,17 @@ func ScanKvsStream(qp *Processor,
 	if len(currentBatch) > 0 {
 		output <- currentBatch
 	}
+	qp.recordScan(step, rowCount, t0)
 	return rowCount, nil
 }
 
 func FilterKvsStream(qp *Processor,
-	o *plan.Filter, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
+	o *plan.Filter, step int, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
 	filterIdxIn := o.InputSlot.VarToSlot[o.Alias]
 	newSlotCount := len(o.OutputSlot.VarToSlot)
 
 	return runBatches(
-		qp.ctx, qp.exec, qp.sem, OpFilter, inputStream, outputStream,
+		qp.ctx, qp.exec, qp.sem, OpFilter, qp, step, inputStream, outputStream,
 		noResource, closeNoResource,
 		func(_ struct{}, batch []Record) ([]Record, error) {
 			idMap := make(map[uid.UUID]struct{})
@@ -148,6 +152,7 @@ func fetchKvsPropsStream(qp *Processor,
 		}
 		for _, label := range unit.Labels {
 			for _, propName := range fetch.Props {
+				qp.countRoundTrip()
 				valByte, err := qp.ldb.Get(codec.BuildEntityKey(label, uid.UUID(uuid), propName), nil)
 				if err != nil {
 					if _, ok := result[uuid][propName]; !ok {
@@ -173,6 +178,7 @@ func matchConditionsKVS(qp *Processor, label, uuid string, filters []*plan.Condi
 		if cond == nil {
 			continue
 		}
+		qp.countRoundTrip()
 		valBytes, err := qp.ldb.Get(codec.BuildEntityKey(label, uid.UUID(uuid), cond.Property), nil)
 		if err != nil {
 			return false // プロパティ欠落 = 不一致

@@ -20,8 +20,11 @@ import (
 // Batch は演算子間を流れる中間結果（列指向）。
 //   - cols[slot] が長さ n の列（値は uuid スロット）。
 //   - 空バッチ (n==0) は演算子間では流さない（EOF と区別するため）。
+//   - vals は WITH 多段（Phase B2）で持ち越す carried 値（行ごとの map、無ければ nil）。
+//     単段では nil のまま（ゼロオーバーヘッド）。RowSource が設定・Projection が Row へマージ。
 type Batch struct {
 	cols [][]uid.UUID
+	vals []map[string]any // len==n（存在するとき）。nil のとき carried 値なし
 	n    int
 }
 
@@ -37,16 +40,33 @@ func newBatch(slotCount, capRows int) *Batch {
 // slotCount は列（スロット）数。
 func (b *Batch) slotCount() int { return len(b.cols) }
 
-// appendRow は 1 行（長さ slotCount 以下の []uid.UUID）を各列末尾へ追加する。
-func (b *Batch) appendRow(row []uid.UUID) {
+// appendRow は 1 行（長さ slotCount 以下の []uid.UUID）を各列末尾へ追加する（carried 値なし）。
+func (b *Batch) appendRow(row []uid.UUID) { b.appendRowVals(row, nil) }
+
+// appendRowVals は 1 行＋carried 値を追加する。carried 値は初出時に既存行を nil で backfill する。
+func (b *Batch) appendRowVals(row []uid.UUID, v map[string]any) {
 	for s := range b.cols {
-		var v uid.UUID
+		var val uid.UUID
 		if s < len(row) {
-			v = row[s]
+			val = row[s]
 		}
-		b.cols[s] = append(b.cols[s], v)
+		b.cols[s] = append(b.cols[s], val)
+	}
+	if b.vals == nil && v != nil {
+		b.vals = make([]map[string]any, b.n) // 既存 n 行を nil で backfill
+	}
+	if b.vals != nil {
+		b.vals = append(b.vals, v)
 	}
 	b.n++
+}
+
+// valsAt は i 行目の carried 値を返す（無ければ nil）。
+func (b *Batch) valsAt(i int) map[string]any {
+	if b.vals == nil || i >= len(b.vals) {
+		return nil
+	}
+	return b.vals[i]
 }
 
 // row は i 行目を []uid.UUID として復元する。
@@ -60,6 +80,22 @@ func (b *Batch) row(i int) []uid.UUID {
 
 // get は (行 i, スロット s) の値を返す。
 func (b *Batch) get(i, s int) uid.UUID { return b.cols[s][i] }
+
+// batchSource は事前構築した 1 バッチを一度だけ返す source イテレータ（RowSource 用）。
+type batchSource struct {
+	batch *Batch
+	done  bool
+}
+
+func (s *batchSource) Open(context.Context) error { return nil }
+func (s *batchSource) Next(context.Context) (*Batch, error) {
+	if s.done || s.batch == nil || s.batch.n == 0 {
+		return nil, nil
+	}
+	s.done = true
+	return s.batch, nil
+}
+func (s *batchSource) Close(context.Context) error { return nil }
 
 // Iterator は pull 型（Volcano）の演算子インターフェース。
 type Iterator interface {

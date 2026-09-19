@@ -6,14 +6,17 @@ import (
 	"polystore_database/src/go/engine/core"
 	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
+	"polystore_database/src/go/store"
 	"strings"
+	"time"
 )
 
 func ScanRdbStream(qp *Processor,
-	o *plan.EntityScan, output chan<- []Record) (int, error) {
+	o *plan.EntityScan, step int, output chan<- []Record) (int, error) {
 	if qp.sqlDb == nil {
 		return 0, nil
 	}
+	t0 := time.Now()
 
 	// --- DB特有: WHERE 構築（全条件 AND） ---
 	var clauses []string
@@ -31,8 +34,8 @@ func ScanRdbStream(qp *Processor,
 		whereStr = "WHERE " + strings.Join(clauses, " AND ")
 	}
 
-	// --- graph と同じストリーミング骨格 ---
-	const outputBatchSize = 500
+	// --- graph と同じストリーミング骨格（batch 幅は VectorWidth に統一）---
+	outputBatchSize := qp.exec.vectorWidth()
 	rowCount := 0
 	newSlotCount := len(o.OutputSlot.VarToSlot)
 	aliasIdx := o.OutputSlot.VarToSlot[o.Alias]
@@ -40,6 +43,7 @@ func ScanRdbStream(qp *Processor,
 
 	for _, label := range o.Labels {
 		query := fmt.Sprintf("SELECT uuid FROM %s %s", label, whereStr)
+		qp.countRoundTrip()
 		rows, err := qp.sqlDb.QueryContext(qp.ctx, query, args...)
 		if err != nil {
 			return rowCount, err
@@ -63,11 +67,12 @@ func ScanRdbStream(qp *Processor,
 	if len(currentBatch) > 0 {
 		output <- currentBatch
 	}
+	qp.recordScan(step, rowCount, t0)
 	return rowCount, nil
 }
 
 func FilterRdbStream(qp *Processor,
-	o *plan.Filter, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
+	o *plan.Filter, step int, inputStream <-chan []Record, outputStream chan<- []Record) (int, error) {
 	filterIdxIn := o.InputSlot.VarToSlot[o.Alias]
 	newSlotCount := len(o.OutputSlot.VarToSlot)
 
@@ -88,7 +93,7 @@ func FilterRdbStream(qp *Processor,
 	}
 
 	return runBatches(
-		qp.ctx, qp.exec, qp.sem, OpFilter, inputStream, outputStream,
+		qp.ctx, qp.exec, qp.sem, OpFilter, qp, step, inputStream, outputStream,
 		noResource, closeNoResource,
 		func(_ struct{}, batch []Record) ([]Record, error) {
 			idMap := make(map[uid.UUID]struct{})
@@ -113,6 +118,7 @@ func FilterRdbStream(qp *Processor,
 				for _, id := range uniqueIDs {
 					args = append(args, id)
 				}
+				qp.countRoundTrip()
 				rows, err := qp.sqlDb.QueryContext(qp.ctx, query, args...)
 				if err != nil {
 					return nil, err
@@ -151,7 +157,7 @@ func fetchRdbPropsStream(qp *Processor,
 		return result
 	}
 
-	const batchSize = 1000
+	batchSize := core.ChunkSize(store.Relational)
 	propList := strings.Join(fetch.Props, ", ")
 
 	for i := 0; i < len(ids); i += batchSize {
@@ -173,6 +179,7 @@ func fetchRdbPropsStream(qp *Processor,
 		}
 		finalQuery := strings.Join(selects, " UNION ALL ")
 
+		qp.countRoundTrip()
 		rows, err := qp.sqlDb.QueryContext(qp.ctx, finalQuery, args...)
 		if err != nil {
 			continue

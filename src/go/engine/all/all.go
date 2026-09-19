@@ -6,5 +6,6 @@ package all
 import (
 	_ "polystore_database/src/go/engine/bulk"
 	_ "polystore_database/src/go/engine/stream"
+	_ "polystore_database/src/go/engine/vecstream"
 	_ "polystore_database/src/go/engine/volcano"
 )

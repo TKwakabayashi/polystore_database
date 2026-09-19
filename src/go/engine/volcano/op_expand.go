@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"polystore_database/src/go/engine/core"
 	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 )
@@ -97,13 +98,13 @@ func (e *expandIterator) Next(ctx context.Context) (*Batch, error) {
 func (e *expandIterator) process(in *Batch) (*Batch, error) {
 	// src.uuid -> その uuid を持つ入力行（複数あり得る）
 	srcIds := make([]string, 0, in.n)
-	recordMap := make(map[uid.UUID][][]uid.UUID)
+	recordMap := make(map[uid.UUID][]int) // src uuid -> 入力行インデックス（carried 値の引継ぎに使う）
 	for i := 0; i < in.n; i++ {
 		id := in.get(i, e.srcIdx)
 		if _, exists := recordMap[id]; !exists {
 			srcIds = append(srcIds, id.String())
 		}
-		recordMap[id] = append(recordMap[id], in.row(i))
+		recordMap[id] = append(recordMap[id], i)
 	}
 
 	sess := e.p.newReadSession()
@@ -130,15 +131,15 @@ func (e *expandIterator) process(in *Batch) (*Batch, error) {
 				tid = uid.FromAny(v)
 			}
 		}
-		for _, origin := range recordMap[sid] {
-			newSlots := remap(origin, e.o.InputSlot, e.o.OutputSlot)
+		for _, idx := range recordMap[sid] {
+			newSlots := remap(in.row(idx), e.o.InputSlot, e.o.OutputSlot)
 			if e.hasRel {
 				newSlots[e.relIdxOut] = rid
 			}
 			if e.hasTarget {
 				newSlots[e.tgtIdxOut] = tid
 			}
-			out.appendRow(newSlots)
+			out.appendRowVals(newSlots, in.valsAt(idx))
 		}
 	}
 	return out, res.Err()
@@ -151,11 +152,12 @@ type varExpandIterator struct {
 	child Iterator
 	step  int
 
-	query     string
-	srcIdx    int
-	tgtIdxOut int
-	hasTarget bool
-	slotCount int
+	query      string
+	pathParams map[string]interface{} // パス全体フィルタ用の静的パラメータ
+	srcIdx     int
+	tgtIdxOut  int
+	hasTarget  bool
+	slotCount  int
 }
 
 func (e *varExpandIterator) Open(ctx context.Context) error {
@@ -185,11 +187,29 @@ func (e *varExpandIterator) Open(ctx context.Context) error {
 	if len(o.TargetLabels) > 0 {
 		tgtConstraint = ":" + strings.Join(o.TargetLabels, "|:")
 	}
+
+	// 可変長パス全体への述語（all/any/none/single・length(p)）を WHERE に付加する。
+	matchHead := "(src:Entity)"
+	whereExtra := ""
+	e.pathParams = map[string]interface{}{}
+	if len(o.Filters) > 0 {
+		const pathVar = "vp"
+		matchHead = pathVar + " = (src:Entity)"
+		seq := 0
+		clauses, err := core.BuildPathFilterClauses(pathVar, o.Filters, e.pathParams, &seq)
+		if err != nil {
+			return err
+		}
+		if len(clauses) > 0 {
+			whereExtra = " AND " + strings.Join(clauses, " AND ")
+		}
+	}
+
 	e.query = fmt.Sprintf(`
-		MATCH (src:Entity)%s(tgt%s)
-		WHERE src.uuid IN $ids
+		MATCH %s%s(tgt%s)
+		WHERE src.uuid IN $ids%s
 		RETURN DISTINCT src.uuid AS sid, tgt.uuid AS tid`,
-		relPattern, tgtConstraint,
+		matchHead, relPattern, tgtConstraint, whereExtra,
 	)
 	return nil
 }
@@ -219,31 +239,37 @@ func (e *varExpandIterator) Next(ctx context.Context) (*Batch, error) {
 
 func (e *varExpandIterator) process(in *Batch) (*Batch, error) {
 	srcIds := make([]string, 0, in.n)
-	recordMap := make(map[uid.UUID][][]uid.UUID)
+	recordMap := make(map[uid.UUID][]int) // src uuid -> 入力行インデックス（carried 値の引継ぎに使う）
 	for i := 0; i < in.n; i++ {
 		id := in.get(i, e.srcIdx)
 		if _, exists := recordMap[id]; !exists {
 			srcIds = append(srcIds, id.String())
 		}
-		recordMap[id] = append(recordMap[id], in.row(i))
+		recordMap[id] = append(recordMap[id], i)
 	}
 
 	sess := e.p.newReadSession()
 	defer sess.Close(e.p.ctx)
 
+	runParams := make(map[string]interface{}, len(e.pathParams)+1)
+	runParams["ids"] = srcIds
+	for k, v := range e.pathParams {
+		runParams[k] = v
+	}
+
 	e.p.countRoundTrip()
-	res, err := sess.Run(e.p.ctx, e.query, map[string]interface{}{"ids": srcIds})
+	res, err := sess.Run(e.p.ctx, e.query, runParams)
 	if err != nil {
 		return nil, err
 	}
 
 	out := newBatch(e.slotCount, in.n)
-	carry := func(origin []uid.UUID, targetID uid.UUID) {
-		newSlots := remap(origin, e.o.InputSlot, e.o.OutputSlot)
+	carry := func(idx int, targetID uid.UUID) {
+		newSlots := remap(in.row(idx), e.o.InputSlot, e.o.OutputSlot)
 		if e.hasTarget {
 			newSlots[e.tgtIdxOut] = targetID
 		}
-		out.appendRow(newSlots)
+		out.appendRowVals(newSlots, in.valsAt(idx))
 	}
 
 	reached := make(map[uid.UUID]struct{})
@@ -252,8 +278,8 @@ func (e *varExpandIterator) process(in *Batch) (*Batch, error) {
 		sid := uid.FromAny(rec.Values[0])
 		tid := uid.FromAny(rec.Values[1])
 		reached[sid] = struct{}{}
-		for _, origin := range recordMap[sid] {
-			carry(origin, tid)
+		for _, idx := range recordMap[sid] {
+			carry(idx, tid)
 		}
 	}
 	if err := res.Err(); err != nil {
@@ -267,8 +293,8 @@ func (e *varExpandIterator) process(in *Batch) (*Batch, error) {
 			if _, ok := reached[sid]; ok {
 				continue
 			}
-			for _, origin := range recordMap[sid] {
-				carry(origin, sid)
+			for _, idx := range recordMap[sid] {
+				carry(idx, sid)
 			}
 		}
 	}

@@ -7,10 +7,12 @@ import (
 	"strings"
 	"time"
 
+	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
+	"polystore_database/src/go/store"
 )
 
-// executeRowBulk は tail（Projection/Aggregate/Sort/Limit/Return/StorePushdown）を
+// executeRowBulk は tail（StoreFragment/Projection/Aggregate/Sort/Limit/Return）を
 // row（map[string]interface{}）で全件マテリアライズ実行する。Projection が record-stream と
 // row-stream の橋渡し点。演算子ごとに step 番号（葉→根）・入出力件数・時間を記録する。
 func executeRowBulk(qp *Processor, op plan.PlanNode, counter *int) ([]Row, error) {
@@ -19,14 +21,28 @@ func executeRowBulk(qp *Processor, op plan.PlanNode, counter *int) ([]Row, error
 	}
 
 	switch o := op.(type) {
-	case *plan.StorePushdown:
+	case *plan.StoreFragment:
+		// tail 委譲形（Plan に束縛フラグメントが入れ子）なら中間 UUID を staging してネイティブ実行。
+		// relational=一時テーブル＋SQL / document=一時コレクション＋$lookup。
+		if spec, ok := plan.LowerTail(o.Plan); ok {
+			if o.Store == store.Relational || o.Store == store.Document {
+				return bulkTailFragment(qp, o, spec, counter)
+			}
+			// 未対応ストアは Plan をそのまま通常実行（結果は等価）。
+			return executeRowBulk(qp, o.Plan, counter)
+		}
+		// 全体委譲: Plan を lowering してネイティブ発行（graph=verbatim / 非graph=ネイティブ集約）。
 		start := time.Now()
-		rows, err := bulkStorePushdown(qp, o)
+		rows, err := bulkStoreFragment(qp, o)
 		if err != nil {
 			return nil, err
 		}
-		recordRowOp(qp, counter, "Pushdown["+o.Store.String()+"]", time.Since(start), 0, len(rows))
+		recordRowOp(qp, counter, "Fragment["+o.Store.String()+"]", time.Since(start), 0, len(rows))
 		return rows, nil
+
+	case *plan.Integrate:
+		// 統合演算子（ID 材料化）: 実体は Projection と同一なので既存実装へ委譲する。
+		return executeRowBulk(qp, o.AsProjection(), counter)
 
 	case *plan.Projection:
 		recs, err := ExecuteOperatorBulk(qp, o.Input, counter)
@@ -68,6 +84,29 @@ func executeRowBulk(qp *Processor, op plan.PlanNode, counter *int) ([]Row, error
 		recordRowOp(qp, counter, "Limit", time.Since(start), len(in), len(rows))
 		return rows, nil
 
+	case *plan.RowFilter:
+		in, err := executeRowBulk(qp, o.Input, counter)
+		if err != nil {
+			return nil, err
+		}
+		start := time.Now()
+		rows := bulkRowFilter(o, in)
+		recordRowOp(qp, counter, "RowFilter", time.Since(start), len(in), len(rows))
+		return rows, nil
+
+	case *plan.RowProject:
+		in, err := executeRowBulk(qp, o.Input, counter)
+		if err != nil {
+			return nil, err
+		}
+		start := time.Now()
+		rows := make([]Row, len(in))
+		for i, row := range in {
+			rows[i] = core.ProjectRow(row, o.Cols)
+		}
+		recordRowOp(qp, counter, "RowProject", time.Since(start), len(in), len(rows))
+		return rows, nil
+
 	case *plan.Return:
 		in, err := executeRowBulk(qp, o.Input, counter)
 		if err != nil {
@@ -86,6 +125,21 @@ func executeRowBulk(qp *Processor, op plan.PlanNode, counter *int) ([]Row, error
 func recordRowOp(qp *Processor, counter *int, name string, dur time.Duration, in, out int) {
 	*counter++
 	qp.metrics[*counter] = Metrics{StepNum: *counter, OpType: name, Duration: dur, InRows: in, RowCount: out}
+}
+
+// bulkRowFilter は post-WITH の WHERE を Row 上で評価する（式 Expr、判定 core.EvalExpr+Truthy）。
+func bulkRowFilter(o *plan.RowFilter, in []Row) []Row {
+	out := make([]Row, 0, len(in))
+	for _, row := range in {
+		v, err := core.EvalExpr(o.Cond, row)
+		if err != nil {
+			continue
+		}
+		if core.Truthy(v) {
+			out = append(out, row)
+		}
+	}
+	return out
 }
 
 // ---- Aggregate（pipeline breaker）----
@@ -249,6 +303,10 @@ func bulkReturn(o *plan.Return, in []Row) []Row {
 }
 
 func shapeValue(item plan.ReturnItem, r Row) interface{} {
+	if item.Expr != nil {
+		v, _ := core.EvalExpr(item.Expr, r)
+		return v
+	}
 	if item.IsAggregate {
 		return r[item.Agg.OutName]
 	}

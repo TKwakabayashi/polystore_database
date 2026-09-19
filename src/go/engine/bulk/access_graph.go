@@ -8,6 +8,7 @@ import (
 	"polystore_database/src/go/engine/core"
 	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
+	"polystore_database/src/go/store"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
@@ -31,12 +32,14 @@ func ScanGraphBulk(qp *Processor, o *plan.EntityScan) ([]Record, error) {
 		whereSections = append(whereSections, "("+strings.Join(labelConditions, " OR ")+")")
 	}
 
-	// 2. プロパティフィルタ条件の構築 (n.prop = $val ...)
-	//    演算子表記は core.SQLOp（全6演算子・Cypher 互換の <> >= <= 等）で 3 エンジン共通。
-	for i, cond := range o.Filter {
-		paramName := fmt.Sprintf("val%d", i)
-		whereSections = append(whereSections, fmt.Sprintf("n.%s %s $%s", cond.Property, core.SQLOp(cond.Type), paramName))
-		params[paramName], _ = codec.ConvertToNativeType(cond.Value, cond.DataType)
+	// 2. プロパティフィルタ条件の構築（比較 / IN / IS NULL を共通ヘルパで生成）
+	seq := 0
+	for _, cond := range o.Filter {
+		frag, err := core.BuildCypherPredicate("n", cond, params, &seq)
+		if err != nil {
+			return nil, err
+		}
+		whereSections = append(whereSections, frag)
 	}
 
 	// 3. クエリの組み立て
@@ -68,6 +71,57 @@ func ScanGraphBulk(qp *Processor, o *plan.EntityScan) ([]Record, error) {
 	return out, res.Err()
 }
 
+// bulkGraphRecordFragment は record-mode StoreFragment（融合済み graph traversal）を実行し、
+// 返された各 alias の uuid を OutputSlot に従って Record の slot へ格納する。
+// これにより record パイプライン（scan+filter+expand）を 1 往復の Cypher に畳み込む。
+func bulkGraphRecordFragment(qp *Processor, o *plan.StoreFragment) ([]Record, error) {
+	aliases := make([]string, 0, len(o.OutputSlot.VarToSlot))
+	for a := range o.OutputSlot.VarToSlot {
+		aliases = append(aliases, a)
+	}
+	cypher, params := core.BuildGraphRecordCypher(o.Plan, aliases)
+	if cypher == "" {
+		// traversal を含まないラン（scan＋同一 alias フィルタ）は条件をマージして 1 スキャンに畳む。
+		if scan, ok := core.MergeRecordRun(o); ok {
+			return scanByStore(qp, scan)
+		}
+		// 生成不能な構造（非線形 traversal 等）は元の部分木を通常実行してフォールバック（等価）。
+		var counter int
+		return ExecuteOperatorBulk(qp, o.Plan, &counter)
+	}
+
+	// ラン境界: 下位ラン（別ストア）のフラグメントを先に実行し、束縛 uuid を IN-list として注入する。
+	if b := core.BoundaryFragment(o.Plan); b != nil {
+		var counter int
+		inRecs, err := ExecuteOperatorBulk(qp, b, &counter)
+		if err != nil {
+			return nil, err
+		}
+		core.BindIncoming(params, b, inRecs)
+	}
+
+	sess := qp.newReadSession()
+	defer qp.closeSession(sess)
+
+	res, err := sess.Run(qp.ctx, cypher, params)
+	if err != nil {
+		return nil, fmt.Errorf("StoreFragment[graph record] run error: %w\n  Cypher: %s", err, cypher)
+	}
+	slotCount := len(o.OutputSlot.VarToSlot)
+	out := make([]Record, 0)
+	for res.Next(qp.ctx) {
+		rec := res.Record()
+		slots := make([]uid.UUID, slotCount)
+		for alias, idx := range o.OutputSlot.VarToSlot {
+			if v, ok := rec.Get(alias); ok && v != nil {
+				slots[idx] = uid.FromAny(v)
+			}
+		}
+		out = append(out, Record{Slots: slots})
+	}
+	return out, res.Err()
+}
+
 func bulkFilterGraph(qp *Processor, o *plan.Filter, in []Record) ([]Record, error) {
 	filterIdxIn := o.InputSlot.VarToSlot[o.Alias]
 	newSlotCount := len(o.OutputSlot.VarToSlot)
@@ -89,10 +143,13 @@ func bulkFilterGraph(qp *Processor, o *plan.Filter, in []Record) ([]Record, erro
 
 	var whereClauses []string
 	params := make(map[string]interface{})
-	for i, cond := range o.Filter {
-		paramName := fmt.Sprintf("val%d", i)
-		whereClauses = append(whereClauses, fmt.Sprintf("%s.%s %s $%s", targetVar, cond.Property, core.SQLOp(cond.Type), paramName))
-		params[paramName], _ = codec.ConvertToNativeType(cond.Value, cond.DataType)
+	seq := 0
+	for _, cond := range o.Filter {
+		frag, err := core.BuildCypherPredicate(targetVar, cond, params, &seq)
+		if err != nil {
+			return nil, err
+		}
+		whereClauses = append(whereClauses, frag)
 	}
 
 	finalQuery := fmt.Sprintf(`
@@ -113,22 +170,23 @@ func bulkFilterGraph(qp *Processor, o *plan.Filter, in []Record) ([]Record, erro
 	for id := range idMap {
 		uniqueIDs = append(uniqueIDs, id.String())
 	}
-	params["ids"] = uniqueIDs
-
 	sess := qp.newReadSession()
 	defer qp.closeSession(sess)
 
-	res, err := sess.Run(qp.ctx, finalQuery, params)
-	if err != nil {
-		return nil, err
-	}
+	// ID はストアの実効チャンクサイズで分割して投げる（巨大な IN-list を作らない）。
 	validMap := make(map[uid.UUID]struct{})
-	for res.Next(qp.ctx) {
-		if id, ok := res.Record().Get("id"); ok && id != nil {
-			validMap[uid.FromAny(id)] = struct{}{}
+	if err := core.ForEachIDChunkParams(store.Graph, uniqueIDs, params, "ids", func() error {
+		res, err := sess.Run(qp.ctx, finalQuery, params)
+		if err != nil {
+			return err
 		}
-	}
-	if err := res.Err(); err != nil {
+		for res.Next(qp.ctx) {
+			if id, ok := res.Record().Get("id"); ok && id != nil {
+				validMap[uid.FromAny(id)] = struct{}{}
+			}
+		}
+		return res.Err()
+	}); err != nil {
 		return nil, err
 	}
 
@@ -136,7 +194,7 @@ func bulkFilterGraph(qp *Processor, o *plan.Filter, in []Record) ([]Record, erro
 	out := make([]Record, 0, len(in))
 	for _, r := range in {
 		if _, ok := validMap[r.Slots[filterIdxIn]]; ok {
-			newRec := Record{Slots: make([]uid.UUID, newSlotCount)}
+			newRec := Record{Slots: make([]uid.UUID, newSlotCount), Vals: r.Vals}
 			for alias, outIdx := range o.OutputSlot.VarToSlot {
 				if inIdx, exists := o.InputSlot.VarToSlot[alias]; exists {
 					newRec.Slots[outIdx] = r.Slots[inIdx]
@@ -189,10 +247,20 @@ func fetchGraphPropsBulk(qp *Processor, ids []string, unit *plan.ProjectionUnit,
 	sess := qp.newReadSession()
 	defer qp.closeSession(sess)
 
-	res, err := sess.Run(qp.ctx, query, map[string]interface{}{"ids": ids})
-	if err != nil {
-		return result
-	}
+	// ID はストアの実効チャンクサイズで分割して投げる（巨大な IN-list を作らない）。
+	_ = core.ForEachIDChunk(store.Graph, ids, func(chunk []string) error {
+		res, err := sess.Run(qp.ctx, query, map[string]interface{}{"ids": chunk})
+		if err != nil {
+			return err
+		}
+		collectGraphProps(qp, res, fetch, result)
+		return nil
+	})
+	return result
+}
+
+// collectGraphProps は 1 チャンク分の結果を result[uuid][prop] へ積む。
+func collectGraphProps(qp *Processor, res neo4j.ResultWithContext, fetch *plan.FetchPlan, result map[string]map[string]interface{}) {
 	for res.Next(qp.ctx) {
 		rec := res.Record()
 		idVal, _ := rec.Get("uuid")
@@ -208,5 +276,4 @@ func fetchGraphPropsBulk(qp *Processor, ids []string, unit *plan.ProjectionUnit,
 		}
 		result[id] = propsMap
 	}
-	return result
 }

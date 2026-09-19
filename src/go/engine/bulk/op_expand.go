@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"polystore_database/src/go/engine/core"
 	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 )
@@ -98,7 +99,7 @@ func ExpandGraphBulk(qp *Processor, o *plan.Expand, in []Record) ([]Record, erro
 					newSlots[tgtIdxOut] = uid.FromAny(tid)
 				}
 			}
-			out = append(out, Record{Slots: newSlots})
+			out = append(out, Record{Slots: newSlots, Vals: originalRec.Vals})
 		}
 	}
 	return out, res.Err()
@@ -128,11 +129,29 @@ func bulkVarLengthExpand(qp *Processor, o *plan.VarLengthExpand, in []Record) ([
 	if len(o.TargetLabels) > 0 {
 		tgtConstraint = ":" + strings.Join(o.TargetLabels, "|:")
 	}
+
+	// 可変長パス全体への述語（all/any/none/single・length(p)）を WHERE に付加する。
+	matchHead := "(src:Entity)"
+	whereExtra := ""
+	pathParams := map[string]interface{}{}
+	if len(o.Filters) > 0 {
+		const pathVar = "vp"
+		matchHead = pathVar + " = (src:Entity)"
+		seq := 0
+		clauses, err := core.BuildPathFilterClauses(pathVar, o.Filters, pathParams, &seq)
+		if err != nil {
+			return nil, err
+		}
+		if len(clauses) > 0 {
+			whereExtra = " AND " + strings.Join(clauses, " AND ")
+		}
+	}
+
 	finalQuery := fmt.Sprintf(`
-		MATCH (src:Entity)%s(tgt%s)
-		WHERE src.uuid IN $ids
+		MATCH %s%s(tgt%s)
+		WHERE src.uuid IN $ids%s
 		RETURN DISTINCT src.uuid AS sid, tgt.uuid AS tid`,
-		relPattern, tgtConstraint,
+		matchHead, relPattern, tgtConstraint, whereExtra,
 	)
 
 	srcIds := make([]string, 0, len(in))
@@ -148,7 +167,13 @@ func bulkVarLengthExpand(qp *Processor, o *plan.VarLengthExpand, in []Record) ([
 	sess := qp.newReadSession()
 	defer qp.closeSession(sess)
 
-	res, err := sess.Run(qp.ctx, finalQuery, map[string]interface{}{"ids": srcIds})
+	runParams := make(map[string]interface{}, len(pathParams)+1)
+	runParams["ids"] = srcIds
+	for k, v := range pathParams {
+		runParams[k] = v
+	}
+
+	res, err := sess.Run(qp.ctx, finalQuery, runParams)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +190,7 @@ func bulkVarLengthExpand(qp *Processor, o *plan.VarLengthExpand, in []Record) ([
 		if hasTarget {
 			newSlots[tgtIdxOut] = targetID
 		}
-		out = append(out, Record{Slots: newSlots})
+		out = append(out, Record{Slots: newSlots, Vals: originalRec.Vals})
 	}
 
 	for res.Next(qp.ctx) {

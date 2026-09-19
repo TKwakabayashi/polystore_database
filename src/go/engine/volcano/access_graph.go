@@ -7,6 +7,7 @@ import (
 	"polystore_database/src/go/codec"
 	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
+	"polystore_database/src/go/store"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
@@ -18,29 +19,6 @@ func (p *Processor) newReadSession() neo4j.SessionWithContext {
 		FetchSize:  neo4j.FetchAll,
 	})
 }
-
-// cypherOp は比較演算子を Cypher 表記へ。
-func cypherOp(t plan.ConditionType) (string, error) {
-	switch t {
-	case plan.CondEq:
-		return "=", nil
-	case plan.CondNeq:
-		return "<>", nil
-	case plan.CondGreater:
-		return ">", nil
-	case plan.CondLess:
-		return "<", nil
-	case plan.CondGreaterEq:
-		return ">=", nil
-	case plan.CondLessEq:
-		return "<=", nil
-	default:
-		return "", fmt.Errorf("unknown operator")
-	}
-}
-
-// sqlToCypherOp は graph filter 用の演算子表記（<> 等）。
-func sqlToCypherOp(t plan.ConditionType) string { return core.SQLOp(t) }
 
 // ---------- EntityScan ----------
 
@@ -55,14 +33,13 @@ func (p *Processor) scanGraphIDs(o *plan.EntityScan) ([]string, error) {
 		}
 		whereSections = append(whereSections, "("+strings.Join(lc, " OR ")+")")
 	}
-	for i, cond := range o.Filter {
-		op, err := cypherOp(cond.Type)
+	seq := 0
+	for _, cond := range o.Filter {
+		frag, err := core.BuildCypherPredicate("n", cond, params, &seq)
 		if err != nil {
 			return nil, err
 		}
-		pn := fmt.Sprintf("val%d", i)
-		whereSections = append(whereSections, fmt.Sprintf("n.%s %s $%s", cond.Property, op, pn))
-		params[pn], _ = codec.ConvertToNativeType(cond.Value, cond.DataType)
+		whereSections = append(whereSections, frag)
 	}
 
 	query := "MATCH (n)"
@@ -90,6 +67,34 @@ func (p *Processor) scanGraphIDs(o *plan.EntityScan) ([]string, error) {
 	return ids, res.Err()
 }
 
+// runGraphRecordFragment は record-mode StoreFragment の融合 Cypher を実行し、各行を
+// OutputSlot 長の uuid 文字列スライス（未束縛 slot は ""）として返す（1 往復）。
+func (p *Processor) runGraphRecordFragment(cypher string, params map[string]interface{}, outSlot plan.SlotTable) ([][]string, error) {
+	sess := p.newReadSession()
+	defer sess.Close(p.ctx)
+
+	p.countRoundTrip()
+	res, err := sess.Run(p.ctx, cypher, params)
+	if err != nil {
+		return nil, err
+	}
+	slotCount := len(outSlot.VarToSlot)
+	var rows [][]string
+	for res.Next(p.ctx) {
+		rec := res.Record()
+		row := make([]string, slotCount)
+		for alias, idx := range outSlot.VarToSlot {
+			if v, ok := rec.Get(alias); ok {
+				if s, ok := v.(string); ok {
+					row[idx] = s
+				}
+			}
+		}
+		rows = append(rows, row)
+	}
+	return rows, res.Err()
+}
+
 // ---------- Filter ----------
 
 func (p *Processor) filterGraphValid(o *plan.Filter, ids []string) (map[string]struct{}, error) {
@@ -110,10 +115,13 @@ func (p *Processor) filterGraphValid(o *plan.Filter, ids []string) (map[string]s
 
 	var whereClauses []string
 	params := make(map[string]interface{})
-	for i, cond := range o.Filter {
-		paramName := fmt.Sprintf("val%d", i)
-		whereClauses = append(whereClauses, fmt.Sprintf("%s.%s %s $%s", targetVar, cond.Property, sqlToCypherOp(cond.Type), paramName))
-		params[paramName], _ = codec.ConvertToNativeType(cond.Value, cond.DataType)
+	seq := 0
+	for _, cond := range o.Filter {
+		frag, err := core.BuildCypherPredicate(targetVar, cond, params, &seq)
+		if err != nil {
+			return nil, err
+		}
+		whereClauses = append(whereClauses, frag)
 	}
 
 	finalQuery := fmt.Sprintf(`
@@ -124,23 +132,25 @@ func (p *Processor) filterGraphValid(o *plan.Filter, ids []string) (map[string]s
         RETURN %s.uuid AS id`,
 		matchPattern, labelFilter, targetVar, strings.Join(whereClauses, " AND "), targetVar,
 	)
-	params["ids"] = ids
-
 	sess := p.newReadSession()
 	defer sess.Close(p.ctx)
 
-	p.countRoundTrip()
-	res, err := sess.Run(p.ctx, finalQuery, params)
-	if err != nil {
-		return nil, err
-	}
+	// ID はストアの実効チャンクサイズで分割して投げる（巨大な IN-list を作らない）。
 	valid := make(map[string]struct{})
-	for res.Next(p.ctx) {
-		if v, ok := res.Record().Get("id"); ok && v != nil {
-			valid[v.(string)] = struct{}{}
+	err := core.ForEachIDChunkParams(store.Graph, ids, params, "ids", func() error {
+		p.countRoundTrip()
+		res, err := sess.Run(p.ctx, finalQuery, params)
+		if err != nil {
+			return err
 		}
-	}
-	return valid, res.Err()
+		for res.Next(p.ctx) {
+			if v, ok := res.Record().Get("id"); ok && v != nil {
+				valid[v.(string)] = struct{}{}
+			}
+		}
+		return res.Err()
+	})
+	return valid, err
 }
 
 // ---------- Projection fetch ----------
@@ -179,11 +189,22 @@ func (p *Processor) fetchGraphProps(ids []string, unit *plan.ProjectionUnit, fet
 	sess := p.newReadSession()
 	defer sess.Close(p.ctx)
 
-	p.countRoundTrip()
-	res, err := sess.Run(p.ctx, query, map[string]interface{}{"ids": ids})
-	if err != nil {
-		return result
-	}
+	// ID はストアの実効チャンクサイズで分割して投げる（巨大な IN-list を作らない）。
+	params := map[string]interface{}{}
+	_ = core.ForEachIDChunkParams(store.Graph, ids, params, "ids", func() error {
+		p.countRoundTrip()
+		res, err := sess.Run(p.ctx, query, params)
+		if err != nil {
+			return err
+		}
+		collectGraphProps(p, res, fetch, result)
+		return nil
+	})
+	return result
+}
+
+// collectGraphProps は 1 チャンク分の結果を result[uuid][prop] へ積む。
+func collectGraphProps(p *Processor, res neo4j.ResultWithContext, fetch *plan.FetchPlan, result map[string]map[string]interface{}) {
 	for res.Next(p.ctx) {
 		rec := res.Record()
 		idVal, _ := rec.Get("uuid")
@@ -199,5 +220,4 @@ func (p *Processor) fetchGraphProps(ids []string, unit *plan.ProjectionUnit, fet
 		}
 		result[id] = props
 	}
-	return result
 }

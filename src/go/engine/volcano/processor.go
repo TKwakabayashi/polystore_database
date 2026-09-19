@@ -113,13 +113,13 @@ func (p *Processor) newStep() int {
 }
 
 // Run は plan ツリーを pull 実行し、最終結果行を返す。
-// 現行 IR の root は tail 演算子（Return/Limit/Sort/Aggregate/Projection/StorePushdown）。
+// 現行 IR の root は tail 演算子（Return/Limit/Sort/Aggregate/Projection/StoreFragment）。
 func (p *Processor) Run(op plan.PlanNode) ([]map[string]interface{}, error) {
 	if op == nil {
 		return nil, fmt.Errorf("nil plan node")
 	}
 	switch op.(type) {
-	case *plan.StorePushdown, *plan.Projection, *plan.Aggregate, *plan.Sort, *plan.Limit, *plan.Return:
+	case *plan.StoreFragment, *plan.Integrate, *plan.Projection, *plan.Aggregate, *plan.Sort, *plan.Limit, *plan.Return:
 		rows, err := p.runRow(op)
 		if err != nil {
 			return nil, err
@@ -143,9 +143,47 @@ func (p *Processor) Run(op plan.PlanNode) ([]map[string]interface{}, error) {
 // build は plan.PlanNode を pull iterator へ変換する（葉→根で step 番号を付与）。
 func (p *Processor) build(op plan.PlanNode) (Iterator, error) {
 	switch o := op.(type) {
+	case *plan.StoreFragment:
+		// record-mode StoreFragment（部分融合）: graph traversal を 1 本の Cypher に融合して束縛 UUID を
+		// 払い出す source iterator を構築する。生成不能な構造は元の部分木でフォールバック（結果は等価）。
+		aliases := make([]string, 0, len(o.OutputSlot.VarToSlot))
+		for a := range o.OutputSlot.VarToSlot {
+			aliases = append(aliases, a)
+		}
+		cypher, params := core.BuildGraphRecordCypher(o.Plan, aliases)
+		if cypher == "" {
+			// traversal を含まないランは条件をマージして 1 スキャンに畳む。
+			if scan, ok := core.MergeRecordRun(o); ok {
+				p.nextStep++
+				return &scanIterator{p: p, o: scan, step: p.nextStep}, nil
+			}
+			return p.build(o.Plan)
+		}
+		// ラン境界: 下位ランを先に実行して束縛 uuid を IN-list として注入する。
+		if b := core.BoundaryFragment(o.Plan); b != nil {
+			recs, err := p.drainBindings(b)
+			if err != nil {
+				return nil, err
+			}
+			core.BindIncoming(params, b, recs)
+		}
+		p.nextStep++
+		return &fragmentIterator{p: p, cypher: cypher, params: params, outSlot: o.OutputSlot, step: p.nextStep}, nil
 	case *plan.EntityScan:
 		p.nextStep++
 		return &scanIterator{p: p, o: o, step: p.nextStep}, nil
+	case *plan.RowSource:
+		// WITH ステージ境界: 前段 Row を Record へ変換し batch source として供給する。
+		rows, err := p.runRow(o.Input)
+		if err != nil {
+			return nil, err
+		}
+		recs := core.BuildStageRecords(rows, o.BindCols, o.ValCols, o.OutputSlot)
+		b := newBatch(len(o.OutputSlot.VarToSlot), len(recs))
+		for _, rec := range recs {
+			b.appendRowVals(rec.Slots, rec.Vals)
+		}
+		return &batchSource{batch: b}, nil
 	case *plan.Filter:
 		child, err := p.build(o.Input)
 		if err != nil {
@@ -153,6 +191,13 @@ func (p *Processor) build(op plan.PlanNode) (Iterator, error) {
 		}
 		p.nextStep++
 		return &filterIterator{p: p, o: o, child: child, step: p.nextStep}, nil
+	case *plan.PostFilter:
+		child, err := p.build(o.Input)
+		if err != nil {
+			return nil, err
+		}
+		p.nextStep++
+		return &postFilterIterator{p: p, o: o, child: child, step: p.nextStep}, nil
 	case *plan.Expand:
 		child, err := p.build(o.Input)
 		if err != nil {
@@ -192,6 +237,34 @@ func (p *Processor) drainRaw(it Iterator) ([]map[string]interface{}, error) {
 				row[fmt.Sprintf("slot%d", s)] = b.get(i, s)
 			}
 			out = append(out, row)
+		}
+	}
+	return out, nil
+}
+
+// drainBindings は境界フラグメント（下位ラン）を実行し、束縛 UUID の Record 群へ落とす。
+// 一般セグメンタのラン境界で、上位ランのクエリへ IN-list を渡すために使う。
+func (p *Processor) drainBindings(b *plan.StoreFragment) ([]core.Record, error) {
+	it, err := p.build(b)
+	if err != nil {
+		return nil, err
+	}
+	if err := it.Open(p.ctx); err != nil {
+		return nil, err
+	}
+	defer it.Close(p.ctx)
+
+	var out []core.Record
+	for {
+		batch, err := it.Next(p.ctx)
+		if err != nil {
+			return nil, err
+		}
+		if batch == nil {
+			break
+		}
+		for i := 0; i < batch.n; i++ {
+			out = append(out, core.Record{Slots: batch.row(i)})
 		}
 	}
 	return out, nil
