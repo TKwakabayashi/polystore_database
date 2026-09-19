@@ -3,6 +3,7 @@ package stream
 import (
 	"fmt"
 	"polystore_database/src/go/codec"
+	"polystore_database/src/go/engine/core"
 	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 	"strings"
@@ -32,29 +33,14 @@ func ScanGraphStream(qp *Processor,
 		whereSections = append(whereSections, "("+strings.Join(labelConditions, " OR ")+")")
 	}
 
-	// 2. プロパティフィルタ条件の構築 (n.prop = $val ...)
-	for i, cond := range o.Filter {
-		var operator string
-		switch cond.Type {
-		case plan.CondEq:
-			operator = "="
-		case plan.CondNeq:
-			operator = "<>"
-		case plan.CondGreater:
-			operator = ">"
-		case plan.CondLess:
-			operator = "<"
-		case plan.CondGreaterEq:
-			operator = ">="
-		case plan.CondLessEq:
-			operator = "<="
-		default:
-			return 0, fmt.Errorf("unknown operator")
+	// 2. プロパティフィルタ条件の構築（比較 / IN / IS NULL を共通ヘルパで生成）
+	seq := 0
+	for _, cond := range o.Filter {
+		frag, err := core.BuildCypherPredicate("n", cond, params, &seq)
+		if err != nil {
+			return 0, err
 		}
-
-		paramName := fmt.Sprintf("val%d", i)
-		whereSections = append(whereSections, fmt.Sprintf("n.%s %s $%s", cond.Property, operator, paramName))
-		params[paramName], _ = codec.ConvertToNativeType(cond.Value, cond.DataType)
+		whereSections = append(whereSections, frag)
 	}
 
 	// 3. クエリの組み立て
@@ -165,25 +151,13 @@ func streamFilterGraph(qp *Processor, o *plan.Filter, step int, inputStream <-ch
 
 	var whereClauses []string
 	params := make(map[string]interface{})
-	for i, cond := range o.Filter {
-		operator := "="
-		switch cond.Type {
-		case plan.CondEq:
-			operator = "="
-		case plan.CondNeq:
-			operator = "<>"
-		case plan.CondGreater:
-			operator = ">"
-		case plan.CondLess:
-			operator = "<"
-		case plan.CondGreaterEq:
-			operator = ">="
-		case plan.CondLessEq:
-			operator = "<="
+	seq := 0
+	for _, cond := range o.Filter {
+		frag, err := core.BuildCypherPredicate(targetVar, cond, params, &seq)
+		if err != nil {
+			return 0, err
 		}
-		paramName := fmt.Sprintf("val%d", i)
-		whereClauses = append(whereClauses, fmt.Sprintf("%s.%s %s $%s", targetVar, cond.Property, operator, paramName))
-		params[paramName], _ = codec.ConvertToNativeType(cond.Value, cond.DataType)
+		whereClauses = append(whereClauses, frag)
 	}
 
 	finalQuery := fmt.Sprintf(`
@@ -233,7 +207,7 @@ func streamFilterGraph(qp *Processor, o *plan.Filter, step int, inputStream <-ch
 			out := make([]Record, 0, len(batch))
 			for _, r := range batch {
 				if _, ok := validMap[r.Slots[filterIdxIn]]; ok {
-					newRec := Record{Slots: make([]uid.UUID, newSlotCount)}
+					newRec := Record{Slots: make([]uid.UUID, newSlotCount), Vals: r.Vals}
 					for alias, outIdx := range o.OutputSlot.VarToSlot {
 						if inIdx, exists := o.InputSlot.VarToSlot[alias]; exists {
 							newRec.Slots[outIdx] = r.Slots[inIdx]

@@ -193,6 +193,28 @@ func ExecuteOperatorStream(qp *Processor, op plan.PlanNode, counter *int, wg *sy
 		return nil, fmt.Errorf("Empty Operator Passed")
 	}
 
+	// RowSource（WITH ステージ境界）: 前段 Row を Record へ変換する source。StoreFragment と同様に
+	// switch 前で扱う（子は Row 世界 = executeRowStream で取得し、record 世界へ橋渡しする）。
+	if rs, ok := op.(*plan.RowSource); ok {
+		rowCh, err := executeRowStream(qp, rs.Input, counter, wg)
+		if err != nil {
+			return nil, err
+		}
+		out := make(chan []Record, 500)
+		*counter++
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer close(out)
+			for batch := range rowCh {
+				if recs := core.BuildStageRecords(batch, rs.BindCols, rs.ValCols, rs.OutputSlot); len(recs) > 0 {
+					out <- recs
+				}
+			}
+		}()
+		return out, nil
+	}
+
 	// record-mode StoreFragment（部分融合）: graph traversal を 1 本の Cypher に融合して束縛 UUID を
 	// source として流す。生成不能な構造は元の部分木を通常実行してフォールバック（結果は等価）。
 	//
@@ -285,6 +307,8 @@ func ExecuteOperatorStream(qp *Processor, op plan.PlanNode, counter *int, wg *sy
 			_, err = streamVarLengthExpand(qp, o, currentStep, inputStream, outputStream)
 		case *plan.Filter:
 			_, err = filterByStore(qp, o, currentStep, inputStream, outputStream)
+		case *plan.PostFilter:
+			_, err = streamPostFilter(qp, o, currentStep, inputStream, outputStream)
 		default:
 			fmt.Printf("Unknown operator: %T\n", o)
 		}

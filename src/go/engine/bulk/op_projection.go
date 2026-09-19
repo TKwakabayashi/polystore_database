@@ -1,6 +1,7 @@
 package bulk
 
 import (
+	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
 	"polystore_database/src/go/store"
 )
@@ -74,6 +75,10 @@ func bulkProjection(qp *Processor, o *plan.Projection, in []Record) []Row {
 					row[unit.Alias+"."+p] = props[p]
 				}
 			}
+		}
+		// WITH 多段: 前段が持ち越した carried 値（Record.Vals）を Row へマージ。
+		if r.Vals != nil {
+			core.MergeVals(row, r.Vals)
 		}
 		rows = append(rows, row)
 	}

@@ -109,7 +109,7 @@ func FilterRdbBulk(qp *Processor, o *plan.Filter, in []Record) ([]Record, error)
 	out := make([]Record, 0, len(in))
 	for _, r := range in {
 		if _, ok := validMap[r.Slots[filterIdxIn]]; ok {
-			newRec := Record{Slots: make([]uid.UUID, newSlotCount)}
+			newRec := Record{Slots: make([]uid.UUID, newSlotCount), Vals: r.Vals}
 			for alias, outIdx := range o.OutputSlot.VarToSlot {
 				if inIdx, exists := o.InputSlot.VarToSlot[alias]; exists {
 					newRec.Slots[outIdx] = r.Slots[inIdx]

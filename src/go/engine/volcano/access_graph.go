@@ -20,29 +20,6 @@ func (p *Processor) newReadSession() neo4j.SessionWithContext {
 	})
 }
 
-// cypherOp は比較演算子を Cypher 表記へ。
-func cypherOp(t plan.ConditionType) (string, error) {
-	switch t {
-	case plan.CondEq:
-		return "=", nil
-	case plan.CondNeq:
-		return "<>", nil
-	case plan.CondGreater:
-		return ">", nil
-	case plan.CondLess:
-		return "<", nil
-	case plan.CondGreaterEq:
-		return ">=", nil
-	case plan.CondLessEq:
-		return "<=", nil
-	default:
-		return "", fmt.Errorf("unknown operator")
-	}
-}
-
-// sqlToCypherOp は graph filter 用の演算子表記（<> 等）。
-func sqlToCypherOp(t plan.ConditionType) string { return core.SQLOp(t) }
-
 // ---------- EntityScan ----------
 
 func (p *Processor) scanGraphIDs(o *plan.EntityScan) ([]string, error) {
@@ -56,14 +33,13 @@ func (p *Processor) scanGraphIDs(o *plan.EntityScan) ([]string, error) {
 		}
 		whereSections = append(whereSections, "("+strings.Join(lc, " OR ")+")")
 	}
-	for i, cond := range o.Filter {
-		op, err := cypherOp(cond.Type)
+	seq := 0
+	for _, cond := range o.Filter {
+		frag, err := core.BuildCypherPredicate("n", cond, params, &seq)
 		if err != nil {
 			return nil, err
 		}
-		pn := fmt.Sprintf("val%d", i)
-		whereSections = append(whereSections, fmt.Sprintf("n.%s %s $%s", cond.Property, op, pn))
-		params[pn], _ = codec.ConvertToNativeType(cond.Value, cond.DataType)
+		whereSections = append(whereSections, frag)
 	}
 
 	query := "MATCH (n)"
@@ -139,10 +115,13 @@ func (p *Processor) filterGraphValid(o *plan.Filter, ids []string) (map[string]s
 
 	var whereClauses []string
 	params := make(map[string]interface{})
-	for i, cond := range o.Filter {
-		paramName := fmt.Sprintf("val%d", i)
-		whereClauses = append(whereClauses, fmt.Sprintf("%s.%s %s $%s", targetVar, cond.Property, sqlToCypherOp(cond.Type), paramName))
-		params[paramName], _ = codec.ConvertToNativeType(cond.Value, cond.DataType)
+	seq := 0
+	for _, cond := range o.Filter {
+		frag, err := core.BuildCypherPredicate(targetVar, cond, params, &seq)
+		if err != nil {
+			return nil, err
+		}
+		whereClauses = append(whereClauses, frag)
 	}
 
 	finalQuery := fmt.Sprintf(`

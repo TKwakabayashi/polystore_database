@@ -2,6 +2,7 @@ package stream
 
 import (
 	"fmt"
+	"polystore_database/src/go/engine/core"
 	uid "polystore_database/src/go/id"
 	"polystore_database/src/go/plan"
 	"strings"
@@ -99,7 +100,7 @@ func ExpandGraphStream(qp *Processor, o *plan.Expand, step int, inputStream <-ch
 							newSlots[tgtIdxOut] = uid.FromAny(tid)
 						}
 					}
-					out = append(out, Record{Slots: newSlots})
+					out = append(out, Record{Slots: newSlots, Vals: originalRec.Vals})
 				}
 			}
 			return out, res.Err()
@@ -130,11 +131,30 @@ func streamVarLengthExpand(qp *Processor, o *plan.VarLengthExpand, step int, inp
 	if len(o.TargetLabels) > 0 {
 		tgtConstraint = ":" + strings.Join(o.TargetLabels, "|:")
 	}
+
+	// 可変長パス全体への述語（all/any/none/single・length(p)）を WHERE に付加する。
+	// フィルタがあるときだけパス変数 vp を束縛する（無いときは既存クエリを維持）。
+	matchHead := "(src:Entity)"
+	whereExtra := ""
+	pathParams := map[string]interface{}{}
+	if len(o.Filters) > 0 {
+		const pathVar = "vp"
+		matchHead = pathVar + " = (src:Entity)"
+		seq := 0
+		clauses, err := core.BuildPathFilterClauses(pathVar, o.Filters, pathParams, &seq)
+		if err != nil {
+			return 0, err
+		}
+		if len(clauses) > 0 {
+			whereExtra = " AND " + strings.Join(clauses, " AND ")
+		}
+	}
+
 	finalQuery := fmt.Sprintf(`
-		MATCH (src:Entity)%s(tgt%s) 
-		WHERE src.uuid IN $ids 
+		MATCH %s%s(tgt%s)
+		WHERE src.uuid IN $ids%s
 		RETURN DISTINCT src.uuid AS sid, tgt.uuid AS tid`,
-		relPattern, tgtConstraint,
+		matchHead, relPattern, tgtConstraint, whereExtra,
 	)
 
 	return runBatches(
@@ -151,8 +171,14 @@ func streamVarLengthExpand(qp *Processor, o *plan.VarLengthExpand, step int, inp
 				recordMap[id] = append(recordMap[id], r)
 			}
 
+			runParams := make(map[string]interface{}, len(pathParams)+1)
+			runParams["ids"] = srcIds
+			for k, v := range pathParams {
+				runParams[k] = v
+			}
+
 			qp.countRoundTrip()
-			res, err := sess.Run(qp.ctx, finalQuery, map[string]interface{}{"ids": srcIds})
+			res, err := sess.Run(qp.ctx, finalQuery, runParams)
 			if err != nil {
 				return nil, err
 			}
@@ -169,7 +195,7 @@ func streamVarLengthExpand(qp *Processor, o *plan.VarLengthExpand, step int, inp
 				if hasTarget {
 					newSlots[tgtIdxOut] = targetID
 				}
-				out = append(out, Record{Slots: newSlots})
+				out = append(out, Record{Slots: newSlots, Vals: originalRec.Vals})
 			}
 
 			for res.Next(qp.ctx) {

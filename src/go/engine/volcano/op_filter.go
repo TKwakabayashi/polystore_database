@@ -66,7 +66,7 @@ func (f *filterIterator) process(in *Batch) (*Batch, error) {
 	out := newBatch(outSlots, in.n)
 	for i := 0; i < in.n; i++ {
 		if _, ok := valid[in.get(i, filterIdxIn).String()]; ok {
-			out.appendRow(remap(in.row(i), f.o.InputSlot, f.o.OutputSlot))
+			out.appendRowVals(remap(in.row(i), f.o.InputSlot, f.o.OutputSlot), in.valsAt(i))
 		}
 	}
 	return out, nil

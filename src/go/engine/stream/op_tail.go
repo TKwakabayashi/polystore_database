@@ -2,6 +2,7 @@ package stream
 
 import (
 	"fmt"
+	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
 	"sort"
 	"strconv"
@@ -77,9 +78,58 @@ func executeRowStream(qp *Processor, op plan.PlanNode, counter *int, wg *sync.Wa
 			return streamReturn(o, in, out)
 		}), nil
 
+	case *plan.RowFilter:
+		in, err := executeRowStream(qp, o.Input, counter, wg)
+		if err != nil {
+			return nil, err
+		}
+		return spawnRowOp(qp, "RowFilter", counter, wg, func(step int, out chan []Row) int {
+			return streamRowFilter(o, in, out)
+		}), nil
+
+	case *plan.RowProject:
+		in, err := executeRowStream(qp, o.Input, counter, wg)
+		if err != nil {
+			return nil, err
+		}
+		return spawnRowOp(qp, "RowProject", counter, wg, func(step int, out chan []Row) int {
+			n := 0
+			for batch := range in {
+				outb := make([]Row, len(batch))
+				for i, row := range batch {
+					outb[i] = core.ProjectRow(row, o.Cols)
+				}
+				out <- outb
+				n += len(outb)
+			}
+			return n
+		}), nil
+
 	default:
 		return nil, fmt.Errorf("unexpected row operator: %T", op)
 	}
+}
+
+// streamRowFilter は post-WITH の WHERE を Row 上で評価する（式は Expr、判定は core.EvalExpr+Truthy）。
+func streamRowFilter(o *plan.RowFilter, in <-chan []Row, out chan<- []Row) int {
+	emitted := 0
+	for batch := range in {
+		kept := make([]Row, 0, len(batch))
+		for _, row := range batch {
+			v, err := core.EvalExpr(o.Cond, row)
+			if err != nil {
+				continue // 評価不能行は除外（保守的）
+			}
+			if core.Truthy(v) {
+				kept = append(kept, row)
+			}
+		}
+		if len(kept) > 0 {
+			out <- kept
+			emitted += len(kept)
+		}
+	}
+	return emitted
 }
 
 func spawnRowOp(qp *Processor, name string, counter *int, wg *sync.WaitGroup, run func(step int, out chan []Row) int) chan []Row {
@@ -291,6 +341,10 @@ func streamReturn(o *plan.Return, in <-chan []Row, out chan<- []Row) int {
 }
 
 func shapeValue(item plan.ReturnItem, r Row) interface{} {
+	if item.Expr != nil {
+		v, _ := core.EvalExpr(item.Expr, r)
+		return v
+	}
 	if item.IsAggregate {
 		return r[item.Agg.OutName]
 	}

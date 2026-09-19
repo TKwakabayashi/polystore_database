@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
 )
 
@@ -110,9 +111,53 @@ func (p *Processor) runRow(op plan.PlanNode) ([]Row, error) {
 		p.recordFlow(step, "Return", 0, 0, int64(len(in)), int64(len(rows)), 0, start, now)
 		return rows, nil
 
+	case *plan.RowFilter:
+		in, err := p.runRow(o.Input)
+		if err != nil {
+			return nil, err
+		}
+		start := time.Now()
+		rows := applyRowFilter(o, in)
+		now := time.Now()
+		step := p.newStep()
+		p.recordOp(step, "RowFilter", now.Sub(start), len(rows))
+		p.recordFlow(step, "RowFilter", 0, 0, int64(len(in)), int64(len(rows)), 0, start, now)
+		return rows, nil
+
+	case *plan.RowProject:
+		in, err := p.runRow(o.Input)
+		if err != nil {
+			return nil, err
+		}
+		start := time.Now()
+		rows := make([]Row, len(in))
+		for i, row := range in {
+			rows[i] = core.ProjectRow(row, o.Cols)
+		}
+		now := time.Now()
+		step := p.newStep()
+		p.recordOp(step, "RowProject", now.Sub(start), len(rows))
+		p.recordFlow(step, "RowProject", 0, 0, int64(len(in)), int64(len(rows)), 0, start, now)
+		return rows, nil
+
 	default:
 		return nil, fmt.Errorf("unexpected row operator: %T", op)
 	}
+}
+
+// applyRowFilter は post-WITH の WHERE を Row 上で評価する（式 Expr、判定 core.EvalExpr+Truthy）。
+func applyRowFilter(o *plan.RowFilter, in []Row) []Row {
+	out := make([]Row, 0, len(in))
+	for _, row := range in {
+		v, err := core.EvalExpr(o.Cond, row)
+		if err != nil {
+			continue
+		}
+		if core.Truthy(v) {
+			out = append(out, row)
+		}
+	}
+	return out
 }
 
 // ---- Aggregate（pipeline breaker）----
@@ -276,6 +321,10 @@ func applyReturn(o *plan.Return, in []Row) []Row {
 }
 
 func shapeValue(item plan.ReturnItem, r Row) interface{} {
+	if item.Expr != nil {
+		v, _ := core.EvalExpr(item.Expr, r)
+		return v
+	}
 	if item.IsAggregate {
 		return r[item.Agg.OutName]
 	}

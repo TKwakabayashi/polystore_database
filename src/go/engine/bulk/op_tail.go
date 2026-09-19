@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
 	"polystore_database/src/go/store"
 )
@@ -83,6 +84,29 @@ func executeRowBulk(qp *Processor, op plan.PlanNode, counter *int) ([]Row, error
 		recordRowOp(qp, counter, "Limit", time.Since(start), len(in), len(rows))
 		return rows, nil
 
+	case *plan.RowFilter:
+		in, err := executeRowBulk(qp, o.Input, counter)
+		if err != nil {
+			return nil, err
+		}
+		start := time.Now()
+		rows := bulkRowFilter(o, in)
+		recordRowOp(qp, counter, "RowFilter", time.Since(start), len(in), len(rows))
+		return rows, nil
+
+	case *plan.RowProject:
+		in, err := executeRowBulk(qp, o.Input, counter)
+		if err != nil {
+			return nil, err
+		}
+		start := time.Now()
+		rows := make([]Row, len(in))
+		for i, row := range in {
+			rows[i] = core.ProjectRow(row, o.Cols)
+		}
+		recordRowOp(qp, counter, "RowProject", time.Since(start), len(in), len(rows))
+		return rows, nil
+
 	case *plan.Return:
 		in, err := executeRowBulk(qp, o.Input, counter)
 		if err != nil {
@@ -101,6 +125,21 @@ func executeRowBulk(qp *Processor, op plan.PlanNode, counter *int) ([]Row, error
 func recordRowOp(qp *Processor, counter *int, name string, dur time.Duration, in, out int) {
 	*counter++
 	qp.metrics[*counter] = Metrics{StepNum: *counter, OpType: name, Duration: dur, InRows: in, RowCount: out}
+}
+
+// bulkRowFilter は post-WITH の WHERE を Row 上で評価する（式 Expr、判定 core.EvalExpr+Truthy）。
+func bulkRowFilter(o *plan.RowFilter, in []Row) []Row {
+	out := make([]Row, 0, len(in))
+	for _, row := range in {
+		v, err := core.EvalExpr(o.Cond, row)
+		if err != nil {
+			continue
+		}
+		if core.Truthy(v) {
+			out = append(out, row)
+		}
+	}
+	return out
 }
 
 // ---- Aggregate（pipeline breaker）----
@@ -264,6 +303,10 @@ func bulkReturn(o *plan.Return, in []Row) []Row {
 }
 
 func shapeValue(item plan.ReturnItem, r Row) interface{} {
+	if item.Expr != nil {
+		v, _ := core.EvalExpr(item.Expr, r)
+		return v
+	}
 	if item.IsAggregate {
 		return r[item.Agg.OutName]
 	}

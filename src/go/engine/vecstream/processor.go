@@ -168,6 +168,19 @@ func (p *Processor) build(op plan.PlanNode) (Iterator, error) {
 		step := p.newStep()
 		return &scanIterator{p: p, o: o, step: step}, nil
 
+	case *plan.RowSource:
+		// WITH ステージ境界: 前段 Row を Record へ変換し batch source として供給する。
+		rows, err := p.runRow(o.Input)
+		if err != nil {
+			return nil, err
+		}
+		recs := core.BuildStageRecords(rows, o.BindCols, o.ValCols, o.OutputSlot)
+		b := newBatch(len(o.OutputSlot.VarToSlot), len(recs))
+		for _, rec := range recs {
+			b.appendRowVals(rec.Slots, rec.Vals)
+		}
+		return &batchSource{batch: b}, nil
+
 	case *plan.Filter:
 		child, err := p.build(o.Input)
 		if err != nil {
@@ -177,6 +190,16 @@ func (p *Processor) build(op plan.PlanNode) (Iterator, error) {
 		fo := &filterOp{p: p, o: o}
 		return newExchange(p, child, OpFilter, "Filter", step,
 			p.newReadSession, p.closeSession, fo.process), nil
+
+	case *plan.PostFilter:
+		child, err := p.build(o.Input)
+		if err != nil {
+			return nil, err
+		}
+		step := p.newStep()
+		pf := &postFilterOp{p: p, o: o}
+		return newExchange(p, child, OpFilter, "PostFilter", step,
+			p.newReadSession, p.closeSession, pf.process), nil
 
 	case *plan.Expand:
 		child, err := p.build(o.Input)

@@ -3,6 +3,7 @@ package stream
 import (
 	"time"
 
+	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/plan"
 	"polystore_database/src/go/store"
 )
@@ -84,6 +85,10 @@ func streamProjection(qp *Processor, o *plan.Projection, step int, inputStream <
 						row[unit.Alias+"."+p] = props[p]
 					}
 				}
+			}
+			// WITH 多段: 前段が持ち越した carried 値（Record.Vals）を Row へマージする。
+			if r.Vals != nil {
+				core.MergeVals(row, r.Vals)
 			}
 			rows = append(rows, row)
 		}
