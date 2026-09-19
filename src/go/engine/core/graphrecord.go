@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"polystore_database/src/go/codec"
 	"polystore_database/src/go/plan"
 	"polystore_database/src/go/store"
 )
@@ -64,15 +63,18 @@ func BuildGraphRecordCypher(sub plan.PlanNode, outAliases []string) (string, map
 		}
 		whereParts = append(whereParts, "("+strings.Join(ors, " OR ")+")")
 	}
+	genFailed := false // 表現不能な述語に当たったら融合を諦める（コーディネータへフォールバック）
 	addFilters := func(conds []*plan.ConditionNode) {
 		for _, c := range conds {
 			if c == nil {
 				continue
 			}
-			p := fmt.Sprintf("val%d", pi)
-			pi++
-			whereParts = append(whereParts, fmt.Sprintf("%s.%s %s $%s", c.Alias, c.Property, SQLOp(c.Type), p))
-			params[p], _ = codec.ConvertToNativeType(c.Value, c.DataType)
+			frag, err := BuildCypherPredicate(c.Alias, c, params, &pi)
+			if err != nil {
+				genFailed = true
+				return
+			}
+			whereParts = append(whereParts, frag)
 		}
 	}
 
@@ -122,6 +124,12 @@ func BuildGraphRecordCypher(sub plan.PlanNode, outAliases []string) (string, map
 			if op.SourceEntity != last {
 				return "", nil
 			}
+			// パス全体フィルタを持つ可変長展開は融合しない（融合パターンでは
+			// パス変数が全体に及びスコープが崩れるため）。コーディネータの per-op
+			// 実行（streamVarLengthExpand 等）が正しく処理する。
+			if len(op.Filters) > 0 {
+				return "", nil
+			}
 			pattern.WriteString(edgePattern(op.Alias, op.RelLabel, op.Dir, varLenRange(op.MinHops, op.MaxHops)))
 			pattern.WriteString("(" + op.TargetEntity + ")")
 			placed[op.TargetEntity] = true
@@ -133,6 +141,10 @@ func BuildGraphRecordCypher(sub plan.PlanNode, outAliases []string) (string, map
 		default:
 			return "", nil // 想定外ノード → フォールバック
 		}
+	}
+
+	if genFailed {
+		return "", nil // 表現不能な述語 → コーディネータ実行へフォールバック
 	}
 
 	// RETURN する alias が全てパターンに登場していること。
