@@ -49,6 +49,9 @@ type QueryPlannerListener struct {
 	stackCond         []*plan.ConditionNode
 	symbolCondMapping map[string][]*plan.ConditionNode
 
+	// stackExpr は valueExpr（RETURN の算術/関数/list 計算式）を bottom-up に組む作業スタック。
+	stackExpr []plan.Expr
+
 	symbolEntTable   map[string]int   // alias to its Entity number
 	sorceEntMapping  map[string][]int // alias of source entity to relationships number
 	targetEntMapping map[string][]int // alias of target entity to relationships number/
@@ -64,6 +67,33 @@ type QueryPlannerListener struct {
 	orderItems  []plan.OrderItem
 	limitNum    int
 	planRoot    plan.PlanNode
+
+	// exprBuildFailed は計算式（CASE 等）の Expr 構築に失敗した（未対応述語を含む等）フラグ。
+	// 立つと ParseQuery が graph verbatim へフォールバックする。
+	exprBuildFailed bool
+
+	// hasWith は WITH 節（多段クエリ）を検出したフラグ。structured 多段経路（Phase B2）に入るか、
+	// settings.MultiStage が OFF なら graph verbatim へフォールバックするかの判定に使う。
+	hasWith bool
+
+	// --- WITH 多段（Phase B2）ステージ分割用 ---
+	stages       []*stageData      // WITH で閉じた前段（順序）
+	inWith       bool              // withClause 内か（returnItems/orderItems/limit/whereClause の振り分け）
+	withItemsBuf []plan.ReturnItem // 現 WITH 節の projection 項目
+	withOrderBuf []plan.OrderItem
+	withLimitBuf int
+	withDistinct bool
+	curPostWhere *plan.ConditionNode // 現 WITH 節の末尾 WHERE（post-WITH フィルタ）
+	carriedBinds map[string]bool     // 現ステージへ RowSource が供給する束縛 alias（前段 WITH の bare 束縛項目）
+	carriedVals  map[string]bool     // 現ステージへ RowSource が Vals 供給する値/集約列（前段 WITH の非束縛項目）
+
+	// クロスエイリアス比較（a.id <op> b.id）。symbolCondMapping には入れず PostFilter として積む。
+	crossFilters []*plan.ConditionNode
+
+	// パスフィルタ（可変長パス全体への述語）。p= 束縛 → 可変長 rel alias → フィルタ群。
+	pendingPathVar        string                            // 現在パターンの p= 束縛
+	varLenRelByPathVar    map[string]string                 // path var → 可変長 rel alias
+	pathFiltersByRelAlias map[string][]plan.VarLengthFilter // rel alias → パスフィルタ群
 }
 
 func NewQueryPlannerListener(mappingPath string) (*QueryPlannerListener, error) {
@@ -81,6 +111,9 @@ func NewQueryPlannerListener(mappingPath string) (*QueryPlannerListener, error) 
 		targetEntMapping: make(map[string][]int),
 
 		symbolRelTable: make(map[string]int),
+
+		varLenRelByPathVar:    make(map[string]string),
+		pathFiltersByRelAlias: make(map[string][]plan.VarLengthFilter),
 
 		mappingDictionary: mappingDict,
 	}, nil
@@ -145,6 +178,18 @@ func (l *QueryPlannerListener) BuildPlan() error {
 	// 2. 再帰的に枝分かれを探索して Operator を積み上げる
 	root = l.buildOperatorTree(startEnt.alias, root, visitedEnt, visitedRel)
 
+	// 複数パターン（カンマ区切り）が変数共有で連結されていない＝直積の場合は本増分では非対象。
+	// 開始ノードから到達できないエンティティがあれば明示的にエラーにする（誤った結果の回避）。
+	if len(visitedEnt) < len(l.entityInfo) {
+		return fmt.Errorf("disconnected MATCH patterns (cartesian product) are not supported")
+	}
+
+	// 2.5 クロスエイリアス比較（変数間比較 a.id <op> b.id）を PostFilter として積む。
+	//     全束縛が揃ったこの位置で評価する（どのストアにも push できないため）。
+	for _, cf := range l.crossFilters {
+		root = &plan.PostFilter{Input: root, Cond: cf}
+	}
+
 	// --- ProjectionUnit の構築 ---
 	// --- Materialize の収集列（union）と tail 演算子の構築 ---
 	unitMap := make(map[string]*plan.ProjectionUnit)
@@ -203,6 +248,14 @@ func (l *QueryPlannerListener) BuildPlan() error {
 			addColumn(item.Agg.Alias, item.Agg.Prop) // Prop=="" は no-op
 			continue
 		}
+		if item.Expr != nil {
+			// 計算式（CASE 等）: 参照プロパティを材料化。group key にはしない（Return が式評価）。
+			for _, key := range exprColumns(item.Expr) {
+				a, p := splitKey(key)
+				addColumn(a, p)
+			}
+			continue
+		}
 		for _, p := range item.Props {
 			addColumn(item.Alias, p)
 		}
@@ -249,7 +302,8 @@ func (l *QueryPlannerListener) fillConditionMetadata(node *plan.ConditionNode) {
 		l.fillConditionMetadata(node.Right)
 	case plan.CondNot, plan.CondParen, plan.CondAll, plan.CondAny, plan.CondSingle, plan.CondNone:
 		l.fillConditionMetadata(node.Child)
-	case plan.CondEq, plan.CondNeq, plan.CondLess, plan.CondGreater, plan.CondLessEq, plan.CondGreaterEq:
+	case plan.CondEq, plan.CondNeq, plan.CondLess, plan.CondGreater, plan.CondLessEq, plan.CondGreaterEq,
+		plan.CondIn, plan.CondIsNull, plan.CondIsNotNull, plan.CondVarCmp:
 		break
 	default:
 		fmt.Println("Unknown Condition Type")
@@ -325,6 +379,7 @@ func (l *QueryPlannerListener) buildOperatorTree(currentAlias string, input plan
 				TargetLabels: targetLabels,
 				MinHops:      rel.minHops,
 				MaxHops:      rel.maxHops,
+				Filters:      l.pathFiltersByRelAlias[rel.alias], // 可変長パス全体への述語
 			}
 		} else {
 			expandOp = &plan.Expand{
@@ -464,6 +519,23 @@ func (l *QueryPlannerListener) RefinePlan() {
 			currentOp.InputSlot = buildSlotTable(currentOp.InputAlias)
 			nextInputSlot = currentOp.InputSlot
 
+		case *plan.PostFilter:
+			currentOp.OutputAlias = requiredNext.ConvertSlice()
+			currentOp.OutputSlot = nextInputSlot
+
+			// クロスエイリアス比較は両辺の束縛が下流で必要。
+			if currentOp.Cond != nil {
+				if currentOp.Cond.Alias != "" {
+					requiredNext.Insert(currentOp.Cond.Alias)
+				}
+				if currentOp.Cond.RAlias != "" {
+					requiredNext.Insert(currentOp.Cond.RAlias)
+				}
+			}
+			currentOp.InputAlias = requiredNext.ConvertSlice()
+			currentOp.InputSlot = buildSlotTable(currentOp.InputAlias)
+			nextInputSlot = currentOp.InputSlot
+
 		case *plan.Expand:
 			currentOp.OutputAlias = requiredNext.ConvertSlice()
 			currentOp.OutputSlot = nextInputSlot
@@ -526,6 +598,17 @@ func printTree(op plan.PlanNode, indent string, isLast bool) {
 	}
 }
 
+// syntaxErrorListener は ANTLR の構文/字句エラーを数える。エラーが 1 つでもあれば
+// 現行文法で構造化できない＝graph verbatim 委譲へフォールバックする（Phase A）。
+type syntaxErrorListener struct {
+	*antlr.DefaultErrorListener
+	count int
+}
+
+func (l *syntaxErrorListener) SyntaxError(antlr.Recognizer, interface{}, int, int, string, antlr.RecognitionException) {
+	l.count++
+}
+
 func ParseQuery(query string, mappingPath string, params map[string]string) (plan.PlanNode, error) {
 
 	paramedQuery, err := replaceParameters(query, params)
@@ -538,7 +621,25 @@ func ParseQuery(query string, mappingPath string, params map[string]string) (pla
 	stream := antlr.NewCommonTokenStream(lexer, antlr.TokenDefaultChannel)
 	p := parser.NewCypherParser(stream)
 
+	// 現行文法で構造化できない構文（WITH/OPTIONAL/CASE/UNWIND/否定パターン等）は
+	// 構文エラーとして検出し、graph へ丸ごと委譲する（Neo4j がネイティブ処理する）。
+	// Neo4j は全データの源泉なので、どの配置でも graph には全プロパティがあり結果は正しい。
+	errs := &syntaxErrorListener{DefaultErrorListener: antlr.NewDefaultErrorListener()}
+	lexer.RemoveErrorListeners()
+	lexer.AddErrorListener(errs)
+	p.RemoveErrorListeners()
+	p.AddErrorListener(errs)
+
 	tree := p.Cypher()
+
+	if errs.count > 0 {
+		return &plan.StoreFragment{
+			Store:    stk.Graph,
+			Emits:    plan.EmitResult,
+			Verbatim: query,
+			Params:   params,
+		}, nil
+	}
 
 	planner, err := NewQueryPlannerListener(mappingPath)
 	if err != nil {
@@ -547,6 +648,28 @@ func ParseQuery(query string, mappingPath string, params map[string]string) (pla
 	}
 
 	antlr.ParseTreeWalkerDefault.Walk(planner, tree)
+
+	// 計算式（CASE 等）の Expr 構築に失敗したクエリは graph verbatim へ委譲（結果は正しい）。
+	if planner.exprBuildFailed {
+		return &plan.StoreFragment{Store: stk.Graph, Emits: plan.EmitResult, Verbatim: query, Params: params}, nil
+	}
+
+	// WITH 多段クエリの振り分け（Phase B2）:
+	//   - settings.MultiStage=false: graph verbatim へ委譲し従来挙動を保つ（Neo4j がネイティブ処理）。
+	//   - settings.MultiStage=true : structured 多段プランを構築。未対応の形は verbatim へフォールバック。
+	// 文法で WITH がパース可能になったため、パース失敗フォールバックは効かない。ここで明示的に振り分ける。
+	if planner.hasWith {
+		verbatim := &plan.StoreFragment{Store: stk.Graph, Emits: plan.EmitResult, Verbatim: query, Params: params}
+		if !settings.MultiStage {
+			return verbatim, nil
+		}
+		root, mErr := planner.BuildMultiStagePlan()
+		if mErr != nil {
+			return verbatim, nil // 未対応の多段形は graph verbatim で実行（結果は正しい）
+		}
+		return root, nil
+	}
+
 	err = planner.BuildPlan()
 	if err != nil {
 		return nil, fmt.Errorf("failed to build plan:%w", err)

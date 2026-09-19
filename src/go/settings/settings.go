@@ -72,6 +72,12 @@ var GeneralSegmentation = false
 // プラン上に現れる。既定 false・実験。
 var ExplicitIntegrate = false
 
+// MultiStage は WITH 多段クエリ（Phase B2）を structured 経路（RowSource/RowFilter・多段プラン）で
+// 実行するか。既定 false のときは多段クエリを graph verbatim 委譲へフォールバックし、従来挙動を保つ
+// （Neo4j がネイティブ処理）。true にすると自作エンジンで多段実行し、非graph 配置でも動く。
+// 段階導入のためのトグル: 文法・リスナ・プランナが整うまで既定 OFF で既存結果を不変に保つ。
+var MultiStage = false
+
 // ===== 計測（bench） =====
 const (
 	Warmup = 3  // 計測から除外する先頭ウォームアップ回数

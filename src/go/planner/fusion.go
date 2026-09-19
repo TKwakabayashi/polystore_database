@@ -264,9 +264,12 @@ func recordOpStore(op plan.PlanNode) (store.Kind, bool) {
 func runSupported(k store.Kind, ops []plan.PlanNode) bool {
 	for _, op := range ops {
 		var cap plan.OpCapability
-		switch op.(type) {
-		case *plan.EntityScan, *plan.Filter:
-			cap = plan.CapFilter
+		var conds []*plan.ConditionNode
+		switch o := op.(type) {
+		case *plan.EntityScan:
+			cap, conds = plan.CapFilter, o.Filter
+		case *plan.Filter:
+			cap, conds = plan.CapFilter, o.Filter
 		case *plan.Expand:
 			cap = plan.CapExpand
 		case *plan.VarLengthExpand:
@@ -276,6 +279,11 @@ func runSupported(k store.Kind, ops []plan.PlanNode) bool {
 		}
 		if !plan.Supports(k, cap) {
 			return false
+		}
+		for _, c := range conds {
+			if !plan.CanExpressCondition(k, c) {
+				return false
+			}
 		}
 	}
 	return true
@@ -448,10 +456,20 @@ func fragmentSupported(single store.Kind, ops plan.PlanNode) bool {
 			if !plan.Supports(single, plan.CapFilter) {
 				return false
 			}
+			for _, c := range op.Filter {
+				if !plan.CanExpressCondition(single, c) {
+					return false
+				}
+			}
 		case *plan.EntityScan:
 			// ネイティブクエリの FROM 句にラベルが必要。
 			if len(op.Labels) == 0 || op.Labels[0] == "" {
 				return false
+			}
+			for _, c := range op.Filter {
+				if !plan.CanExpressCondition(single, c) {
+					return false
+				}
 			}
 		}
 		ch := n.Children()

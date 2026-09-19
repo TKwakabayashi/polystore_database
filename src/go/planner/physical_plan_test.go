@@ -79,7 +79,12 @@ func nodeLabel(n plan.PlanNode) string {
 	case *plan.Expand:
 		return fmt.Sprintf("Expand[%s->%s]", o.SourceEntity, o.TargetEntity)
 	case *plan.VarLengthExpand:
+		if len(o.Filters) > 0 {
+			return fmt.Sprintf("VarLengthExpand[%s->%s pathfilt=%d]", o.SourceEntity, o.TargetEntity, len(o.Filters))
+		}
 		return fmt.Sprintf("VarLengthExpand[%s->%s]", o.SourceEntity, o.TargetEntity)
+	case *plan.PostFilter:
+		return "PostFilter"
 	}
 	return fmt.Sprintf("%T", n)
 }
