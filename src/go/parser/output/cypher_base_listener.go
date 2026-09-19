@@ -32,6 +32,18 @@ func (s *BaseCypherListener) EnterStatement(ctx *StatementContext) {}
 // ExitStatement is called when production statement is exited.
 func (s *BaseCypherListener) ExitStatement(ctx *StatementContext) {}
 
+// EnterReadingClause is called when production readingClause is entered.
+func (s *BaseCypherListener) EnterReadingClause(ctx *ReadingClauseContext) {}
+
+// ExitReadingClause is called when production readingClause is exited.
+func (s *BaseCypherListener) ExitReadingClause(ctx *ReadingClauseContext) {}
+
+// EnterWithClause is called when production withClause is entered.
+func (s *BaseCypherListener) EnterWithClause(ctx *WithClauseContext) {}
+
+// ExitWithClause is called when production withClause is exited.
+func (s *BaseCypherListener) ExitWithClause(ctx *WithClauseContext) {}
+
 // EnterMatchClause is called when production matchClause is entered.
 func (s *BaseCypherListener) EnterMatchClause(ctx *MatchClauseContext) {}
 
@@ -91,6 +103,66 @@ func (s *BaseCypherListener) EnterReturnItem(ctx *ReturnItemContext) {}
 
 // ExitReturnItem is called when production returnItem is exited.
 func (s *BaseCypherListener) ExitReturnItem(ctx *ReturnItemContext) {}
+
+// EnterCaseExpr is called when production caseExpr is entered.
+func (s *BaseCypherListener) EnterCaseExpr(ctx *CaseExprContext) {}
+
+// ExitCaseExpr is called when production caseExpr is exited.
+func (s *BaseCypherListener) ExitCaseExpr(ctx *CaseExprContext) {}
+
+// EnterCaseResult is called when production caseResult is entered.
+func (s *BaseCypherListener) EnterCaseResult(ctx *CaseResultContext) {}
+
+// ExitCaseResult is called when production caseResult is exited.
+func (s *BaseCypherListener) ExitCaseResult(ctx *CaseResultContext) {}
+
+// EnterVeList is called when production veList is entered.
+func (s *BaseCypherListener) EnterVeList(ctx *VeListContext) {}
+
+// ExitVeList is called when production veList is exited.
+func (s *BaseCypherListener) ExitVeList(ctx *VeListContext) {}
+
+// EnterVeMulDiv is called when production veMulDiv is entered.
+func (s *BaseCypherListener) EnterVeMulDiv(ctx *VeMulDivContext) {}
+
+// ExitVeMulDiv is called when production veMulDiv is exited.
+func (s *BaseCypherListener) ExitVeMulDiv(ctx *VeMulDivContext) {}
+
+// EnterVeAddSub is called when production veAddSub is entered.
+func (s *BaseCypherListener) EnterVeAddSub(ctx *VeAddSubContext) {}
+
+// ExitVeAddSub is called when production veAddSub is exited.
+func (s *BaseCypherListener) ExitVeAddSub(ctx *VeAddSubContext) {}
+
+// EnterVeLit is called when production veLit is entered.
+func (s *BaseCypherListener) EnterVeLit(ctx *VeLitContext) {}
+
+// ExitVeLit is called when production veLit is exited.
+func (s *BaseCypherListener) ExitVeLit(ctx *VeLitContext) {}
+
+// EnterVeCall is called when production veCall is entered.
+func (s *BaseCypherListener) EnterVeCall(ctx *VeCallContext) {}
+
+// ExitVeCall is called when production veCall is exited.
+func (s *BaseCypherListener) ExitVeCall(ctx *VeCallContext) {}
+
+// EnterVeParen is called when production veParen is entered.
+func (s *BaseCypherListener) EnterVeParen(ctx *VeParenContext) {}
+
+// ExitVeParen is called when production veParen is exited.
+func (s *BaseCypherListener) ExitVeParen(ctx *VeParenContext) {}
+
+// EnterVeNeg is called when production veNeg is entered.
+func (s *BaseCypherListener) EnterVeNeg(ctx *VeNegContext) {}
+
+// ExitVeNeg is called when production veNeg is exited.
+func (s *BaseCypherListener) ExitVeNeg(ctx *VeNegContext) {}
+
+// EnterVePropRef is called when production vePropRef is entered.
+func (s *BaseCypherListener) EnterVePropRef(ctx *VePropRefContext) {}
+
+// ExitVePropRef is called when production vePropRef is exited.
+func (s *BaseCypherListener) ExitVePropRef(ctx *VePropRefContext) {}
 
 // EnterAggregateFunc is called when production aggregateFunc is entered.
 func (s *BaseCypherListener) EnterAggregateFunc(ctx *AggregateFuncContext) {}
@@ -158,11 +230,35 @@ func (s *BaseCypherListener) EnterConditionNot(ctx *ConditionNotContext) {}
 // ExitConditionNot is called when production ConditionNot is exited.
 func (s *BaseCypherListener) ExitConditionNot(ctx *ConditionNotContext) {}
 
+// EnterConditionVarNeq is called when production ConditionVarNeq is entered.
+func (s *BaseCypherListener) EnterConditionVarNeq(ctx *ConditionVarNeqContext) {}
+
+// ExitConditionVarNeq is called when production ConditionVarNeq is exited.
+func (s *BaseCypherListener) ExitConditionVarNeq(ctx *ConditionVarNeqContext) {}
+
+// EnterConditionVarGreaterEqual is called when production ConditionVarGreaterEqual is entered.
+func (s *BaseCypherListener) EnterConditionVarGreaterEqual(ctx *ConditionVarGreaterEqualContext) {}
+
+// ExitConditionVarGreaterEqual is called when production ConditionVarGreaterEqual is exited.
+func (s *BaseCypherListener) ExitConditionVarGreaterEqual(ctx *ConditionVarGreaterEqualContext) {}
+
+// EnterConditionIsNull is called when production ConditionIsNull is entered.
+func (s *BaseCypherListener) EnterConditionIsNull(ctx *ConditionIsNullContext) {}
+
+// ExitConditionIsNull is called when production ConditionIsNull is exited.
+func (s *BaseCypherListener) ExitConditionIsNull(ctx *ConditionIsNullContext) {}
+
 // EnterConditionGreater is called when production ConditionGreater is entered.
 func (s *BaseCypherListener) EnterConditionGreater(ctx *ConditionGreaterContext) {}
 
 // ExitConditionGreater is called when production ConditionGreater is exited.
 func (s *BaseCypherListener) ExitConditionGreater(ctx *ConditionGreaterContext) {}
+
+// EnterConditionIn is called when production ConditionIn is entered.
+func (s *BaseCypherListener) EnterConditionIn(ctx *ConditionInContext) {}
+
+// ExitConditionIn is called when production ConditionIn is exited.
+func (s *BaseCypherListener) ExitConditionIn(ctx *ConditionInContext) {}
 
 // EnterConditionAny is called when production ConditionAny is entered.
 func (s *BaseCypherListener) EnterConditionAny(ctx *ConditionAnyContext) {}
@@ -170,11 +266,29 @@ func (s *BaseCypherListener) EnterConditionAny(ctx *ConditionAnyContext) {}
 // ExitConditionAny is called when production ConditionAny is exited.
 func (s *BaseCypherListener) ExitConditionAny(ctx *ConditionAnyContext) {}
 
+// EnterConditionVarEq is called when production ConditionVarEq is entered.
+func (s *BaseCypherListener) EnterConditionVarEq(ctx *ConditionVarEqContext) {}
+
+// ExitConditionVarEq is called when production ConditionVarEq is exited.
+func (s *BaseCypherListener) ExitConditionVarEq(ctx *ConditionVarEqContext) {}
+
+// EnterConditionVarLessEqual is called when production ConditionVarLessEqual is entered.
+func (s *BaseCypherListener) EnterConditionVarLessEqual(ctx *ConditionVarLessEqualContext) {}
+
+// ExitConditionVarLessEqual is called when production ConditionVarLessEqual is exited.
+func (s *BaseCypherListener) ExitConditionVarLessEqual(ctx *ConditionVarLessEqualContext) {}
+
 // EnterConditionOr is called when production ConditionOr is entered.
 func (s *BaseCypherListener) EnterConditionOr(ctx *ConditionOrContext) {}
 
 // ExitConditionOr is called when production ConditionOr is exited.
 func (s *BaseCypherListener) ExitConditionOr(ctx *ConditionOrContext) {}
+
+// EnterConditionIsNotNull is called when production ConditionIsNotNull is entered.
+func (s *BaseCypherListener) EnterConditionIsNotNull(ctx *ConditionIsNotNullContext) {}
+
+// ExitConditionIsNotNull is called when production ConditionIsNotNull is exited.
+func (s *BaseCypherListener) ExitConditionIsNotNull(ctx *ConditionIsNotNullContext) {}
 
 // EnterConditionParen is called when production conditionParen is entered.
 func (s *BaseCypherListener) EnterConditionParen(ctx *ConditionParenContext) {}
@@ -200,11 +314,23 @@ func (s *BaseCypherListener) EnterConditionGreaterEqual(ctx *ConditionGreaterEqu
 // ExitConditionGreaterEqual is called when production ConditionGreaterEqual is exited.
 func (s *BaseCypherListener) ExitConditionGreaterEqual(ctx *ConditionGreaterEqualContext) {}
 
+// EnterConditionVarGreater is called when production ConditionVarGreater is entered.
+func (s *BaseCypherListener) EnterConditionVarGreater(ctx *ConditionVarGreaterContext) {}
+
+// ExitConditionVarGreater is called when production ConditionVarGreater is exited.
+func (s *BaseCypherListener) ExitConditionVarGreater(ctx *ConditionVarGreaterContext) {}
+
 // EnterConditionAll is called when production ConditionAll is entered.
 func (s *BaseCypherListener) EnterConditionAll(ctx *ConditionAllContext) {}
 
 // ExitConditionAll is called when production ConditionAll is exited.
 func (s *BaseCypherListener) ExitConditionAll(ctx *ConditionAllContext) {}
+
+// EnterConditionVarLess is called when production ConditionVarLess is entered.
+func (s *BaseCypherListener) EnterConditionVarLess(ctx *ConditionVarLessContext) {}
+
+// ExitConditionVarLess is called when production ConditionVarLess is exited.
+func (s *BaseCypherListener) ExitConditionVarLess(ctx *ConditionVarLessContext) {}
 
 // EnterConditionNotEquality is called when production ConditionNotEquality is entered.
 func (s *BaseCypherListener) EnterConditionNotEquality(ctx *ConditionNotEqualityContext) {}
@@ -229,6 +355,12 @@ func (s *BaseCypherListener) EnterConditionEquality(ctx *ConditionEqualityContex
 
 // ExitConditionEquality is called when production ConditionEquality is exited.
 func (s *BaseCypherListener) ExitConditionEquality(ctx *ConditionEqualityContext) {}
+
+// EnterList is called when production list is entered.
+func (s *BaseCypherListener) EnterList(ctx *ListContext) {}
+
+// ExitList is called when production list is exited.
+func (s *BaseCypherListener) ExitList(ctx *ListContext) {}
 
 // EnterVariable is called when production variable is entered.
 func (s *BaseCypherListener) EnterVariable(ctx *VariableContext) {}

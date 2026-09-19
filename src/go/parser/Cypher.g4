@@ -27,6 +27,9 @@ RSQUARE: ']';
 LCURLY: '{';
 RCURLY: '}';
 MINUS: '-';
+PLUS: '+';
+SLASH: '/';
+PERCENT: '%';
 SQUOTE: '\'';
 STAR: '*';
 DOUBLE_DOT: '..';
@@ -59,6 +62,8 @@ MAX: [mM][aA][xX];
 COALESCE: [cC][oO][aA][lL][eE][sS][cC][eE];
 
 IN: [iI][nN];
+IS: [iI][sS];
+NULL: [nN][uU][lL][lL];
 
 // predicates
 ALL: [aA][lL][lL];
@@ -68,6 +73,13 @@ SINGLE: [sS][iI][nN][gG][lL][eE];
 
 // additional function
 CALL: [cC][aA][lL][lL];
+
+// CASE 式
+CASE: [cC][aA][sS][eE];
+WHEN: [wW][hH][eE][nN];
+THEN: [tT][hH][eE][nN];
+ELSE: [eE][lL][sS][eE];
+END: [eE][nN][dD];
 
 // Define last to avoid duplication
 STRING: '"' (~["\\] | '\\' .)* '"' | '\'' (~['\\] | '\\' .)* '\'';
@@ -80,8 +92,12 @@ WS: [ \t\r\n]+ -> skip;
 // parser rule
 
 cypher: statement+ EOF;
-statement: matchClause whereClause? returnClause;
-matchClause: MATCH WS* pattern;
+// statement は 1 つ以上の reading 節（MATCH[WHERE] / WITH）に続く RETURN。
+// 単段クエリ（MATCH [WHERE] RETURN）は readingClause 1 個 + returnClause として後方互換。
+statement: readingClause+ returnClause;
+readingClause: matchClause whereClause? | withClause;
+withClause: WITH DISTINCT? returnItems orderItems? limitNum? whereClause?;
+matchClause: MATCH WS* pattern (COMMA WS* pattern)*;
 returnClause: RETURN WS* returnItems orderItems? limitNum?;
 whereClause: WHERE WS* condition;
 
@@ -98,8 +114,23 @@ relationship:
 returnItems: returnItem (COMMA returnItem)*;
 returnItem:
       aggregateFunc (AS variable)?
-    | expression (AS variable)?
+    | caseExpr (AS variable)?
+    | valueExpr (AS variable)?
     | COALESCE LPAREN expression (COMMA expression)* RPAREN (AS variable)?;
+caseExpr: CASE (WHEN condition THEN caseResult)+ (ELSE caseResult)? END;
+caseResult: value | expression;
+
+// valueExpr は RETURN 項目の汎用計算式（算術・関数呼び・list リテラル）。
+// 単純なプロパティ参照（a.b）は従来どおり材料化列として扱い、複合式のみ Expr として評価する。
+valueExpr:
+      MINUS valueExpr                                            #veNeg
+    | valueExpr op=(STAR|SLASH|PERCENT) valueExpr                #veMulDiv
+    | valueExpr op=(PLUS|MINUS) valueExpr                        #veAddSub
+    | IDENTIFIER LPAREN (valueExpr (COMMA valueExpr)*)? RPAREN   #veCall
+    | IDENTIFIER (DOT IDENTIFIER)*                               #vePropRef
+    | LSQUARE (valueExpr (COMMA valueExpr)*)? RSQUARE            #veList
+    | (STRING | NUMBER)                                          #veLit
+    | LPAREN valueExpr RPAREN                                    #veParen;
 aggregateFunc: (COUNT | SUM | AVG | MIN | MAX) LPAREN (STAR | DISTINCT? aggArg) RPAREN;
 aggArg: IDENTIFIER (DOT IDENTIFIER)?;
 
@@ -121,12 +152,23 @@ condition:
     | ANY LPAREN variable IN expression WHERE condition RPAREN    #ConditionAny
     | NONE LPAREN variable IN expression WHERE condition RPAREN   #ConditionNone
     | SINGLE LPAREN variable IN expression WHERE condition RPAREN #ConditionSingle
-    | expression EQ value # ConditionEquality 
-    | expression NEQ value # ConditionNotEquality 
+    | expression IS NULL #ConditionIsNull
+    | expression IS NOT NULL #ConditionIsNotNull
+    | expression IN list #ConditionIn
+    | expression EQ value # ConditionEquality
+    | expression NEQ value # ConditionNotEquality
     | expression RANGLE value # ConditionGreater
     | expression LANGLE value # ConditionLess
     | expression GE value # ConditionGreaterEqual
-    | expression LE value # ConditionLessEqual;
+    | expression LE value # ConditionLessEqual
+    | expression EQ expression # ConditionVarEq
+    | expression NEQ expression # ConditionVarNeq
+    | expression RANGLE expression # ConditionVarGreater
+    | expression LANGLE expression # ConditionVarLess
+    | expression GE expression # ConditionVarGreaterEqual
+    | expression LE expression # ConditionVarLessEqual;
+
+list: LSQUARE value (COMMA value)* RSQUARE;
 
 
 variable: IDENTIFIER;

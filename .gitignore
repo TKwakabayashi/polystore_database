@@ -28,3 +28,10 @@ src/go/bench_results_wide.csv
 
 # generated outputs (bench CSV / pprof / trace / baseline) — kept local, not tracked
 results/
+
+# ANTLR generated artifacts
+# .antlr/ は VS Code ANTLR 拡張のキャッシュ。output/ の .interp/.tokens はビルドに不要。
+# output/*.go はビルドに必要なので追跡を続ける（再生成は /regen-parser）。
+src/go/parser/.antlr/
+src/go/parser/output/*.interp
+src/go/parser/output/*.tokens
