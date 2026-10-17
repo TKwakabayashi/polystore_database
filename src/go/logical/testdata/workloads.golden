@@ -1,0 +1,331 @@
+### AGG1
+Limit[20]
+  Sort[replyCount DESC, author.id ASC]
+    Aggregation[keys: author.id, author.firstName, author.lastName | count(comment) AS replyCount]
+      GetProperty(author.lastName) [node:Person]
+        GetProperty(author.firstName) [node:Person]
+          GetProperty(author.id) [node:Person]
+            RelUniqueFilter[_r0, _r2]
+              Expand((comment)-[_r2:HAS_CREATOR]->(author:Person))
+                Expand((m)<-[_r1:REPLY_OF]-(comment:Comment))
+                  Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+                    Filter((p.id = 15393162799448))
+                      GetProperty(p.id) [node:Person]
+                        EntityScan(p:Person)
+
+### AGG2
+Limit[20]
+  Sort[msgCount DESC, friend.id ASC]
+    Aggregation[keys: friend.id, friend.firstName | count(m) AS msgCount, avg(m.length) AS avgLen, max(m.length) AS maxLen]
+      GetProperty(m.length) [node:Message]
+        GetProperty(friend.firstName) [node:Person]
+          GetProperty(friend.id) [node:Person]
+            Expand((friend)<-[_r1:HAS_CREATOR]-(m:Message))
+              Expand((p)-[_r0:KNOWS]-(friend:Person))
+                Filter((p.id = 15393162799448))
+                  GetProperty(p.id) [node:Person]
+                    EntityScan(p:Person)
+
+### AGG3
+Aggregation[keys: ∅ | count(*) AS total, count(DISTINCT friend.id) AS friends, sum(m.length) AS totLen, avg(m.length) AS avgLen, min(m.length) AS minLen, max(m.length) AS maxLen]
+  GetProperty(m.length) [node:Message]
+    GetProperty(friend.id) [node:Person]
+      Expand((friend)<-[_r1:HAS_CREATOR]-(m:Message))
+        Expand((p)-[_r0:KNOWS]-(friend:Person))
+          Filter((p.id = 15393162799448))
+            GetProperty(p.id) [node:Person]
+              EntityScan(p:Person)
+
+### AGG4
+Limit[20]
+  Sort[m.length DESC, m.id ASC]
+    Projection[m.id, m.length]
+      GetProperty(m.id) [node:Message]
+        Filter((p.id = 15393162799448))
+          GetProperty(p.id) [node:Person]
+            Expand((m)-[_r0:HAS_CREATOR]->(p:Person))
+              Filter((m.length <= 200))
+                Filter((m.length >= 50))
+                  GetProperty(m.length) [node:Message]
+                    EntityScan(m:Message)
+
+### AGG5
+Aggregation[keys: ∅ | count(*) AS cnt, min(o.id) AS mn, max(o.id) AS mx, sum(o.id) AS sm, avg(o.id) AS av]
+  Filter((o.id <= 5000))
+    Filter((o.id >= 100))
+      GetProperty(o.id) [node:Organisation]
+        EntityScan(o:Organisation)
+
+### AGG6
+Sort[cnt DESC]
+  Aggregation[keys: o.type | count(*) AS cnt, min(o.id) AS mn, max(o.id) AS mx]
+    GetProperty(o.id) [node:Organisation]
+      GetProperty(o.type) [node:Organisation]
+        EntityScan(o:Organisation)
+
+### BI3
+Limit[20]
+  Sort[messageCount DESC, forum.id ASC]
+    Aggregation[keys: forum.id, forum.title, forum.creationDate, person.id | count(DISTINCT message.id) AS messageCount]
+      GetProperty(message.id) [node:Message]
+        GetProperty(person.id) [node:Person]
+          GetProperty(forum.creationDate) [node:Forum]
+            GetProperty(forum.title) [node:Forum]
+              GetProperty(forum.id) [node:Forum]
+                Filter((tagclass.name = "MusicalArtist"))
+                  GetProperty(tagclass.name) [node:TagClass]
+                    Expand((tag)-[_r6:HAS_TYPE]->(tagclass:TagClass))
+                      Expand((message)-[_r5:HAS_TAG]->(tag:Tag))
+                        VarLengthExpand((post)<-[_r4:REPLY_OF*0..]-(message:Message))
+                          Expand((forum)-[_r3:CONTAINER_OF]->(post:Post))
+                            Expand((person)<-[_r2:HAS_MODERATOR]-(forum:Forum))
+                              Expand((city)<-[_r1:IS_LOCATED_IN]-(person:Person))
+                                Expand((country)<-[_r0:IS_PART_OF]-(city:Place))
+                                  Filter((country.name = "Germany"))
+                                    GetProperty(country.name) [node:Place]
+                                      Filter((country.type = "Country"))
+                                        GetProperty(country.type) [node:Place]
+                                          EntityScan(country:Place)
+
+### BI9
+Limit[100]
+  Sort[messageCount DESC, person.id ASC]
+    Aggregation[keys: person.id, person.firstName, person.lastName | count(DISTINCT post.id) AS threadCount, count(DISTINCT reply.id) AS messageCount]
+      GetProperty(reply.id) [node:Message]
+        GetProperty(post.id) [node:Post]
+          GetProperty(person.lastName) [node:Person]
+            GetProperty(person.firstName) [node:Person]
+              GetProperty(person.id) [node:Person]
+                Filter((reply.creationDate <= "2013-01-01T00:00:00.000Z"))
+                  Filter((reply.creationDate >= "2010-01-01T00:00:00.000Z"))
+                    GetProperty(reply.creationDate) [node:Message]
+                      VarLengthExpand((post)<-[_r1:REPLY_OF*0..]-(reply:Message))
+                        Expand((post)-[_r0:HAS_CREATOR]->(person:Person))
+                          Filter((post.creationDate <= "2013-01-01T00:00:00.000Z"))
+                            Filter((post.creationDate >= "2010-01-01T00:00:00.000Z"))
+                              GetProperty(post.creationDate) [node:Post]
+                                EntityScan(post:Post)
+
+### INLIST
+Limit[20]
+  Sort[o.id ASC]
+    Projection[o.id, o.type]
+      GetProperty(o.id) [node:Organisation]
+        Filter((o.type IN ["Company", "University"]))
+          GetProperty(o.type) [node:Organisation]
+            EntityScan(o:Organisation)
+
+### IS1
+Projection[p.firstName, p.lastName, p.birthday, p.locationIP, p.browserUsed, c.id, p.gender, p.creationDate]
+  GetProperty(p.creationDate) [node:Person]
+    GetProperty(p.gender) [node:Person]
+      GetProperty(c.id) [node:City]
+        GetProperty(p.browserUsed) [node:Person]
+          GetProperty(p.locationIP) [node:Person]
+            GetProperty(p.birthday) [node:Person]
+              GetProperty(p.lastName) [node:Person]
+                GetProperty(p.firstName) [node:Person]
+                  Expand((p)-[_r0:IS_LOCATED_IN]->(c:City))
+                    Filter((p.id = 21990232558284))
+                      GetProperty(p.id) [node:Person]
+                        EntityScan(p:Person)
+
+### IS2
+Limit[10]
+  Sort[m.creationDate DESC]
+    Projection[m.id, m.content, m.imageFile, m.creationDate, p.id, p.firstName, p.lastName]
+      GetProperty(p.lastName) [node:Person]
+        GetProperty(p.firstName) [node:Person]
+          GetProperty(m.creationDate) [node:Message]
+            GetProperty(m.imageFile) [node:Message]
+              GetProperty(m.content) [node:Message]
+                GetProperty(m.id) [node:Message]
+                  Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+                    Filter((p.id = 21990232558284))
+                      GetProperty(p.id) [node:Person]
+                        EntityScan(p:Person)
+
+### IS3
+Sort[r.creationDate DESC, friend.id ASC]
+  Projection[friend.id, friend.firstName, friend.lastName, r.creationDate]
+    GetProperty(r.creationDate) [rel:KNOWS]
+      GetProperty(friend.lastName) [node:Person]
+        GetProperty(friend.firstName) [node:Person]
+          GetProperty(friend.id) [node:Person]
+            Expand((p)-[r:KNOWS]-(friend:Person))
+              Filter((p.id = 21990232558284))
+                GetProperty(p.id) [node:Person]
+                  EntityScan(p:Person)
+
+### IS4
+Projection[m.creationDate, coalesce(m.content, m.imageFile) AS coalesce(m.content, m.imageFile)]
+  GetProperty(m.imageFile) [node:Message]
+    GetProperty(m.content) [node:Message]
+      GetProperty(m.creationDate) [node:Message]
+        Filter((m.id = 1030792151051))
+          GetProperty(m.id) [node:Message]
+            EntityScan(m:Message)
+
+### IS5
+Projection[p.id, p.firstName, p.lastName]
+  GetProperty(p.lastName) [node:Person]
+    GetProperty(p.firstName) [node:Person]
+      GetProperty(p.id) [node:Person]
+        Expand((m)-[_r0:HAS_CREATOR]->(p:Person))
+          Filter((m.id = 1030792151051))
+            GetProperty(m.id) [node:Message]
+              EntityScan(m:Message)
+
+### IS6
+Projection[f.id, f.title, mod.id, mod.firstName, mod.lastName]
+  GetProperty(mod.lastName) [node:Person]
+    GetProperty(mod.firstName) [node:Person]
+      GetProperty(mod.id) [node:Person]
+        GetProperty(f.title) [node:Forum]
+          GetProperty(f.id) [node:Forum]
+            Expand((f)-[_r2:HAS_MODERATOR]->(mod:Person))
+              Expand((_n0)<-[_r1:CONTAINER_OF]-(f:Forum))
+                VarLengthExpand((m)-[_r0:REPLY_OF*0..]->(_n0:Post))
+                  Filter((m.id = 1030792151051))
+                    GetProperty(m.id) [node:Message]
+                      EntityScan(m:Message)
+
+### ISNULL
+Limit[20]
+  Sort[m.id ASC]
+    Projection[m.id, m.content]
+      GetProperty(m.id) [node:Message]
+        Filter((m.content IS NOT NULL))
+          GetProperty(m.content) [node:Message]
+            Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+              Filter((p.id = 15393162799448))
+                GetProperty(p.id) [node:Person]
+                  EntityScan(p:Person)
+
+### MULTIPAT
+Limit[20]
+  Sort[friend.id ASC]
+    Projection[friend.id, friend.firstName, city.id]
+      GetProperty(city.id) [node:Place]
+        GetProperty(friend.firstName) [node:Person]
+          GetProperty(friend.id) [node:Person]
+            Expand((friend)-[_r1:IS_LOCATED_IN]->(city:Place))
+              Expand((p)-[_r0:KNOWS]-(friend:Person))
+                Filter((p.id = 15393162799448))
+                  GetProperty(p.id) [node:Person]
+                    EntityScan(p:Person)
+
+### PATHFILT
+Limit[20]
+  Sort[other.id ASC]
+    Projection[other.id, other.firstName]
+      GetProperty(other.firstName) [node:Person]
+        GetProperty(other.id) [node:Person]
+          VarLengthExpand((person)-[_r0:KNOWS*1..3]-(other:Person)) seg[all(r IN rels WHERE (r.creationDate > "2010-01-01T00:00:00.000Z"))]
+            Filter((person.id = 17592186049378))
+              GetProperty(person.id) [node:Person]
+                EntityScan(person:Person)
+
+### Q11
+Limit[10]
+  Sort[work.workFrom ASC, friend.id ASC, comp.name DESC]
+    Projection[friend.id, friend.firstName, friend.lastName, comp.name, work.workFrom]
+      GetProperty(comp.name) [node:Organisation]
+        GetProperty(friend.lastName) [node:Person]
+          GetProperty(friend.firstName) [node:Person]
+            GetProperty(friend.id) [node:Person]
+              Filter((p.id = 15393162799448))
+                GetProperty(p.id) [node:Person]
+                  VarLengthExpand((friend)-[_r0:KNOWS*1..3]-(p:Person))
+                    Filter((work.workFrom < 2008))
+                      GetProperty(work.workFrom) [rel:WORK_AT]
+                        Expand((comp)<-[work:WORK_AT]-(friend:Person))
+                          Filter((comp.type = "Company"))
+                            GetProperty(comp.type) [node:Organisation]
+                              Expand((_n0)<-[_r1:IS_LOCATED_IN]-(comp:Organisation))
+                                Filter((_n0.name = "Germany"))
+                                  GetProperty(_n0.name) [node:Place]
+                                    Filter((_n0.type = "Country"))
+                                      GetProperty(_n0.type) [node:Place]
+                                        EntityScan(_n0:Place)
+
+### Q2
+Limit[20]
+  Sort[m.creationDate DESC, m.id ASC]
+    Projection[friend.id, friend.firstName, friend.lastName, m.id, coalesce(m.content, m.imageFile) AS coalesce(m.content, m.imageFile), m.creationDate]
+      GetProperty(m.imageFile) [node:Message]
+        GetProperty(m.content) [node:Message]
+          GetProperty(m.id) [node:Message]
+            GetProperty(friend.lastName) [node:Person]
+              GetProperty(friend.firstName) [node:Person]
+                GetProperty(friend.id) [node:Person]
+                  Filter((m.creationDate <= "2011-06-16T00:00:00.000Z"))
+                    GetProperty(m.creationDate) [node:Message]
+                      Expand((friend)<-[_r1:HAS_CREATOR]-(m:Message))
+                        Expand((_n0)-[_r0:KNOWS]-(friend:Person))
+                          Filter((_n0.id = 15393162799448))
+                            GetProperty(_n0.id) [node:Person]
+                              EntityScan(_n0:Person)
+
+### Q8
+Limit[20]
+  Sort[comment.creationDate DESC, comment.id ASC]
+    Projection[author.id, author.firstName, author.lastName, comment.creationDate, comment.id, comment.content]
+      GetProperty(comment.content) [node:Comment]
+        GetProperty(comment.id) [node:Comment]
+          GetProperty(comment.creationDate) [node:Comment]
+            GetProperty(author.lastName) [node:Person]
+              GetProperty(author.firstName) [node:Person]
+                GetProperty(author.id) [node:Person]
+                  RelUniqueFilter[_r0, _r2]
+                    Expand((comment)-[_r2:HAS_CREATOR]->(author:Person))
+                      Expand((m)<-[_r1:REPLY_OF]-(comment:Comment))
+                        Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+                          Filter((p.id = 15393162799448))
+                            GetProperty(p.id) [node:Person]
+                              EntityScan(p:Person)
+
+### Q9
+Limit[20]
+  Sort[m.creationDate DESC, m.id ASC]
+    Projection[other.id, other.firstName, other.lastName, m.id, coalesce(m.content, m.imageFile) AS coalesce(m.content, m.imageFile), m.creationDate]
+      GetProperty(m.imageFile) [node:Message]
+        GetProperty(m.content) [node:Message]
+          GetProperty(m.id) [node:Message]
+            GetProperty(other.lastName) [node:Person]
+              GetProperty(other.firstName) [node:Person]
+                GetProperty(other.id) [node:Person]
+                  Filter((m.creationDate < "2011-06-16T00:00:00.000Z"))
+                    GetProperty(m.creationDate) [node:Message]
+                      Expand((other)<-[_r1:HAS_CREATOR]-(m:Message))
+                        VarLengthExpand((p)-[_r0:KNOWS*1..2]-(other:Person))
+                          Filter((p.id = 17592186049378))
+                            GetProperty(p.id) [node:Person]
+                              EntityScan(p:Person)
+
+### TP1
+Limit[20]
+  Sort[replyCount DESC, author.lastName ASC]
+    Aggregation[keys: author.firstName, author.lastName | count(comment) AS replyCount]
+      GetProperty(author.lastName) [node:Person]
+        GetProperty(author.firstName) [node:Person]
+          RelUniqueFilter[_r0, _r2]
+            Expand((comment)-[_r2:HAS_CREATOR]->(author:Person))
+              Expand((m)<-[_r1:REPLY_OF]-(comment:Comment))
+                Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+                  Filter((p.id = 15393162799448))
+                    GetProperty(p.id) [node:Person]
+                      EntityScan(p:Person)
+
+### VARCMP
+Limit[20]
+  Sort[b.id ASC]
+    Projection[a.id, b.id, b.firstName]
+      GetProperty(b.firstName) [node:Person]
+        Filter((a.id < b.id))
+          GetProperty(b.id) [node:Person]
+            Expand((a)-[_r0:KNOWS]-(b:Person))
+              Filter((a.id = 15393162799448))
+                GetProperty(a.id) [node:Person]
+                  EntityScan(a:Person)
+

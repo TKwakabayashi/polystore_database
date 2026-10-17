@@ -1,0 +1,1209 @@
+package logical
+
+import (
+	"fmt"
+
+	"polystore_database/src/go/ast"
+)
+
+// translate.go は段階 B: クエリ AST を論理計画へ翻訳する（docs/operator_plan.md §4.2〜§4.5）。
+// ストアは一切考えない。述語は変数が揃った直後に置く（述語の前倒しを組み立て時に済ませる）。
+// パス全体の条件は、できるだけ普通の述語と区間条件へ分解する（§4.4）。
+
+// VarKind は束縛変数の種類。
+type VarKind int
+
+const (
+	VarNode VarKind = iota
+	VarRel
+	VarPath
+	VarValue
+	VarSeg // 可変長区間（内部用。ユーザーからは参照できない）
+)
+
+// varInfo はスコープ内の変数の情報。
+type varInfo struct {
+	kind   VarKind
+	labels []string // ノードのラベル / 関係のタイプ
+}
+
+// pathDef はパス変数の構成（パターンの左から右の順）。
+type pathDef struct {
+	elems []PathElem
+	nodes []string // 束縛ノード（端点を含む）
+	rels  []string // 固定長の関係
+	segs  []string // 可変長区間
+}
+
+func unsupported(format string, args ...any) error {
+	return fmt.Errorf("%w: %s", ast.ErrUnsupported, fmt.Sprintf(format, args...))
+}
+
+// Translate はクエリ AST を論理計画へ翻訳する。翻訳できない形は ast.ErrUnsupported を包んだエラー。
+func Translate(q *ast.Query) (Node, error) {
+	b := &builder{
+		q:     q,
+		scope: map[string]varInfo{},
+		avail: map[string]bool{},
+		paths: map[string]pathDef{},
+		bound: map[string]bool{},
+	}
+	for i, c := range q.Clauses {
+		b.clauseIdx = i
+		var err error
+		switch c := c.(type) {
+		case *ast.MatchClause:
+			err = b.match(c)
+		case *ast.ProjectionClause:
+			err = b.project(c)
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	return b.plan, nil
+}
+
+type builder struct {
+	q         *ast.Query
+	clauseIdx int
+	plan      Node
+	scope     map[string]varInfo
+	avail     map[string]bool // 行に既にある列（値列・パス列）
+	paths     map[string]pathDef
+	bound     map[string]bool // 束縛済みの変数（ノード・関係・区間・値）
+}
+
+// ================================
+// 式の変換
+// ================================
+
+// convCtx は量化子の反復変数 → 対象パス（と部分）。
+type convCtx struct {
+	quant map[string]quantSrc
+}
+
+type quantSrc struct {
+	path string
+	part SegPart
+}
+
+// conv は AST の式を論理式へ変換する。必要な GetProperty / GetListProperty / ProjectPath は
+// 呼び出し側が needs で求めて置く。
+func (b *builder) conv(e ast.Expr, ctx convCtx) (Expr, error) {
+	switch x := e.(type) {
+	case *ast.Lit:
+		return &Lit{Val: x.Val}, nil
+	case *ast.VarRef:
+		if _, ok := ctx.quant[x.Name]; ok {
+			return nil, unsupported("bare iteration variable %s", x.Name)
+		}
+		vi, ok := b.scope[x.Name]
+		if !ok {
+			return nil, unsupported("unknown variable %s", x.Name)
+		}
+		if vi.kind == VarSeg {
+			return nil, unsupported("variable-length relationship variable %s as a value", x.Name)
+		}
+		return &Column{Key: x.Name}, nil
+	case *ast.PropRef:
+		if _, ok := ctx.quant[x.Var]; ok {
+			return &ElemProp{Var: x.Var, Prop: x.Prop}, nil
+		}
+		vi, ok := b.scope[x.Var]
+		if !ok {
+			return nil, unsupported("unknown variable %s", x.Var)
+		}
+		if vi.kind != VarNode && vi.kind != VarRel {
+			return nil, unsupported("property access on non-entity %s", x.Var)
+		}
+		return &Column{Key: x.Var + "." + x.Prop}, nil
+	case *ast.Bin:
+		l, err := b.conv(x.L, ctx)
+		if err != nil {
+			return nil, err
+		}
+		r, err := b.conv(x.R, ctx)
+		if err != nil {
+			return nil, err
+		}
+		return &Bin{Op: x.Op, L: l, R: r}, nil
+	case *ast.Un:
+		v, err := b.conv(x.X, ctx)
+		if err != nil {
+			return nil, err
+		}
+		return &Un{Op: x.Op, X: v}, nil
+	case *ast.Call:
+		if isPathFn(x.Fn) {
+			p, err := b.pathArg(x)
+			if err != nil {
+				return nil, err
+			}
+			return &Call{Fn: x.Fn, Args: []Expr{&Column{Key: p}}}, nil
+		}
+		c := &Call{Fn: x.Fn}
+		for _, a := range x.Args {
+			v, err := b.conv(a, ctx)
+			if err != nil {
+				return nil, err
+			}
+			c.Args = append(c.Args, v)
+		}
+		return c, nil
+	case *ast.Case:
+		c := &Case{}
+		for _, w := range x.Whens {
+			wv, err := b.conv(w.When, ctx)
+			if err != nil {
+				return nil, err
+			}
+			tv, err := b.conv(w.Then, ctx)
+			if err != nil {
+				return nil, err
+			}
+			c.Whens = append(c.Whens, CaseWhen{When: wv, Then: tv})
+		}
+		if x.Else != nil {
+			ev, err := b.conv(x.Else, ctx)
+			if err != nil {
+				return nil, err
+			}
+			c.Else = ev
+		}
+		return c, nil
+	case *ast.List:
+		l := &List{}
+		for _, el := range x.Elems {
+			v, err := b.conv(el, ctx)
+			if err != nil {
+				return nil, err
+			}
+			l.Elems = append(l.Elems, v)
+		}
+		return l, nil
+	case *ast.Quant:
+		src, err := b.quantSource(x)
+		if err != nil {
+			return nil, err
+		}
+		inner := convCtx{quant: map[string]quantSrc{}}
+		for k, v := range ctx.quant {
+			inner.quant[k] = v
+		}
+		inner.quant[x.Var] = src
+		pred, err := b.conv(x.Pred, inner)
+		if err != nil {
+			return nil, err
+		}
+		fn := "nodes"
+		if src.part == SegRels {
+			fn = "relationships"
+		}
+		return &Quant{Kind: x.Kind, Var: x.Var,
+			List: &Call{Fn: fn, Args: []Expr{&Column{Key: src.path}}}, Pred: pred}, nil
+	case *ast.Agg:
+		return nil, unsupported("aggregate outside projection")
+	}
+	return nil, unsupported("expression %T", e)
+}
+
+func isPathFn(fn string) bool { return fn == "length" || fn == "nodes" || fn == "relationships" }
+
+func (b *builder) pathArg(c *ast.Call) (string, error) {
+	if len(c.Args) != 1 {
+		return "", unsupported("%s arity", c.Fn)
+	}
+	v, ok := c.Args[0].(*ast.VarRef)
+	if !ok || b.scope[v.Name].kind != VarPath {
+		return "", unsupported("%s argument must be a path variable", c.Fn)
+	}
+	if _, bound := b.scope[v.Name]; !bound {
+		return "", unsupported("unknown path %s", v.Name)
+	}
+	return v.Name, nil
+}
+
+// quantSource は量化子のリストが nodes(p) / relationships(p) であることを確かめる。
+func (b *builder) quantSource(x *ast.Quant) (quantSrc, error) {
+	c, ok := x.List.(*ast.Call)
+	if !ok || (c.Fn != "nodes" && c.Fn != "relationships") {
+		return quantSrc{}, unsupported("quantifier over %s", x.List)
+	}
+	p, err := b.pathArg(c)
+	if err != nil {
+		return quantSrc{}, err
+	}
+	part := SegNodes
+	if c.Fn == "relationships" {
+		part = SegRels
+	}
+	return quantSrc{path: p, part: part}, nil
+}
+
+// needs は式の評価に必要な列を集める。
+type needs struct {
+	props     []propNeed
+	listProps []listNeed
+	paths     []string
+}
+
+type propNeed struct{ v, prop string }
+type listNeed struct {
+	path string
+	part SegPart
+	prop string
+}
+
+func (b *builder) collectNeeds(e ast.Expr, ctx convCtx, n *needs) {
+	switch x := e.(type) {
+	case *ast.PropRef:
+		if src, ok := ctx.quant[x.Var]; ok {
+			n.listProps = append(n.listProps, listNeed{src.path, src.part, x.Prop})
+			return
+		}
+		n.props = append(n.props, propNeed{x.Var, x.Prop})
+	case *ast.VarRef:
+		if b.scope[x.Name].kind == VarPath {
+			n.paths = append(n.paths, x.Name)
+		}
+	case *ast.Bin:
+		b.collectNeeds(x.L, ctx, n)
+		b.collectNeeds(x.R, ctx, n)
+	case *ast.Un:
+		b.collectNeeds(x.X, ctx, n)
+	case *ast.Call:
+		for _, a := range x.Args {
+			b.collectNeeds(a, ctx, n)
+		}
+	case *ast.Case:
+		for _, w := range x.Whens {
+			b.collectNeeds(w.When, ctx, n)
+			b.collectNeeds(w.Then, ctx, n)
+		}
+		if x.Else != nil {
+			b.collectNeeds(x.Else, ctx, n)
+		}
+	case *ast.List:
+		for _, el := range x.Elems {
+			b.collectNeeds(el, ctx, n)
+		}
+	case *ast.Quant:
+		src, err := b.quantSource(x)
+		if err != nil {
+			return // conv が同じエラーを返す
+		}
+		n.paths = append(n.paths, src.path)
+		inner := convCtx{quant: map[string]quantSrc{x.Var: src}}
+		for k, v := range ctx.quant {
+			inner.quant[k] = v
+		}
+		b.collectNeeds(x.Pred, inner, n)
+	case *ast.Agg:
+		if x.Arg != nil {
+			b.collectNeeds(x.Arg, ctx, n)
+		}
+	}
+}
+
+// supply は needs の列を、まだ行に無いものだけ plan に足す。
+func (b *builder) supply(n Node, nd needs) Node {
+	for _, p := range nd.paths {
+		if !b.avail[p] {
+			n = &ProjectPath{Input: n, Path: p, Elems: b.paths[p].elems}
+			b.avail[p] = true
+		}
+	}
+	for _, p := range nd.props {
+		key := p.v + "." + p.prop
+		if b.avail[key] {
+			continue
+		}
+		vi := b.scope[p.v]
+		kind := NodeObj
+		if vi.kind == VarRel {
+			kind = RelObj
+		}
+		n = &GetProperty{Input: n, Alias: p.v, Prop: p.prop, Kind: kind, Labels: vi.labels}
+		b.avail[key] = true
+	}
+	for _, lp := range nd.listProps {
+		key := ListPropKey(lp.path, lp.part, lp.prop)
+		if b.avail[key] {
+			continue
+		}
+		n = &GetListProperty{Input: n, Source: lp.path, Part: lp.part, Prop: lp.prop}
+		b.avail[key] = true
+	}
+	return n
+}
+
+// deps は式が依存する束縛（ノード・関係・区間）。パス変数は構成要素に展開する。
+func (b *builder) deps(e ast.Expr) []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(v string) {
+		if !seen[v] {
+			seen[v] = true
+			out = append(out, v)
+		}
+	}
+	var walk func(ast.Expr, map[string]bool)
+	walk = func(e ast.Expr, qv map[string]bool) {
+		switch x := e.(type) {
+		case *ast.VarRef:
+			if qv[x.Name] {
+				return
+			}
+			if pd, ok := b.paths[x.Name]; ok {
+				for _, el := range pd.elems {
+					add(el.Var)
+				}
+				return
+			}
+			add(x.Name)
+		case *ast.PropRef:
+			if !qv[x.Var] {
+				add(x.Var)
+			}
+		case *ast.Bin:
+			walk(x.L, qv)
+			walk(x.R, qv)
+		case *ast.Un:
+			walk(x.X, qv)
+		case *ast.Call:
+			for _, a := range x.Args {
+				walk(a, qv)
+			}
+		case *ast.Case:
+			for _, w := range x.Whens {
+				walk(w.When, qv)
+				walk(w.Then, qv)
+			}
+			if x.Else != nil {
+				walk(x.Else, qv)
+			}
+		case *ast.List:
+			for _, el := range x.Elems {
+				walk(el, qv)
+			}
+		case *ast.Quant:
+			walk(x.List, qv)
+			inner := map[string]bool{x.Var: true}
+			for k := range qv {
+				inner[k] = true
+			}
+			walk(x.Pred, inner)
+		case *ast.Agg:
+			if x.Arg != nil {
+				walk(x.Arg, qv)
+			}
+		}
+	}
+	walk(e, map[string]bool{})
+	return out
+}
+
+// ================================
+// MATCH（§4.3）
+// ================================
+
+type patVertex struct {
+	name   string
+	labels []string
+	order  int
+}
+
+type patEdge struct {
+	rel     ast.RelPat
+	left    string
+	right   string
+	order   int
+	pathVar string
+}
+
+func (b *builder) match(m *ast.MatchClause) error {
+	// 1. パターングラフ
+	vertices := map[string]*patVertex{}
+	var vorder []string
+	var edges []*patEdge
+	addVertex := func(n ast.NodePat) error {
+		if vi, ok := b.scope[n.Var]; ok && vi.kind != VarNode {
+			return unsupported("variable %s rebound as node", n.Var)
+		}
+		v, ok := vertices[n.Var]
+		if !ok {
+			v = &patVertex{name: n.Var, order: len(vorder)}
+			if vi, bound := b.scope[n.Var]; bound {
+				v.labels = vi.labels
+			}
+			vertices[n.Var] = v
+			vorder = append(vorder, n.Var)
+		}
+		for _, l := range n.Labels {
+			if !contains(v.labels, l) {
+				if _, bound := b.scope[n.Var]; bound {
+					return unsupported("new label on bound variable %s", n.Var)
+				}
+				v.labels = append(v.labels, l)
+			}
+		}
+		return nil
+	}
+
+	var pending []ast.Expr
+	if m.Where != nil {
+		pending = splitAnd(m.Where)
+	}
+	for _, p := range m.Patterns {
+		var pd pathDef
+		for i, n := range p.Nodes {
+			if err := addVertex(n); err != nil {
+				return err
+			}
+			for _, pe := range n.Props {
+				pending = append(pending, &ast.Bin{Op: "=", L: &ast.PropRef{Var: n.Var, Prop: pe.Key}, R: pe.Value})
+			}
+			pd.elems = append(pd.elems, PathElem{Var: n.Var})
+			pd.nodes = append(pd.nodes, n.Var)
+			if i < len(p.Rels) {
+				r := p.Rels[i]
+				if _, bound := b.scope[r.Var]; bound {
+					return unsupported("relationship variable %s already bound", r.Var)
+				}
+				edges = append(edges, &patEdge{rel: r, left: n.Var, right: p.Nodes[i+1].Var, order: len(edges), pathVar: p.PathVar})
+				if r.Range != nil {
+					if len(r.Props) > 0 {
+						return unsupported("properties on variable-length relationship %s", r.Var)
+					}
+					pd.elems = append(pd.elems, PathElem{Var: r.Var, Seg: true})
+					pd.segs = append(pd.segs, r.Var)
+				} else {
+					pd.elems = append(pd.elems, PathElem{Var: r.Var})
+					pd.rels = append(pd.rels, r.Var)
+					for _, pe := range r.Props {
+						pending = append(pending, &ast.Bin{Op: "=", L: &ast.PropRef{Var: r.Var, Prop: pe.Key}, R: pe.Value})
+					}
+				}
+			}
+		}
+		if p.PathVar != "" {
+			if _, bound := b.scope[p.PathVar]; bound {
+				return unsupported("path variable %s already bound", p.PathVar)
+			}
+			b.paths[p.PathVar] = pd
+		}
+	}
+
+	// 変数をスコープへ登録（述語の変換・deps 判定の前に種類が分かっている必要がある）。
+	for _, v := range vorder {
+		b.scope[v] = varInfo{kind: VarNode, labels: vertices[v].labels}
+	}
+	for _, e := range edges {
+		kind := VarRel
+		if e.rel.Range != nil {
+			kind = VarSeg
+		}
+		b.scope[e.rel.Var] = varInfo{kind: kind, labels: e.rel.Types}
+	}
+	for _, p := range m.Patterns {
+		if p.PathVar != "" {
+			b.scope[p.PathVar] = varInfo{kind: VarPath}
+		}
+	}
+	// ただし「束縛済み」の判定は bound 集合で行う（scope は種類の参照用）。
+	prevBound := b.boundSet()
+
+	// 2. パス全体の条件の分解（§4.4）
+	segRange := map[string]HopRange{}
+	segPreds := map[string][]SegPred{}
+	for _, e := range edges {
+		if e.rel.Range != nil {
+			segRange[e.rel.Var] = hopRange(e.rel.Range)
+		}
+	}
+	var err error
+	pending, err = b.decomposePathPreds(pending, segRange, segPreds)
+	if err != nil {
+		return err
+	}
+
+	// 3. 連結成分ごとに積む
+	comps := components(vorder, edges)
+	bound := prevBound
+	for _, comp := range comps {
+		start := b.chooseStart(comp, vertices, bound, pending)
+		var sub Node
+		fresh := !bound[start]
+		if fresh {
+			sub = &EntityScan{Alias: start, Labels: vertices[start].labels}
+		} else {
+			sub = b.plan
+		}
+		compBound := map[string]bool{}
+		for k := range bound {
+			compBound[k] = true
+		}
+		if fresh {
+			// 新しい成分は前の束縛と独立に組み、最後に直積で合流する。
+			compBound = map[string]bool{start: true}
+		}
+		compBound[start] = true
+		sub, pending, err = b.placeReady(sub, compBound, pending)
+		if err != nil {
+			return err
+		}
+
+		done := map[int]bool{}
+		for {
+			e := nextEdge(comp, edges, compBound, done)
+			if e == nil {
+				break
+			}
+			done[e.order] = true
+			from, to, dir := orient(e, compBound)
+			switch {
+			case compBound[to] && e.rel.Range != nil:
+				return unsupported("variable-length relationship %s between bound nodes", e.rel.Var)
+			case compBound[to]:
+				sub = &ExpandInto{Input: sub, From: from, Rel: e.rel.Var, To: to, Types: e.rel.Types, Dir: dir}
+				compBound[e.rel.Var] = true
+			case e.rel.Range != nil:
+				sub = &VarLengthExpand{Input: sub, From: from, Seg: e.rel.Var, To: to, Types: e.rel.Types,
+					Dir: dir, ToLabels: vertices[to].labels, Range: segRange[e.rel.Var], SegPreds: segPreds[e.rel.Var]}
+				compBound[e.rel.Var] = true
+				compBound[to] = true
+			default:
+				sub = &Expand{Input: sub, From: from, Rel: e.rel.Var, To: to, Types: e.rel.Types,
+					Dir: dir, ToLabels: vertices[to].labels}
+				compBound[e.rel.Var] = true
+				compBound[to] = true
+			}
+			sub, pending, err = b.placeReady(sub, compBound, pending)
+			if err != nil {
+				return err
+			}
+		}
+
+		if fresh && b.plan != nil {
+			b.plan = &NodeHashJoin{Left: b.plan, Right: sub}
+		} else {
+			b.plan = sub
+		}
+		for k := range compBound {
+			bound[k] = true
+		}
+	}
+	b.bound = bound
+
+	// 4. 関係一意性（タイプが重なり得る関係が 2 つ以上あるとき）
+	if rels, segs := uniqueCandidates(edges); len(rels)+len(segs) >= 2 {
+		b.plan = &RelUniqueFilter{Input: b.plan, Rels: rels, Segs: segs}
+	}
+
+	// 5. 残り（成分をまたぐ述語・パス列が必要な述語）
+	b.plan, pending, err = b.placeReady(b.plan, bound, pending)
+	if err != nil {
+		return err
+	}
+	if len(pending) > 0 {
+		return unsupported("unplaceable predicate %s", pending[0])
+	}
+	return nil
+}
+
+// boundSet は現在束縛済みの変数（前の節までの結果）。
+func (b *builder) boundSet() map[string]bool {
+	out := map[string]bool{}
+	for k := range b.bound {
+		out[k] = true
+	}
+	return out
+}
+
+func contains(xs []string, s string) bool {
+	for _, x := range xs {
+		if x == s {
+			return true
+		}
+	}
+	return false
+}
+
+func splitAnd(e ast.Expr) []ast.Expr {
+	if bin, ok := e.(*ast.Bin); ok && bin.Op == "AND" {
+		return append(splitAnd(bin.L), splitAnd(bin.R)...)
+	}
+	return []ast.Expr{e}
+}
+
+func hopRange(h *ast.HopRange) HopRange {
+	r := HopRange{Min: 1, Max: -1}
+	if h.Min != nil {
+		r.Min = *h.Min
+	}
+	if h.Max != nil {
+		r.Max = *h.Max
+	}
+	return r
+}
+
+// components は無向の連結成分を、最初に現れた頂点の順に返す。
+func components(vorder []string, edges []*patEdge) [][]string {
+	parent := map[string]string{}
+	var find func(string) string
+	find = func(x string) string {
+		if parent[x] == x {
+			return x
+		}
+		parent[x] = find(parent[x])
+		return parent[x]
+	}
+	for _, v := range vorder {
+		parent[v] = v
+	}
+	for _, e := range edges {
+		a, c := find(e.left), find(e.right)
+		if a != c {
+			parent[c] = a
+		}
+	}
+	idx := map[string]int{}
+	var comps [][]string
+	for _, v := range vorder {
+		r := find(v)
+		i, ok := idx[r]
+		if !ok {
+			i = len(comps)
+			idx[r] = i
+			comps = append(comps, nil)
+		}
+		comps[i] = append(comps[i], v)
+	}
+	return comps
+}
+
+// chooseStart: ① 束縛済みの頂点 → ② その頂点だけで評価できる述語が最多 → ③ 出現順。
+func (b *builder) chooseStart(comp []string, vertices map[string]*patVertex, bound map[string]bool, pending []ast.Expr) string {
+	for _, v := range comp {
+		if bound[v] {
+			return v
+		}
+	}
+	best, bestN := comp[0], -1
+	for _, v := range comp {
+		n := 0
+		for _, e := range pending {
+			d := b.deps(e)
+			if len(d) == 1 && d[0] == v {
+				n++
+			}
+		}
+		if n > bestN {
+			best, bestN = v, n
+		}
+	}
+	return best
+}
+
+// nextEdge は成分内で、片端以上が束縛済みの未処理の辺のうち出現順で最初のもの。
+func nextEdge(comp []string, edges []*patEdge, bound map[string]bool, done map[int]bool) *patEdge {
+	in := map[string]bool{}
+	for _, v := range comp {
+		in[v] = true
+	}
+	for _, e := range edges {
+		if done[e.order] || !in[e.left] {
+			continue
+		}
+		if bound[e.left] || bound[e.right] {
+			return e
+		}
+	}
+	return nil
+}
+
+// orient は束縛側を From にした向きを返す。両端が束縛済みならパターンどおり。
+func orient(e *patEdge, bound map[string]bool) (from, to string, dir Direction) {
+	d := Out
+	switch e.rel.Dir {
+	case ast.DirLeft:
+		d = In
+	case ast.DirBoth:
+		d = Both
+	}
+	if bound[e.left] {
+		return e.left, e.right, d
+	}
+	return e.right, e.left, d.Reverse()
+}
+
+// uniqueCandidates は関係一意性の対象（タイプが他と重なり得る関係・区間）。
+func uniqueCandidates(edges []*patEdge) (rels, segs []string) {
+	overlaps := func(a, c []string) bool {
+		if len(a) == 0 || len(c) == 0 {
+			return true
+		}
+		for _, x := range a {
+			if contains(c, x) {
+				return true
+			}
+		}
+		return false
+	}
+	for i, e := range edges {
+		hit := false
+		for j, o := range edges {
+			if i != j && overlaps(e.rel.Types, o.rel.Types) {
+				hit = true
+				break
+			}
+		}
+		if !hit {
+			continue
+		}
+		if e.rel.Range != nil {
+			segs = append(segs, e.rel.Var)
+		} else {
+			rels = append(rels, e.rel.Var)
+		}
+	}
+	return rels, segs
+}
+
+// placeReady は依存変数がすべて束縛済みになった述語を、必要な列を足した上で Filter として置く。
+func (b *builder) placeReady(n Node, bound map[string]bool, pending []ast.Expr) (Node, []ast.Expr, error) {
+	var rest []ast.Expr
+	for _, e := range pending {
+		ready := true
+		for _, d := range b.deps(e) {
+			if !bound[d] {
+				ready = false
+				break
+			}
+		}
+		if !ready {
+			rest = append(rest, e)
+			continue
+		}
+		var nd needs
+		b.collectNeeds(e, convCtx{}, &nd)
+		n = b.supply(n, nd)
+		pred, err := b.conv(e, convCtx{})
+		if err != nil {
+			return nil, nil, err
+		}
+		n = &Filter{Input: n, Pred: pred}
+	}
+	return n, rest, nil
+}
+
+// ================================
+// パス全体の条件の分解（§4.4）
+// ================================
+
+func (b *builder) decomposePathPreds(pending []ast.Expr, segRange map[string]HopRange, segPreds map[string][]SegPred) ([]ast.Expr, error) {
+	var out []ast.Expr
+	for _, e := range pending {
+		repl, handled, err := b.decomposeOne(e, segRange, segPreds)
+		if err != nil {
+			return nil, err
+		}
+		if handled {
+			out = append(out, repl...)
+		} else {
+			out = append(out, e)
+		}
+	}
+	return out, nil
+}
+
+func (b *builder) decomposeOne(e ast.Expr, segRange map[string]HopRange, segPreds map[string][]SegPred) ([]ast.Expr, bool, error) {
+	// length(p) θ k
+	if bin, ok := e.(*ast.Bin); ok {
+		if c, ok := bin.L.(*ast.Call); ok && c.Fn == "length" {
+			p, perr := b.pathArg(c)
+			lit, lok := bin.R.(*ast.Lit)
+			if perr != nil || !lok {
+				return nil, false, nil
+			}
+			k, kok := lit.Val.(int64)
+			if !kok {
+				return nil, false, nil
+			}
+			pd := b.paths[p]
+			fixed := len(pd.rels)
+			switch len(pd.segs) {
+			case 0: // 長さは定数
+				if cmpInt(int64(fixed), bin.Op, k) {
+					return nil, true, nil
+				}
+				return []ast.Expr{&ast.Lit{Val: false}}, true, nil
+			case 1:
+				seg := pd.segs[0]
+				r, ok := segRange[seg].Constrain(bin.Op, int(k)-fixed)
+				if !ok {
+					return nil, false, nil
+				}
+				segRange[seg] = r
+				return nil, true, nil
+			}
+			return nil, false, nil
+		}
+	}
+	// all / none(x IN nodes(p)|relationships(p) WHERE c(x))
+	q, ok := e.(*ast.Quant)
+	if !ok || (q.Kind != "all" && q.Kind != "none") {
+		return nil, false, nil
+	}
+	src, err := b.quantSource(q)
+	if err != nil {
+		return nil, false, err
+	}
+	if !onlyRefersTo(q.Pred, q.Var) {
+		return nil, false, nil
+	}
+	pred := q.Pred
+	if q.Kind == "none" {
+		pred = &ast.Un{Op: "NOT", X: pred}
+	}
+	pd := b.paths[src.path]
+	var repl []ast.Expr
+	elems := pd.nodes
+	if src.part == SegRels {
+		elems = pd.rels
+	}
+	for _, v := range elems {
+		repl = append(repl, substituteVar(pred, q.Var, v))
+	}
+	for _, seg := range pd.segs {
+		lp, err := b.conv(pred, convCtx{quant: map[string]quantSrc{q.Var: src}})
+		if err != nil {
+			return nil, false, err
+		}
+		segPreds[seg] = append(segPreds[seg], SegPred{Part: src.part, Var: q.Var, Pred: lp})
+	}
+	return repl, true, nil
+}
+
+func cmpInt(a int64, op string, k int64) bool {
+	switch op {
+	case "=":
+		return a == k
+	case "<>":
+		return a != k
+	case "<":
+		return a < k
+	case "<=":
+		return a <= k
+	case ">":
+		return a > k
+	case ">=":
+		return a >= k
+	}
+	return false
+}
+
+// onlyRefersTo は式が変数 v（とリテラル）以外を参照しないか。量化子の入れ子は不可。
+func onlyRefersTo(e ast.Expr, v string) bool {
+	ok := true
+	var walk func(ast.Expr)
+	walk = func(e ast.Expr) {
+		switch x := e.(type) {
+		case *ast.VarRef:
+			ok = false
+		case *ast.PropRef:
+			if x.Var != v {
+				ok = false
+			}
+		case *ast.Bin:
+			walk(x.L)
+			walk(x.R)
+		case *ast.Un:
+			walk(x.X)
+		case *ast.Call:
+			for _, a := range x.Args {
+				walk(a)
+			}
+		case *ast.List:
+			for _, el := range x.Elems {
+				walk(el)
+			}
+		case *ast.Case:
+			for _, w := range x.Whens {
+				walk(w.When)
+				walk(w.Then)
+			}
+			if x.Else != nil {
+				walk(x.Else)
+			}
+		case *ast.Quant, *ast.Agg:
+			ok = false
+		}
+	}
+	walk(e)
+	return ok
+}
+
+// substituteVar は式中の from.prop を to.prop に置き換えた複製を返す。
+func substituteVar(e ast.Expr, from, to string) ast.Expr {
+	switch x := e.(type) {
+	case *ast.PropRef:
+		if x.Var == from {
+			return &ast.PropRef{Var: to, Prop: x.Prop}
+		}
+		return x
+	case *ast.Bin:
+		return &ast.Bin{Op: x.Op, L: substituteVar(x.L, from, to), R: substituteVar(x.R, from, to)}
+	case *ast.Un:
+		return &ast.Un{Op: x.Op, X: substituteVar(x.X, from, to)}
+	case *ast.Call:
+		c := &ast.Call{Fn: x.Fn}
+		for _, a := range x.Args {
+			c.Args = append(c.Args, substituteVar(a, from, to))
+		}
+		return c
+	case *ast.List:
+		l := &ast.List{}
+		for _, el := range x.Elems {
+			l.Elems = append(l.Elems, substituteVar(el, from, to))
+		}
+		return l
+	case *ast.Case:
+		c := &ast.Case{}
+		for _, w := range x.Whens {
+			c.Whens = append(c.Whens, ast.CaseWhen{When: substituteVar(w.When, from, to), Then: substituteVar(w.Then, from, to)})
+		}
+		if x.Else != nil {
+			c.Else = substituteVar(x.Else, from, to)
+		}
+		return c
+	}
+	return e
+}
+
+// ================================
+// WITH / RETURN（§4.5）
+// ================================
+
+func (b *builder) project(c *ast.ProjectionClause) error {
+	if b.plan == nil {
+		return unsupported("projection without MATCH")
+	}
+
+	hasAgg := false
+	for _, it := range c.Items {
+		if _, ok := it.Expr.(*ast.Agg); ok {
+			hasAgg = true
+		}
+	}
+	// 集約・DISTINCT で行がまとまる場合、ORDER BY は射影後の列か、射影された束縛のプロパティだけを参照できる。
+	collapsing := hasAgg || c.Distinct
+	projIdent := map[string]varInfo{} // 自分の名前のまま射影される束縛（ORDER BY がそのプロパティを使える）
+	for _, it := range c.Items {
+		if v, ok := it.Expr.(*ast.VarRef); ok && v.Name == it.Name {
+			if vi := b.scope[v.Name]; vi.kind == VarNode || vi.kind == VarRel {
+				projIdent[it.Name] = vi
+			}
+		}
+	}
+
+	// 1. 必要な列を足す（行がまとまる場合の ORDER BY 用プロパティは、まとめた後で取る）
+	var nd needs
+	for _, it := range c.Items {
+		b.collectNeeds(it.Expr, convCtx{}, &nd)
+	}
+	if !collapsing {
+		for _, o := range c.OrderBy {
+			b.collectNeeds(o.Expr, convCtx{}, &nd)
+		}
+	}
+	b.plan = b.supply(b.plan, nd)
+
+	// 2. 項目の変換
+	itemNames := map[string]string{} // 式の文字列 → 項目名（ORDER BY の解決用）
+	outNames := map[string]bool{}
+	for _, it := range c.Items {
+		if outNames[it.Name] {
+			return unsupported("duplicate column name %s", it.Name)
+		}
+		outNames[it.Name] = true
+		itemNames[it.Expr.String()] = it.Name
+	}
+
+	var sortKeys []SortKey
+	var hidden []ProjItem
+	var postProps []propNeed
+	resolveOrder := func(o ast.SortItem) (Expr, error) {
+		if name, ok := itemNames[o.Expr.String()]; ok {
+			return &Column{Key: name}, nil
+		}
+		if v, ok := o.Expr.(*ast.VarRef); ok && outNames[v.Name] {
+			return &Column{Key: v.Name}, nil
+		}
+		if collapsing {
+			for _, d := range b.deps(o.Expr) {
+				if _, ok := projIdent[d]; !ok {
+					return nil, unsupported("ORDER BY %s not in projection", o.Expr)
+				}
+			}
+			var ond needs
+			b.collectNeeds(o.Expr, convCtx{}, &ond)
+			if len(ond.paths) > 0 || len(ond.listProps) > 0 {
+				return nil, unsupported("ORDER BY %s not in projection", o.Expr)
+			}
+			postProps = append(postProps, ond.props...)
+			return b.conv(o.Expr, convCtx{})
+		}
+		e, err := b.conv(o.Expr, convCtx{})
+		if err != nil {
+			return nil, err
+		}
+		name := fmt.Sprintf("_sort%d", len(hidden))
+		hidden = append(hidden, ProjItem{Name: name, Expr: e})
+		return &Column{Key: name}, nil
+	}
+
+	trim := func() []ProjItem {
+		items := make([]ProjItem, 0, len(c.Items))
+		for _, it := range c.Items {
+			items = append(items, ProjItem{Name: it.Name, Expr: &Column{Key: it.Name}})
+		}
+		return items
+	}
+
+	var finalItems []ProjItem
+	if hasAgg {
+		agg := &Aggregation{Input: b.plan}
+		for _, it := range c.Items {
+			if a, ok := it.Expr.(*ast.Agg); ok {
+				ai := AggItem{Name: it.Name, Fn: a.Fn, Distinct: a.Distinct}
+				if a.Arg != nil {
+					v, err := b.conv(a.Arg, convCtx{})
+					if err != nil {
+						return err
+					}
+					ai.Arg = v
+				}
+				agg.Aggs = append(agg.Aggs, ai)
+				continue
+			}
+			v, err := b.conv(it.Expr, convCtx{})
+			if err != nil {
+				return err
+			}
+			agg.Keys = append(agg.Keys, ProjItem{Name: it.Name, Expr: v})
+		}
+		b.plan = agg
+		// 集約の出力は keys → aggs の順。項目順と違えば最後に並べ替える。
+		natural := make([]string, 0, len(c.Items))
+		for _, k := range agg.Keys {
+			natural = append(natural, k.Name)
+		}
+		for _, a := range agg.Aggs {
+			natural = append(natural, a.Name)
+		}
+		for i, it := range c.Items {
+			if natural[i] != it.Name {
+				finalItems = trim()
+				break
+			}
+		}
+	} else {
+		proj := &Projection{Input: b.plan}
+		for _, it := range c.Items {
+			v, err := b.conv(it.Expr, convCtx{})
+			if err != nil {
+				return err
+			}
+			proj.Items = append(proj.Items, ProjItem{Name: it.Name, Expr: v})
+		}
+		b.plan = proj
+	}
+
+	for _, o := range c.OrderBy {
+		e, err := resolveOrder(o)
+		if err != nil {
+			return err
+		}
+		sortKeys = append(sortKeys, SortKey{Expr: e, Desc: o.Desc})
+	}
+	if len(hidden) > 0 {
+		proj := b.plan.(*Projection)
+		proj.Items = append(proj.Items, hidden...)
+		finalItems = trim()
+	}
+
+	// 3. 後処理
+	if c.Distinct {
+		b.plan = &Distinct{Input: b.plan}
+	}
+	seenPost := map[string]bool{}
+	for _, p := range postProps {
+		key := p.v + "." + p.prop
+		if seenPost[key] {
+			continue
+		}
+		seenPost[key] = true
+		vi := projIdent[p.v]
+		kind := NodeObj
+		if vi.kind == VarRel {
+			kind = RelObj
+		}
+		b.plan = &GetProperty{Input: b.plan, Alias: p.v, Prop: p.prop, Kind: kind, Labels: vi.labels}
+		finalItems = trim()
+	}
+	if len(sortKeys) > 0 {
+		b.plan = &Sort{Input: b.plan, Keys: sortKeys}
+	}
+	if c.Skip != nil || c.Limit != nil {
+		l := &Limit{Input: b.plan, Count: -1}
+		if c.Skip != nil {
+			l.Skip = *c.Skip
+		}
+		if c.Limit != nil {
+			l.Count = *c.Limit
+		}
+		b.plan = l
+	}
+	if len(finalItems) > 0 {
+		b.plan = &Projection{Input: b.plan, Items: finalItems}
+	}
+
+	// 4. スコープの付け替え（WITH の本質）
+	newScope := map[string]varInfo{}
+	newBound := map[string]bool{}
+	newAvail := map[string]bool{}
+	newPaths := map[string]pathDef{}
+	for _, it := range c.Items {
+		if v, ok := it.Expr.(*ast.VarRef); ok {
+			vi := b.scope[v.Name]
+			if vi.kind == VarNode || vi.kind == VarRel {
+				newScope[it.Name] = vi
+				newBound[it.Name] = true
+				continue
+			}
+			if vi.kind == VarPath {
+				return unsupported("carrying path %s across WITH", v.Name)
+			}
+		}
+		newScope[it.Name] = varInfo{kind: VarValue}
+		newBound[it.Name] = true
+		newAvail[it.Name] = true
+	}
+	b.scope, b.bound, b.avail, b.paths = newScope, newBound, newAvail, newPaths
+
+	// 5. WITH の後ろの WHERE
+	if c.Where != nil {
+		var err error
+		var rest []ast.Expr
+		b.plan, rest, err = b.placeReady(b.plan, b.bound, splitAnd(c.Where))
+		if err != nil {
+			return err
+		}
+		if len(rest) > 0 {
+			return unsupported("unplaceable WITH predicate %s", rest[0])
+		}
+	}
+	return nil
+}
