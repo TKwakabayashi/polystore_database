@@ -128,3 +128,28 @@ func TestTranslateUnsupported(t *testing.T) {
 		}
 	}
 }
+
+// 論理書き換え（遅延実体化・刈り込み）後の計画を golden で固定する。
+func TestRewriteCases(t *testing.T) {
+	cases := []struct{ name, q string }{
+		{"defer_after_limit", "MATCH (p:Person {id: $x})-[:KNOWS]->(f:Person) RETURN f.firstName, f.lastName ORDER BY f.id ASC LIMIT 10"},
+		{"defer_keeps_sort_key", "MATCH (p:Person {id: $x})<-[:HAS_CREATOR]-(m:Message) RETURN m.id, m.length ORDER BY m.length DESC, m.id ASC LIMIT 20"},
+		{"defer_partial", "MATCH (p:Person {id: $x})<-[:HAS_CREATOR]-(m:Message) RETURN m.id, m.content, p.firstName ORDER BY m.creationDate DESC LIMIT 10"},
+		{"no_defer_with_distinct", "MATCH (p:Person {id: $x})-[:KNOWS]->(f:Person) WITH DISTINCT f.firstName AS n, f.lastName AS l ORDER BY n ASC LIMIT 5 RETURN n, l"},
+		{"no_defer_without_limit", "MATCH (p:Person {id: $x})-[:KNOWS]->(f:Person) RETURN f.firstName"},
+		{"with_stage_defer", "MATCH (p:Person {id: $x})-[:KNOWS]-(f:Person) WITH f ORDER BY f.id ASC LIMIT 3 MATCH (f)-[:KNOWS]-(g:Person) RETURN g.id"},
+	}
+	var b strings.Builder
+	for _, c := range cases {
+		a, err := ast.Parse(c.q, map[string]string{"x": "1"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		n, err := logical.Translate(a)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b.WriteString("### " + c.name + "\n" + c.q + "\n" + logical.Dump(logical.Rewrite(n)) + "\n")
+	}
+	golden(t, "rewrite.golden", b.String())
+}

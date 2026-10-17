@@ -1,0 +1,2368 @@
+### AGG1 @graph
+StoreQuery[graph] out=(author.id, author.firstName, author.lastName, replyCount)
+  : Limit[20]
+  :   Sort[replyCount DESC, author.id ASC]
+  :     Aggregation[keys: author.id, author.firstName, author.lastName | count(comment) AS replyCount]
+  :       GetProperty(author.lastName) [node:Person]
+  :         GetProperty(author.firstName) [node:Person]
+  :           GetProperty(author.id) [node:Person]
+  :             RelUniqueFilter[_r0, _r2]
+  :               Expand((comment)-[_r2:HAS_CREATOR]->(author:Person))
+  :                 Expand((m)<-[_r1:REPLY_OF]-(comment:Comment))
+  :                   Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+  :                     Filter((p.id = 15393162799448))
+  :                       GetProperty(p.id) [node:Person]
+  :                         EntityScan(p:Person)
+
+### AGG1 @relational
+Coord Limit[20]
+  Coord Sort[replyCount DESC, author.id ASC]
+    Coord Aggregation[keys: author.id, author.firstName, author.lastName | count(comment) AS replyCount]
+      Fetch[relational] in=(author) out=(author, author.firstName, author.id, author.lastName)
+        : GetProperty(author.lastName) [node:Person]
+        :   GetProperty(author.firstName) [node:Person]
+        :     GetProperty(author.id) [node:Person]
+        :       Argument(author)
+        StoreQuery[graph] in=(p) out=(p, author, comment)
+          : RelUniqueFilter[_r0, _r2]
+          :   Expand((comment)-[_r2:HAS_CREATOR]->(author:Person))
+          :     Expand((m)<-[_r1:REPLY_OF]-(comment:Comment))
+          :       Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+          :         Argument(p)
+          StoreQuery[relational] out=(p)
+            : Filter((p.id = 15393162799448))
+            :   GetProperty(p.id) [node:Person]
+            :     EntityScan(p:Person)
+
+### AGG1 @document
+Coord Limit[20]
+  Coord Sort[replyCount DESC, author.id ASC]
+    Coord Aggregation[keys: author.id, author.firstName, author.lastName | count(comment) AS replyCount]
+      Fetch[document] in=(author) out=(author, author.firstName, author.id, author.lastName)
+        : GetProperty(author.lastName) [node:Person]
+        :   GetProperty(author.firstName) [node:Person]
+        :     GetProperty(author.id) [node:Person]
+        :       Argument(author)
+        StoreQuery[graph] in=(p) out=(p, author, comment)
+          : RelUniqueFilter[_r0, _r2]
+          :   Expand((comment)-[_r2:HAS_CREATOR]->(author:Person))
+          :     Expand((m)<-[_r1:REPLY_OF]-(comment:Comment))
+          :       Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+          :         Argument(p)
+          StoreQuery[document] out=(p)
+            : Filter((p.id = 15393162799448))
+            :   GetProperty(p.id) [node:Person]
+            :     EntityScan(p:Person)
+
+### AGG1 @columnar
+Coord Limit[20]
+  Coord Sort[replyCount DESC, author.id ASC]
+    Coord Aggregation[keys: author.id, author.firstName, author.lastName | count(comment) AS replyCount]
+      Fetch[columnar] in=(author) out=(author, author.firstName, author.id, author.lastName)
+        : GetProperty(author.lastName) [node:Person]
+        :   GetProperty(author.firstName) [node:Person]
+        :     GetProperty(author.id) [node:Person]
+        :       Argument(author)
+        StoreQuery[graph] in=(p) out=(p, author, comment)
+          : RelUniqueFilter[_r0, _r2]
+          :   Expand((comment)-[_r2:HAS_CREATOR]->(author:Person))
+          :     Expand((m)<-[_r1:REPLY_OF]-(comment:Comment))
+          :       Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+          :         Argument(p)
+          StoreQuery[columnar] out=(p)
+            : Filter((p.id = 15393162799448))
+            :   GetProperty(p.id) [node:Person]
+            :     EntityScan(p:Person)
+
+### AGG1 @kvs
+Coord Limit[20]
+  Coord Sort[replyCount DESC, author.id ASC]
+    Coord Aggregation[keys: author.id, author.firstName, author.lastName | count(comment) AS replyCount]
+      Fetch[kvs] in=(author) out=(author, author.firstName, author.id, author.lastName)
+        : GetProperty(author.lastName) [node:Person]
+        :   GetProperty(author.firstName) [node:Person]
+        :     GetProperty(author.id) [node:Person]
+        :       Argument(author)
+        StoreQuery[graph] in=(p) out=(p, author, comment)
+          : RelUniqueFilter[_r0, _r2]
+          :   Expand((comment)-[_r2:HAS_CREATOR]->(author:Person))
+          :     Expand((m)<-[_r1:REPLY_OF]-(comment:Comment))
+          :       Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+          :         Argument(p)
+          StoreQuery[kvs] out=(p)
+            : Filter((p.id = 15393162799448))
+            :   GetProperty(p.id) [node:Person]
+            :     EntityScan(p:Person)
+
+### AGG2 @graph
+StoreQuery[graph] out=(friend.id, friend.firstName, msgCount, avgLen, maxLen)
+  : Limit[20]
+  :   Sort[msgCount DESC, friend.id ASC]
+  :     Aggregation[keys: friend.id, friend.firstName | count(m) AS msgCount, avg(m.length) AS avgLen, max(m.length) AS maxLen]
+  :       GetProperty(m.length) [node:Message]
+  :         GetProperty(friend.firstName) [node:Person]
+  :           GetProperty(friend.id) [node:Person]
+  :             Expand((friend)<-[_r1:HAS_CREATOR]-(m:Message))
+  :               Expand((p)-[_r0:KNOWS]-(friend:Person))
+  :                 Filter((p.id = 15393162799448))
+  :                   GetProperty(p.id) [node:Person]
+  :                     EntityScan(p:Person)
+
+### AGG2 @relational
+Coord Limit[20]
+  Coord Sort[msgCount DESC, friend.id ASC]
+    Coord Aggregation[keys: friend.id, friend.firstName | count(m) AS msgCount, avg(m.length) AS avgLen, max(m.length) AS maxLen]
+      Fetch[relational] in=(m) out=(m, m.length)
+        : GetProperty(m.length) [node:Message]
+        :   Argument(m)
+        Fetch[relational] in=(friend) out=(friend, friend.firstName, friend.id)
+          : GetProperty(friend.firstName) [node:Person]
+          :   GetProperty(friend.id) [node:Person]
+          :     Argument(friend)
+          StoreQuery[graph] in=(p) out=(p, friend, m)
+            : Expand((friend)<-[_r1:HAS_CREATOR]-(m:Message))
+            :   Expand((p)-[_r0:KNOWS]-(friend:Person))
+            :     Argument(p)
+            StoreQuery[relational] out=(p)
+              : Filter((p.id = 15393162799448))
+              :   GetProperty(p.id) [node:Person]
+              :     EntityScan(p:Person)
+
+### AGG2 @document
+Coord Limit[20]
+  Coord Sort[msgCount DESC, friend.id ASC]
+    Coord Aggregation[keys: friend.id, friend.firstName | count(m) AS msgCount, avg(m.length) AS avgLen, max(m.length) AS maxLen]
+      Fetch[document] in=(m) out=(m, m.length)
+        : GetProperty(m.length) [node:Message]
+        :   Argument(m)
+        Fetch[document] in=(friend) out=(friend, friend.firstName, friend.id)
+          : GetProperty(friend.firstName) [node:Person]
+          :   GetProperty(friend.id) [node:Person]
+          :     Argument(friend)
+          StoreQuery[graph] in=(p) out=(p, friend, m)
+            : Expand((friend)<-[_r1:HAS_CREATOR]-(m:Message))
+            :   Expand((p)-[_r0:KNOWS]-(friend:Person))
+            :     Argument(p)
+            StoreQuery[document] out=(p)
+              : Filter((p.id = 15393162799448))
+              :   GetProperty(p.id) [node:Person]
+              :     EntityScan(p:Person)
+
+### AGG2 @columnar
+Coord Limit[20]
+  Coord Sort[msgCount DESC, friend.id ASC]
+    Coord Aggregation[keys: friend.id, friend.firstName | count(m) AS msgCount, avg(m.length) AS avgLen, max(m.length) AS maxLen]
+      Fetch[columnar] in=(m) out=(m, m.length)
+        : GetProperty(m.length) [node:Message]
+        :   Argument(m)
+        Fetch[columnar] in=(friend) out=(friend, friend.firstName, friend.id)
+          : GetProperty(friend.firstName) [node:Person]
+          :   GetProperty(friend.id) [node:Person]
+          :     Argument(friend)
+          StoreQuery[graph] in=(p) out=(p, friend, m)
+            : Expand((friend)<-[_r1:HAS_CREATOR]-(m:Message))
+            :   Expand((p)-[_r0:KNOWS]-(friend:Person))
+            :     Argument(p)
+            StoreQuery[columnar] out=(p)
+              : Filter((p.id = 15393162799448))
+              :   GetProperty(p.id) [node:Person]
+              :     EntityScan(p:Person)
+
+### AGG2 @kvs
+Coord Limit[20]
+  Coord Sort[msgCount DESC, friend.id ASC]
+    Coord Aggregation[keys: friend.id, friend.firstName | count(m) AS msgCount, avg(m.length) AS avgLen, max(m.length) AS maxLen]
+      Fetch[kvs] in=(m) out=(m, m.length)
+        : GetProperty(m.length) [node:Message]
+        :   Argument(m)
+        Fetch[kvs] in=(friend) out=(friend, friend.firstName, friend.id)
+          : GetProperty(friend.firstName) [node:Person]
+          :   GetProperty(friend.id) [node:Person]
+          :     Argument(friend)
+          StoreQuery[graph] in=(p) out=(p, friend, m)
+            : Expand((friend)<-[_r1:HAS_CREATOR]-(m:Message))
+            :   Expand((p)-[_r0:KNOWS]-(friend:Person))
+            :     Argument(p)
+            StoreQuery[kvs] out=(p)
+              : Filter((p.id = 15393162799448))
+              :   GetProperty(p.id) [node:Person]
+              :     EntityScan(p:Person)
+
+### AGG3 @graph
+StoreQuery[graph] out=(total, friends, totLen, avgLen, minLen, maxLen)
+  : Aggregation[keys: ∅ | count(*) AS total, count(DISTINCT friend.id) AS friends, sum(m.length) AS totLen, avg(m.length) AS avgLen, min(m.length) AS minLen, max(m.length) AS maxLen]
+  :   GetProperty(m.length) [node:Message]
+  :     GetProperty(friend.id) [node:Person]
+  :       Expand((friend)<-[_r1:HAS_CREATOR]-(m:Message))
+  :         Expand((p)-[_r0:KNOWS]-(friend:Person))
+  :           Filter((p.id = 15393162799448))
+  :             GetProperty(p.id) [node:Person]
+  :               EntityScan(p:Person)
+
+### AGG3 @relational
+Coord Aggregation[keys: ∅ | count(*) AS total, count(DISTINCT friend.id) AS friends, sum(m.length) AS totLen, avg(m.length) AS avgLen, min(m.length) AS minLen, max(m.length) AS maxLen]
+  Fetch[relational] in=(m) out=(m, m.length)
+    : GetProperty(m.length) [node:Message]
+    :   Argument(m)
+    Fetch[relational] in=(friend) out=(friend, friend.id)
+      : GetProperty(friend.id) [node:Person]
+      :   Argument(friend)
+      StoreQuery[graph] in=(p) out=(p, friend, m)
+        : Expand((friend)<-[_r1:HAS_CREATOR]-(m:Message))
+        :   Expand((p)-[_r0:KNOWS]-(friend:Person))
+        :     Argument(p)
+        StoreQuery[relational] out=(p)
+          : Filter((p.id = 15393162799448))
+          :   GetProperty(p.id) [node:Person]
+          :     EntityScan(p:Person)
+
+### AGG3 @document
+Coord Aggregation[keys: ∅ | count(*) AS total, count(DISTINCT friend.id) AS friends, sum(m.length) AS totLen, avg(m.length) AS avgLen, min(m.length) AS minLen, max(m.length) AS maxLen]
+  Fetch[document] in=(m) out=(m, m.length)
+    : GetProperty(m.length) [node:Message]
+    :   Argument(m)
+    Fetch[document] in=(friend) out=(friend, friend.id)
+      : GetProperty(friend.id) [node:Person]
+      :   Argument(friend)
+      StoreQuery[graph] in=(p) out=(p, friend, m)
+        : Expand((friend)<-[_r1:HAS_CREATOR]-(m:Message))
+        :   Expand((p)-[_r0:KNOWS]-(friend:Person))
+        :     Argument(p)
+        StoreQuery[document] out=(p)
+          : Filter((p.id = 15393162799448))
+          :   GetProperty(p.id) [node:Person]
+          :     EntityScan(p:Person)
+
+### AGG3 @columnar
+Coord Aggregation[keys: ∅ | count(*) AS total, count(DISTINCT friend.id) AS friends, sum(m.length) AS totLen, avg(m.length) AS avgLen, min(m.length) AS minLen, max(m.length) AS maxLen]
+  Fetch[columnar] in=(m) out=(m, m.length)
+    : GetProperty(m.length) [node:Message]
+    :   Argument(m)
+    Fetch[columnar] in=(friend) out=(friend, friend.id)
+      : GetProperty(friend.id) [node:Person]
+      :   Argument(friend)
+      StoreQuery[graph] in=(p) out=(p, friend, m)
+        : Expand((friend)<-[_r1:HAS_CREATOR]-(m:Message))
+        :   Expand((p)-[_r0:KNOWS]-(friend:Person))
+        :     Argument(p)
+        StoreQuery[columnar] out=(p)
+          : Filter((p.id = 15393162799448))
+          :   GetProperty(p.id) [node:Person]
+          :     EntityScan(p:Person)
+
+### AGG3 @kvs
+Coord Aggregation[keys: ∅ | count(*) AS total, count(DISTINCT friend.id) AS friends, sum(m.length) AS totLen, avg(m.length) AS avgLen, min(m.length) AS minLen, max(m.length) AS maxLen]
+  Fetch[kvs] in=(m) out=(m, m.length)
+    : GetProperty(m.length) [node:Message]
+    :   Argument(m)
+    Fetch[kvs] in=(friend) out=(friend, friend.id)
+      : GetProperty(friend.id) [node:Person]
+      :   Argument(friend)
+      StoreQuery[graph] in=(p) out=(p, friend, m)
+        : Expand((friend)<-[_r1:HAS_CREATOR]-(m:Message))
+        :   Expand((p)-[_r0:KNOWS]-(friend:Person))
+        :     Argument(p)
+        StoreQuery[kvs] out=(p)
+          : Filter((p.id = 15393162799448))
+          :   GetProperty(p.id) [node:Person]
+          :     EntityScan(p:Person)
+
+### AGG4 @graph
+StoreQuery[graph] out=(m.id, m.length)
+  : Limit[20]
+  :   Sort[m.length DESC, m.id ASC]
+  :     Projection[m.id, m.length]
+  :       GetProperty(m.id) [node:Message]
+  :         Filter((p.id = 15393162799448))
+  :           GetProperty(p.id) [node:Person]
+  :             Expand((m)-[_r0:HAS_CREATOR]->(p:Person))
+  :               Filter((m.length <= 200))
+  :                 Filter((m.length >= 50))
+  :                   GetProperty(m.length) [node:Message]
+  :                     EntityScan(m:Message)
+
+### AGG4 @relational
+Coord Limit[20]
+  Coord Sort[m.length DESC, m.id ASC]
+    Coord Projection[m.id, m.length]
+      Fetch[relational] in=(m) out=(m, m.id)
+        : GetProperty(m.id) [node:Message]
+        :   Argument(m)
+        StoreQuery[graph] in=(m) out=(m)
+          : Filter((p.id = 15393162799448))
+          :   GetProperty(p.id) [node:Person]
+          :     Expand((m)-[_r0:HAS_CREATOR]->(p:Person))
+          :       Argument(m)
+          StoreQuery[relational] out=(m, m.length)
+            : Filter((m.length <= 200))
+            :   Filter((m.length >= 50))
+            :     GetProperty(m.length) [node:Message]
+            :       EntityScan(m:Message)
+
+### AGG4 @document
+Coord Limit[20]
+  Coord Sort[m.length DESC, m.id ASC]
+    Coord Projection[m.id, m.length]
+      Fetch[document] in=(m) out=(m, m.id)
+        : GetProperty(m.id) [node:Message]
+        :   Argument(m)
+        StoreQuery[graph] in=(m) out=(m)
+          : Filter((p.id = 15393162799448))
+          :   GetProperty(p.id) [node:Person]
+          :     Expand((m)-[_r0:HAS_CREATOR]->(p:Person))
+          :       Argument(m)
+          StoreQuery[document] out=(m, m.length)
+            : Filter((m.length <= 200))
+            :   Filter((m.length >= 50))
+            :     GetProperty(m.length) [node:Message]
+            :       EntityScan(m:Message)
+
+### AGG4 @columnar
+Coord Limit[20]
+  Coord Sort[m.length DESC, m.id ASC]
+    Coord Projection[m.id, m.length]
+      Fetch[columnar] in=(m) out=(m, m.id)
+        : GetProperty(m.id) [node:Message]
+        :   Argument(m)
+        StoreQuery[graph] in=(m) out=(m)
+          : Filter((p.id = 15393162799448))
+          :   GetProperty(p.id) [node:Person]
+          :     Expand((m)-[_r0:HAS_CREATOR]->(p:Person))
+          :       Argument(m)
+          StoreQuery[columnar] out=(m, m.length)
+            : Filter((m.length <= 200))
+            :   Filter((m.length >= 50))
+            :     GetProperty(m.length) [node:Message]
+            :       EntityScan(m:Message)
+
+### AGG4 @kvs
+Coord Limit[20]
+  Coord Sort[m.length DESC, m.id ASC]
+    Coord Projection[m.id, m.length]
+      Fetch[kvs] in=(m) out=(m, m.id)
+        : GetProperty(m.id) [node:Message]
+        :   Argument(m)
+        StoreQuery[graph] in=(m) out=(m)
+          : Filter((p.id = 15393162799448))
+          :   GetProperty(p.id) [node:Person]
+          :     Expand((m)-[_r0:HAS_CREATOR]->(p:Person))
+          :       Argument(m)
+          StoreQuery[kvs] out=(m, m.length)
+            : Filter((m.length <= 200))
+            :   Filter((m.length >= 50))
+            :     GetProperty(m.length) [node:Message]
+            :       EntityScan(m:Message)
+
+### AGG5 @graph
+StoreQuery[graph] out=(cnt, mn, mx, sm, av)
+  : Aggregation[keys: ∅ | count(*) AS cnt, min(o.id) AS mn, max(o.id) AS mx, sum(o.id) AS sm, avg(o.id) AS av]
+  :   Filter((o.id <= 5000))
+  :     Filter((o.id >= 100))
+  :       GetProperty(o.id) [node:Organisation]
+  :         EntityScan(o:Organisation)
+
+### AGG5 @relational
+StoreQuery[relational] out=(cnt, mn, mx, sm, av)
+  : Aggregation[keys: ∅ | count(*) AS cnt, min(o.id) AS mn, max(o.id) AS mx, sum(o.id) AS sm, avg(o.id) AS av]
+  :   Filter((o.id <= 5000))
+  :     Filter((o.id >= 100))
+  :       GetProperty(o.id) [node:Organisation]
+  :         EntityScan(o:Organisation)
+
+### AGG5 @document
+StoreQuery[document] out=(cnt, mn, mx, sm, av)
+  : Aggregation[keys: ∅ | count(*) AS cnt, min(o.id) AS mn, max(o.id) AS mx, sum(o.id) AS sm, avg(o.id) AS av]
+  :   Filter((o.id <= 5000))
+  :     Filter((o.id >= 100))
+  :       GetProperty(o.id) [node:Organisation]
+  :         EntityScan(o:Organisation)
+
+### AGG5 @columnar
+StoreQuery[columnar] out=(cnt, mn, mx, sm, av)
+  : Aggregation[keys: ∅ | count(*) AS cnt, min(o.id) AS mn, max(o.id) AS mx, sum(o.id) AS sm, avg(o.id) AS av]
+  :   Filter((o.id <= 5000))
+  :     Filter((o.id >= 100))
+  :       GetProperty(o.id) [node:Organisation]
+  :         EntityScan(o:Organisation)
+
+### AGG5 @kvs
+Coord Aggregation[keys: ∅ | count(*) AS cnt, min(o.id) AS mn, max(o.id) AS mx, sum(o.id) AS sm, avg(o.id) AS av]
+  StoreQuery[kvs] out=(o.id)
+    : Filter((o.id <= 5000))
+    :   Filter((o.id >= 100))
+    :     GetProperty(o.id) [node:Organisation]
+    :       EntityScan(o:Organisation)
+
+### AGG6 @graph
+StoreQuery[graph] out=(o.type, cnt, mn, mx)
+  : Sort[cnt DESC]
+  :   Aggregation[keys: o.type | count(*) AS cnt, min(o.id) AS mn, max(o.id) AS mx]
+  :     GetProperty(o.id) [node:Organisation]
+  :       GetProperty(o.type) [node:Organisation]
+  :         EntityScan(o:Organisation)
+
+### AGG6 @relational
+StoreQuery[relational] out=(o.type, cnt, mn, mx)
+  : Sort[cnt DESC]
+  :   Aggregation[keys: o.type | count(*) AS cnt, min(o.id) AS mn, max(o.id) AS mx]
+  :     GetProperty(o.id) [node:Organisation]
+  :       GetProperty(o.type) [node:Organisation]
+  :         EntityScan(o:Organisation)
+
+### AGG6 @document
+StoreQuery[document] out=(o.type, cnt, mn, mx)
+  : Sort[cnt DESC]
+  :   Aggregation[keys: o.type | count(*) AS cnt, min(o.id) AS mn, max(o.id) AS mx]
+  :     GetProperty(o.id) [node:Organisation]
+  :       GetProperty(o.type) [node:Organisation]
+  :         EntityScan(o:Organisation)
+
+### AGG6 @columnar
+Coord Sort[cnt DESC]
+  Coord Aggregation[keys: o.type | count(*) AS cnt, min(o.id) AS mn, max(o.id) AS mx]
+    StoreQuery[columnar] out=(o.id, o.type)
+      : GetProperty(o.id) [node:Organisation]
+      :   GetProperty(o.type) [node:Organisation]
+      :     EntityScan(o:Organisation)
+
+### AGG6 @kvs
+Coord Sort[cnt DESC]
+  Coord Aggregation[keys: o.type | count(*) AS cnt, min(o.id) AS mn, max(o.id) AS mx]
+    StoreQuery[kvs] out=(o.id, o.type)
+      : GetProperty(o.id) [node:Organisation]
+      :   GetProperty(o.type) [node:Organisation]
+      :     EntityScan(o:Organisation)
+
+### BI11
+UNSUPPORTED: ast: unsupported syntax: 4 syntax error(s)
+
+### BI12
+UNSUPPORTED: ast: unsupported syntax: 1 syntax error(s)
+
+### BI14
+UNSUPPORTED: ast: unsupported syntax: 11 syntax error(s)
+
+### BI18
+UNSUPPORTED: ast: unsupported syntax: 2 syntax error(s)
+
+### BI3 @graph
+StoreQuery[graph] out=(forum.id, forum.title, forum.creationDate, person.id, messageCount)
+  : Limit[20]
+  :   Sort[messageCount DESC, forum.id ASC]
+  :     Aggregation[keys: forum.id, forum.title, forum.creationDate, person.id | count(DISTINCT message.id) AS messageCount]
+  :       GetProperty(message.id) [node:Message]
+  :         GetProperty(person.id) [node:Person]
+  :           GetProperty(forum.creationDate) [node:Forum]
+  :             GetProperty(forum.title) [node:Forum]
+  :               GetProperty(forum.id) [node:Forum]
+  :                 Filter((tagclass.name = "MusicalArtist"))
+  :                   GetProperty(tagclass.name) [node:TagClass]
+  :                     Expand((tag)-[_r6:HAS_TYPE]->(tagclass:TagClass))
+  :                       Expand((message)-[_r5:HAS_TAG]->(tag:Tag))
+  :                         VarLengthExpand((post)<-[_r4:REPLY_OF*0..]-(message:Message))
+  :                           Expand((forum)-[_r3:CONTAINER_OF]->(post:Post))
+  :                             Expand((person)<-[_r2:HAS_MODERATOR]-(forum:Forum))
+  :                               Expand((city)<-[_r1:IS_LOCATED_IN]-(person:Person))
+  :                                 Expand((country)<-[_r0:IS_PART_OF]-(city:Place))
+  :                                   Filter((country.name = "Germany"))
+  :                                     GetProperty(country.name) [node:Place]
+  :                                       Filter((country.type = "Country"))
+  :                                         GetProperty(country.type) [node:Place]
+  :                                           EntityScan(country:Place)
+
+### BI3 @relational
+Coord Limit[20]
+  Coord Sort[messageCount DESC, forum.id ASC]
+    Coord Aggregation[keys: forum.id, forum.title, forum.creationDate, person.id | count(DISTINCT message.id) AS messageCount]
+      Fetch[relational] in=(message) out=(message, message.id)
+        : GetProperty(message.id) [node:Message]
+        :   Argument(message)
+        Fetch[relational] in=(person) out=(person, person.id)
+          : GetProperty(person.id) [node:Person]
+          :   Argument(person)
+          Fetch[relational] in=(forum) out=(forum, forum.creationDate, forum.id, forum.title)
+            : GetProperty(forum.creationDate) [node:Forum]
+            :   GetProperty(forum.title) [node:Forum]
+            :     GetProperty(forum.id) [node:Forum]
+            :       Argument(forum)
+            StoreQuery[graph] out=(forum, message, person)
+              : Filter((tagclass.name = "MusicalArtist"))
+              :   GetProperty(tagclass.name) [node:TagClass]
+              :     Expand((tag)-[_r6:HAS_TYPE]->(tagclass:TagClass))
+              :       Expand((message)-[_r5:HAS_TAG]->(tag:Tag))
+              :         VarLengthExpand((post)<-[_r4:REPLY_OF*0..]-(message:Message))
+              :           Expand((forum)-[_r3:CONTAINER_OF]->(post:Post))
+              :             Expand((person)<-[_r2:HAS_MODERATOR]-(forum:Forum))
+              :               Expand((city)<-[_r1:IS_LOCATED_IN]-(person:Person))
+              :                 Expand((country)<-[_r0:IS_PART_OF]-(city:Place))
+              :                   Filter((country.name = "Germany"))
+              :                     GetProperty(country.name) [node:Place]
+              :                       Filter((country.type = "Country"))
+              :                         GetProperty(country.type) [node:Place]
+              :                           EntityScan(country:Place)
+
+### BI3 @document
+Coord Limit[20]
+  Coord Sort[messageCount DESC, forum.id ASC]
+    Coord Aggregation[keys: forum.id, forum.title, forum.creationDate, person.id | count(DISTINCT message.id) AS messageCount]
+      Fetch[document] in=(message) out=(message, message.id)
+        : GetProperty(message.id) [node:Message]
+        :   Argument(message)
+        Fetch[document] in=(person) out=(person, person.id)
+          : GetProperty(person.id) [node:Person]
+          :   Argument(person)
+          Fetch[document] in=(forum) out=(forum, forum.creationDate, forum.id, forum.title)
+            : GetProperty(forum.creationDate) [node:Forum]
+            :   GetProperty(forum.title) [node:Forum]
+            :     GetProperty(forum.id) [node:Forum]
+            :       Argument(forum)
+            StoreQuery[graph] out=(forum, message, person)
+              : Filter((tagclass.name = "MusicalArtist"))
+              :   GetProperty(tagclass.name) [node:TagClass]
+              :     Expand((tag)-[_r6:HAS_TYPE]->(tagclass:TagClass))
+              :       Expand((message)-[_r5:HAS_TAG]->(tag:Tag))
+              :         VarLengthExpand((post)<-[_r4:REPLY_OF*0..]-(message:Message))
+              :           Expand((forum)-[_r3:CONTAINER_OF]->(post:Post))
+              :             Expand((person)<-[_r2:HAS_MODERATOR]-(forum:Forum))
+              :               Expand((city)<-[_r1:IS_LOCATED_IN]-(person:Person))
+              :                 Expand((country)<-[_r0:IS_PART_OF]-(city:Place))
+              :                   Filter((country.name = "Germany"))
+              :                     GetProperty(country.name) [node:Place]
+              :                       Filter((country.type = "Country"))
+              :                         GetProperty(country.type) [node:Place]
+              :                           EntityScan(country:Place)
+
+### BI3 @columnar
+Coord Limit[20]
+  Coord Sort[messageCount DESC, forum.id ASC]
+    Coord Aggregation[keys: forum.id, forum.title, forum.creationDate, person.id | count(DISTINCT message.id) AS messageCount]
+      Fetch[columnar] in=(message) out=(message, message.id)
+        : GetProperty(message.id) [node:Message]
+        :   Argument(message)
+        Fetch[columnar] in=(person) out=(person, person.id)
+          : GetProperty(person.id) [node:Person]
+          :   Argument(person)
+          Fetch[columnar] in=(forum) out=(forum, forum.creationDate, forum.id, forum.title)
+            : GetProperty(forum.creationDate) [node:Forum]
+            :   GetProperty(forum.title) [node:Forum]
+            :     GetProperty(forum.id) [node:Forum]
+            :       Argument(forum)
+            StoreQuery[graph] out=(forum, message, person)
+              : Filter((tagclass.name = "MusicalArtist"))
+              :   GetProperty(tagclass.name) [node:TagClass]
+              :     Expand((tag)-[_r6:HAS_TYPE]->(tagclass:TagClass))
+              :       Expand((message)-[_r5:HAS_TAG]->(tag:Tag))
+              :         VarLengthExpand((post)<-[_r4:REPLY_OF*0..]-(message:Message))
+              :           Expand((forum)-[_r3:CONTAINER_OF]->(post:Post))
+              :             Expand((person)<-[_r2:HAS_MODERATOR]-(forum:Forum))
+              :               Expand((city)<-[_r1:IS_LOCATED_IN]-(person:Person))
+              :                 Expand((country)<-[_r0:IS_PART_OF]-(city:Place))
+              :                   Filter((country.name = "Germany"))
+              :                     GetProperty(country.name) [node:Place]
+              :                       Filter((country.type = "Country"))
+              :                         GetProperty(country.type) [node:Place]
+              :                           EntityScan(country:Place)
+
+### BI3 @kvs
+Coord Limit[20]
+  Coord Sort[messageCount DESC, forum.id ASC]
+    Coord Aggregation[keys: forum.id, forum.title, forum.creationDate, person.id | count(DISTINCT message.id) AS messageCount]
+      Fetch[kvs] in=(message) out=(message, message.id)
+        : GetProperty(message.id) [node:Message]
+        :   Argument(message)
+        Fetch[kvs] in=(person) out=(person, person.id)
+          : GetProperty(person.id) [node:Person]
+          :   Argument(person)
+          Fetch[kvs] in=(forum) out=(forum, forum.creationDate, forum.id, forum.title)
+            : GetProperty(forum.creationDate) [node:Forum]
+            :   GetProperty(forum.title) [node:Forum]
+            :     GetProperty(forum.id) [node:Forum]
+            :       Argument(forum)
+            StoreQuery[graph] out=(forum, message, person)
+              : Filter((tagclass.name = "MusicalArtist"))
+              :   GetProperty(tagclass.name) [node:TagClass]
+              :     Expand((tag)-[_r6:HAS_TYPE]->(tagclass:TagClass))
+              :       Expand((message)-[_r5:HAS_TAG]->(tag:Tag))
+              :         VarLengthExpand((post)<-[_r4:REPLY_OF*0..]-(message:Message))
+              :           Expand((forum)-[_r3:CONTAINER_OF]->(post:Post))
+              :             Expand((person)<-[_r2:HAS_MODERATOR]-(forum:Forum))
+              :               Expand((city)<-[_r1:IS_LOCATED_IN]-(person:Person))
+              :                 Expand((country)<-[_r0:IS_PART_OF]-(city:Place))
+              :                   Filter((country.name = "Germany"))
+              :                     GetProperty(country.name) [node:Place]
+              :                       Filter((country.type = "Country"))
+              :                         GetProperty(country.type) [node:Place]
+              :                           EntityScan(country:Place)
+
+### BI5
+UNSUPPORTED: ast: unsupported syntax: 2 syntax error(s)
+
+### BI6
+UNSUPPORTED: ast: unsupported syntax: 2 syntax error(s)
+
+### BI7
+UNSUPPORTED: ast: unsupported syntax: 4 syntax error(s)
+
+### BI8
+UNSUPPORTED: ast: unsupported syntax: 9 syntax error(s)
+
+### BI9 @graph
+StoreQuery[graph] out=(person.id, person.firstName, person.lastName, threadCount, messageCount)
+  : Limit[100]
+  :   Sort[messageCount DESC, person.id ASC]
+  :     Aggregation[keys: person.id, person.firstName, person.lastName | count(DISTINCT post.id) AS threadCount, count(DISTINCT reply.id) AS messageCount]
+  :       GetProperty(reply.id) [node:Message]
+  :         GetProperty(post.id) [node:Post]
+  :           GetProperty(person.lastName) [node:Person]
+  :             GetProperty(person.firstName) [node:Person]
+  :               GetProperty(person.id) [node:Person]
+  :                 Filter((reply.creationDate <= "2013-01-01T00:00:00.000Z"))
+  :                   Filter((reply.creationDate >= "2010-01-01T00:00:00.000Z"))
+  :                     GetProperty(reply.creationDate) [node:Message]
+  :                       VarLengthExpand((post)<-[_r1:REPLY_OF*0..]-(reply:Message))
+  :                         Expand((post)-[_r0:HAS_CREATOR]->(person:Person))
+  :                           Filter((post.creationDate <= "2013-01-01T00:00:00.000Z"))
+  :                             Filter((post.creationDate >= "2010-01-01T00:00:00.000Z"))
+  :                               GetProperty(post.creationDate) [node:Post]
+  :                                 EntityScan(post:Post)
+
+### BI9 @relational
+Coord Limit[100]
+  Coord Sort[messageCount DESC, person.id ASC]
+    Coord Aggregation[keys: person.id, person.firstName, person.lastName | count(DISTINCT post.id) AS threadCount, count(DISTINCT reply.id) AS messageCount]
+      Fetch[relational] in=(reply) out=(reply, reply.id)
+        : GetProperty(reply.id) [node:Message]
+        :   Argument(reply)
+        Fetch[graph] in=(post) out=(post, post.id)
+          : GetProperty(post.id) [node:Post]
+          :   Argument(post)
+          Fetch[relational] in=(person) out=(person, person.firstName, person.id, person.lastName)
+            : GetProperty(person.lastName) [node:Person]
+            :   GetProperty(person.firstName) [node:Person]
+            :     GetProperty(person.id) [node:Person]
+            :       Argument(person)
+            StoreQuery[relational] in=(reply) out=(reply)
+              : Filter((reply.creationDate <= "2013-01-01T00:00:00.000Z"))
+              :   Filter((reply.creationDate >= "2010-01-01T00:00:00.000Z"))
+              :     GetProperty(reply.creationDate) [node:Message]
+              :       Argument(reply)
+              StoreQuery[graph] out=(person, post, reply)
+                : VarLengthExpand((post)<-[_r1:REPLY_OF*0..]-(reply:Message))
+                :   Expand((post)-[_r0:HAS_CREATOR]->(person:Person))
+                :     Filter((post.creationDate <= "2013-01-01T00:00:00.000Z"))
+                :       Filter((post.creationDate >= "2010-01-01T00:00:00.000Z"))
+                :         GetProperty(post.creationDate) [node:Post]
+                :           EntityScan(post:Post)
+
+### BI9 @document
+Coord Limit[100]
+  Coord Sort[messageCount DESC, person.id ASC]
+    Coord Aggregation[keys: person.id, person.firstName, person.lastName | count(DISTINCT post.id) AS threadCount, count(DISTINCT reply.id) AS messageCount]
+      Fetch[document] in=(reply) out=(reply, reply.id)
+        : GetProperty(reply.id) [node:Message]
+        :   Argument(reply)
+        Fetch[graph] in=(post) out=(post, post.id)
+          : GetProperty(post.id) [node:Post]
+          :   Argument(post)
+          Fetch[document] in=(person) out=(person, person.firstName, person.id, person.lastName)
+            : GetProperty(person.lastName) [node:Person]
+            :   GetProperty(person.firstName) [node:Person]
+            :     GetProperty(person.id) [node:Person]
+            :       Argument(person)
+            StoreQuery[document] in=(reply) out=(reply)
+              : Filter((reply.creationDate <= "2013-01-01T00:00:00.000Z"))
+              :   Filter((reply.creationDate >= "2010-01-01T00:00:00.000Z"))
+              :     GetProperty(reply.creationDate) [node:Message]
+              :       Argument(reply)
+              StoreQuery[graph] out=(person, post, reply)
+                : VarLengthExpand((post)<-[_r1:REPLY_OF*0..]-(reply:Message))
+                :   Expand((post)-[_r0:HAS_CREATOR]->(person:Person))
+                :     Filter((post.creationDate <= "2013-01-01T00:00:00.000Z"))
+                :       Filter((post.creationDate >= "2010-01-01T00:00:00.000Z"))
+                :         GetProperty(post.creationDate) [node:Post]
+                :           EntityScan(post:Post)
+
+### BI9 @columnar
+Coord Limit[100]
+  Coord Sort[messageCount DESC, person.id ASC]
+    Coord Aggregation[keys: person.id, person.firstName, person.lastName | count(DISTINCT post.id) AS threadCount, count(DISTINCT reply.id) AS messageCount]
+      Fetch[columnar] in=(reply) out=(reply, reply.id)
+        : GetProperty(reply.id) [node:Message]
+        :   Argument(reply)
+        Fetch[graph] in=(post) out=(post, post.id)
+          : GetProperty(post.id) [node:Post]
+          :   Argument(post)
+          Fetch[columnar] in=(person) out=(person, person.firstName, person.id, person.lastName)
+            : GetProperty(person.lastName) [node:Person]
+            :   GetProperty(person.firstName) [node:Person]
+            :     GetProperty(person.id) [node:Person]
+            :       Argument(person)
+            StoreQuery[columnar] in=(reply) out=(reply)
+              : Filter((reply.creationDate <= "2013-01-01T00:00:00.000Z"))
+              :   Filter((reply.creationDate >= "2010-01-01T00:00:00.000Z"))
+              :     GetProperty(reply.creationDate) [node:Message]
+              :       Argument(reply)
+              StoreQuery[graph] out=(person, post, reply)
+                : VarLengthExpand((post)<-[_r1:REPLY_OF*0..]-(reply:Message))
+                :   Expand((post)-[_r0:HAS_CREATOR]->(person:Person))
+                :     Filter((post.creationDate <= "2013-01-01T00:00:00.000Z"))
+                :       Filter((post.creationDate >= "2010-01-01T00:00:00.000Z"))
+                :         GetProperty(post.creationDate) [node:Post]
+                :           EntityScan(post:Post)
+
+### BI9 @kvs
+Coord Limit[100]
+  Coord Sort[messageCount DESC, person.id ASC]
+    Coord Aggregation[keys: person.id, person.firstName, person.lastName | count(DISTINCT post.id) AS threadCount, count(DISTINCT reply.id) AS messageCount]
+      Fetch[kvs] in=(reply) out=(reply, reply.id)
+        : GetProperty(reply.id) [node:Message]
+        :   Argument(reply)
+        Fetch[graph] in=(post) out=(post, post.id)
+          : GetProperty(post.id) [node:Post]
+          :   Argument(post)
+          Fetch[kvs] in=(person) out=(person, person.firstName, person.id, person.lastName)
+            : GetProperty(person.lastName) [node:Person]
+            :   GetProperty(person.firstName) [node:Person]
+            :     GetProperty(person.id) [node:Person]
+            :       Argument(person)
+            StoreQuery[kvs] in=(reply) out=(reply)
+              : Filter((reply.creationDate <= "2013-01-01T00:00:00.000Z"))
+              :   Filter((reply.creationDate >= "2010-01-01T00:00:00.000Z"))
+              :     GetProperty(reply.creationDate) [node:Message]
+              :       Argument(reply)
+              StoreQuery[graph] out=(person, post, reply)
+                : VarLengthExpand((post)<-[_r1:REPLY_OF*0..]-(reply:Message))
+                :   Expand((post)-[_r0:HAS_CREATOR]->(person:Person))
+                :     Filter((post.creationDate <= "2013-01-01T00:00:00.000Z"))
+                :       Filter((post.creationDate >= "2010-01-01T00:00:00.000Z"))
+                :         GetProperty(post.creationDate) [node:Post]
+                :           EntityScan(post:Post)
+
+### IC1
+UNSUPPORTED: ast: unsupported syntax: 12 syntax error(s)
+
+### IC12
+UNSUPPORTED: ast: unsupported syntax: 2 syntax error(s)
+
+### IC3
+UNSUPPORTED: ast: unsupported syntax: 4 syntax error(s)
+
+### IC4
+UNSUPPORTED: ast: unsupported syntax: 1 syntax error(s)
+
+### IC6
+UNSUPPORTED: ast: unsupported syntax: 3 syntax error(s)
+
+### INLIST @graph
+StoreQuery[graph] out=(o.id, o.type)
+  : Limit[20]
+  :   Sort[o.id ASC]
+  :     Projection[o.id, o.type]
+  :       GetProperty(o.id) [node:Organisation]
+  :         Filter((o.type IN ["Company", "University"]))
+  :           GetProperty(o.type) [node:Organisation]
+  :             EntityScan(o:Organisation)
+
+### INLIST @relational
+StoreQuery[relational] out=(o.id, o.type)
+  : Limit[20]
+  :   Sort[o.id ASC]
+  :     Projection[o.id, o.type]
+  :       GetProperty(o.id) [node:Organisation]
+  :         Filter((o.type IN ["Company", "University"]))
+  :           GetProperty(o.type) [node:Organisation]
+  :             EntityScan(o:Organisation)
+
+### INLIST @document
+StoreQuery[document] out=(o.id, o.type)
+  : Limit[20]
+  :   Sort[o.id ASC]
+  :     Projection[o.id, o.type]
+  :       GetProperty(o.id) [node:Organisation]
+  :         Filter((o.type IN ["Company", "University"]))
+  :           GetProperty(o.type) [node:Organisation]
+  :             EntityScan(o:Organisation)
+
+### INLIST @columnar
+Coord Limit[20]
+  Coord Sort[o.id ASC]
+    StoreQuery[columnar] out=(o.id, o.type)
+      : Projection[o.id, o.type]
+      :   GetProperty(o.id) [node:Organisation]
+      :     Filter((o.type IN ["Company", "University"]))
+      :       GetProperty(o.type) [node:Organisation]
+      :         EntityScan(o:Organisation)
+
+### INLIST @kvs
+Coord Limit[20]
+  Coord Sort[o.id ASC]
+    Coord Projection[o.id, o.type]
+      StoreQuery[kvs] out=(o.id, o.type)
+        : GetProperty(o.id) [node:Organisation]
+        :   Filter((o.type IN ["Company", "University"]))
+        :     GetProperty(o.type) [node:Organisation]
+        :       EntityScan(o:Organisation)
+
+### IS1 @graph
+StoreQuery[graph] out=(p.firstName, p.lastName, p.birthday, p.locationIP, p.browserUsed, c.id, p.gender, p.creationDate)
+  : Projection[p.firstName, p.lastName, p.birthday, p.locationIP, p.browserUsed, c.id, p.gender, p.creationDate]
+  :   GetProperty(p.creationDate) [node:Person]
+  :     GetProperty(p.gender) [node:Person]
+  :       GetProperty(c.id) [node:City]
+  :         GetProperty(p.browserUsed) [node:Person]
+  :           GetProperty(p.locationIP) [node:Person]
+  :             GetProperty(p.birthday) [node:Person]
+  :               GetProperty(p.lastName) [node:Person]
+  :                 GetProperty(p.firstName) [node:Person]
+  :                   Expand((p)-[_r0:IS_LOCATED_IN]->(c:City))
+  :                     Filter((p.id = 21990232558284))
+  :                       GetProperty(p.id) [node:Person]
+  :                         EntityScan(p:Person)
+
+### IS1 @relational
+Coord Projection[p.firstName, p.lastName, p.birthday, p.locationIP, p.browserUsed, c.id, p.gender, p.creationDate]
+  Fetch[relational] in=(p) out=(p, p.creationDate, p.gender)
+    : GetProperty(p.creationDate) [node:Person]
+    :   GetProperty(p.gender) [node:Person]
+    :     Argument(p)
+    Fetch[graph] in=(c) out=(c, c.id)
+      : GetProperty(c.id) [node:City]
+      :   Argument(c)
+      Fetch[relational] in=(p) out=(p, p.birthday, p.browserUsed, p.firstName, p.lastName, p.locationIP)
+        : GetProperty(p.browserUsed) [node:Person]
+        :   GetProperty(p.locationIP) [node:Person]
+        :     GetProperty(p.birthday) [node:Person]
+        :       GetProperty(p.lastName) [node:Person]
+        :         GetProperty(p.firstName) [node:Person]
+        :           Argument(p)
+        StoreQuery[graph] in=(p) out=(p, c)
+          : Expand((p)-[_r0:IS_LOCATED_IN]->(c:City))
+          :   Argument(p)
+          StoreQuery[relational] out=(p)
+            : Filter((p.id = 21990232558284))
+            :   GetProperty(p.id) [node:Person]
+            :     EntityScan(p:Person)
+
+### IS1 @document
+Coord Projection[p.firstName, p.lastName, p.birthday, p.locationIP, p.browserUsed, c.id, p.gender, p.creationDate]
+  Fetch[document] in=(p) out=(p, p.creationDate, p.gender)
+    : GetProperty(p.creationDate) [node:Person]
+    :   GetProperty(p.gender) [node:Person]
+    :     Argument(p)
+    Fetch[graph] in=(c) out=(c, c.id)
+      : GetProperty(c.id) [node:City]
+      :   Argument(c)
+      Fetch[document] in=(p) out=(p, p.birthday, p.browserUsed, p.firstName, p.lastName, p.locationIP)
+        : GetProperty(p.browserUsed) [node:Person]
+        :   GetProperty(p.locationIP) [node:Person]
+        :     GetProperty(p.birthday) [node:Person]
+        :       GetProperty(p.lastName) [node:Person]
+        :         GetProperty(p.firstName) [node:Person]
+        :           Argument(p)
+        StoreQuery[graph] in=(p) out=(p, c)
+          : Expand((p)-[_r0:IS_LOCATED_IN]->(c:City))
+          :   Argument(p)
+          StoreQuery[document] out=(p)
+            : Filter((p.id = 21990232558284))
+            :   GetProperty(p.id) [node:Person]
+            :     EntityScan(p:Person)
+
+### IS1 @columnar
+Coord Projection[p.firstName, p.lastName, p.birthday, p.locationIP, p.browserUsed, c.id, p.gender, p.creationDate]
+  Fetch[columnar] in=(p) out=(p, p.creationDate, p.gender)
+    : GetProperty(p.creationDate) [node:Person]
+    :   GetProperty(p.gender) [node:Person]
+    :     Argument(p)
+    Fetch[graph] in=(c) out=(c, c.id)
+      : GetProperty(c.id) [node:City]
+      :   Argument(c)
+      Fetch[columnar] in=(p) out=(p, p.birthday, p.browserUsed, p.firstName, p.lastName, p.locationIP)
+        : GetProperty(p.browserUsed) [node:Person]
+        :   GetProperty(p.locationIP) [node:Person]
+        :     GetProperty(p.birthday) [node:Person]
+        :       GetProperty(p.lastName) [node:Person]
+        :         GetProperty(p.firstName) [node:Person]
+        :           Argument(p)
+        StoreQuery[graph] in=(p) out=(p, c)
+          : Expand((p)-[_r0:IS_LOCATED_IN]->(c:City))
+          :   Argument(p)
+          StoreQuery[columnar] out=(p)
+            : Filter((p.id = 21990232558284))
+            :   GetProperty(p.id) [node:Person]
+            :     EntityScan(p:Person)
+
+### IS1 @kvs
+Coord Projection[p.firstName, p.lastName, p.birthday, p.locationIP, p.browserUsed, c.id, p.gender, p.creationDate]
+  Fetch[kvs] in=(p) out=(p, p.creationDate, p.gender)
+    : GetProperty(p.creationDate) [node:Person]
+    :   GetProperty(p.gender) [node:Person]
+    :     Argument(p)
+    Fetch[graph] in=(c) out=(c, c.id)
+      : GetProperty(c.id) [node:City]
+      :   Argument(c)
+      Fetch[kvs] in=(p) out=(p, p.birthday, p.browserUsed, p.firstName, p.lastName, p.locationIP)
+        : GetProperty(p.browserUsed) [node:Person]
+        :   GetProperty(p.locationIP) [node:Person]
+        :     GetProperty(p.birthday) [node:Person]
+        :       GetProperty(p.lastName) [node:Person]
+        :         GetProperty(p.firstName) [node:Person]
+        :           Argument(p)
+        StoreQuery[graph] in=(p) out=(p, c)
+          : Expand((p)-[_r0:IS_LOCATED_IN]->(c:City))
+          :   Argument(p)
+          StoreQuery[kvs] out=(p)
+            : Filter((p.id = 21990232558284))
+            :   GetProperty(p.id) [node:Person]
+            :     EntityScan(p:Person)
+
+### IS2 @graph
+StoreQuery[graph] out=(m.id, m.content, m.imageFile, m.creationDate, p.id, p.firstName, p.lastName)
+  : Projection[m.id, m.content, m.imageFile, m.creationDate, p.id, p.firstName, p.lastName]
+  :   GetProperty(p.lastName) [node:Person]
+  :     GetProperty(p.firstName) [node:Person]
+  :       GetProperty(m.imageFile) [node:Message]
+  :         GetProperty(m.content) [node:Message]
+  :           GetProperty(m.id) [node:Message]
+  :             Limit[10]
+  :               Sort[m.creationDate DESC]
+  :                 Projection[m.creationDate, p.id, p, m]
+  :                   GetProperty(m.creationDate) [node:Message]
+  :                     Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+  :                       Filter((p.id = 21990232558284))
+  :                         GetProperty(p.id) [node:Person]
+  :                           EntityScan(p:Person)
+
+### IS2 @relational
+Coord Projection[m.id, m.content, m.imageFile, m.creationDate, p.id, p.firstName, p.lastName]
+  Fetch[relational] in=(p) out=(p, p.firstName, p.lastName)
+    : GetProperty(p.lastName) [node:Person]
+    :   GetProperty(p.firstName) [node:Person]
+    :     Argument(p)
+    Fetch[relational] in=(m) out=(m, m.content, m.id, m.imageFile)
+      : GetProperty(m.imageFile) [node:Message]
+      :   GetProperty(m.content) [node:Message]
+      :     GetProperty(m.id) [node:Message]
+      :       Argument(m)
+      Coord Limit[10]
+        Coord Sort[m.creationDate DESC]
+          Coord Projection[m.creationDate, p.id, p, m]
+            Fetch[relational] in=(m) out=(m, m.creationDate)
+              : GetProperty(m.creationDate) [node:Message]
+              :   Argument(m)
+              StoreQuery[graph] in=(p) out=(p, m)
+                : Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+                :   Argument(p)
+                StoreQuery[relational] out=(p, p.id)
+                  : Filter((p.id = 21990232558284))
+                  :   GetProperty(p.id) [node:Person]
+                  :     EntityScan(p:Person)
+
+### IS2 @document
+Coord Projection[m.id, m.content, m.imageFile, m.creationDate, p.id, p.firstName, p.lastName]
+  Fetch[document] in=(p) out=(p, p.firstName, p.lastName)
+    : GetProperty(p.lastName) [node:Person]
+    :   GetProperty(p.firstName) [node:Person]
+    :     Argument(p)
+    Fetch[document] in=(m) out=(m, m.content, m.id, m.imageFile)
+      : GetProperty(m.imageFile) [node:Message]
+      :   GetProperty(m.content) [node:Message]
+      :     GetProperty(m.id) [node:Message]
+      :       Argument(m)
+      Coord Limit[10]
+        Coord Sort[m.creationDate DESC]
+          Coord Projection[m.creationDate, p.id, p, m]
+            Fetch[document] in=(m) out=(m, m.creationDate)
+              : GetProperty(m.creationDate) [node:Message]
+              :   Argument(m)
+              StoreQuery[graph] in=(p) out=(p, m)
+                : Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+                :   Argument(p)
+                StoreQuery[document] out=(p, p.id)
+                  : Filter((p.id = 21990232558284))
+                  :   GetProperty(p.id) [node:Person]
+                  :     EntityScan(p:Person)
+
+### IS2 @columnar
+Coord Projection[m.id, m.content, m.imageFile, m.creationDate, p.id, p.firstName, p.lastName]
+  Fetch[columnar] in=(p) out=(p, p.firstName, p.lastName)
+    : GetProperty(p.lastName) [node:Person]
+    :   GetProperty(p.firstName) [node:Person]
+    :     Argument(p)
+    Fetch[columnar] in=(m) out=(m, m.content, m.id, m.imageFile)
+      : GetProperty(m.imageFile) [node:Message]
+      :   GetProperty(m.content) [node:Message]
+      :     GetProperty(m.id) [node:Message]
+      :       Argument(m)
+      Coord Limit[10]
+        Coord Sort[m.creationDate DESC]
+          Coord Projection[m.creationDate, p.id, p, m]
+            Fetch[columnar] in=(m) out=(m, m.creationDate)
+              : GetProperty(m.creationDate) [node:Message]
+              :   Argument(m)
+              StoreQuery[graph] in=(p) out=(p, m)
+                : Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+                :   Argument(p)
+                StoreQuery[columnar] out=(p, p.id)
+                  : Filter((p.id = 21990232558284))
+                  :   GetProperty(p.id) [node:Person]
+                  :     EntityScan(p:Person)
+
+### IS2 @kvs
+Coord Projection[m.id, m.content, m.imageFile, m.creationDate, p.id, p.firstName, p.lastName]
+  Fetch[kvs] in=(p) out=(p, p.firstName, p.lastName)
+    : GetProperty(p.lastName) [node:Person]
+    :   GetProperty(p.firstName) [node:Person]
+    :     Argument(p)
+    Fetch[kvs] in=(m) out=(m, m.content, m.id, m.imageFile)
+      : GetProperty(m.imageFile) [node:Message]
+      :   GetProperty(m.content) [node:Message]
+      :     GetProperty(m.id) [node:Message]
+      :       Argument(m)
+      Coord Limit[10]
+        Coord Sort[m.creationDate DESC]
+          Coord Projection[m.creationDate, p.id, p, m]
+            Fetch[kvs] in=(m) out=(m, m.creationDate)
+              : GetProperty(m.creationDate) [node:Message]
+              :   Argument(m)
+              StoreQuery[graph] in=(p) out=(p, m)
+                : Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+                :   Argument(p)
+                StoreQuery[kvs] out=(p, p.id)
+                  : Filter((p.id = 21990232558284))
+                  :   GetProperty(p.id) [node:Person]
+                  :     EntityScan(p:Person)
+
+### IS3 @graph
+StoreQuery[graph] out=(friend.id, friend.firstName, friend.lastName, r.creationDate)
+  : Projection[friend.id, friend.firstName, friend.lastName, r.creationDate]
+  :   GetProperty(friend.lastName) [node:Person]
+  :     GetProperty(friend.firstName) [node:Person]
+  :       Sort[r.creationDate DESC, friend.id ASC]
+  :         Projection[friend.id, r.creationDate, friend]
+  :           GetProperty(r.creationDate) [rel:KNOWS]
+  :             GetProperty(friend.id) [node:Person]
+  :               Expand((p)-[r:KNOWS]-(friend:Person))
+  :                 Filter((p.id = 21990232558284))
+  :                   GetProperty(p.id) [node:Person]
+  :                     EntityScan(p:Person)
+
+### IS3 @relational
+Coord Projection[friend.id, friend.firstName, friend.lastName, r.creationDate]
+  Fetch[relational] in=(friend) out=(friend, friend.firstName, friend.lastName)
+    : GetProperty(friend.lastName) [node:Person]
+    :   GetProperty(friend.firstName) [node:Person]
+    :     Argument(friend)
+    Coord Sort[r.creationDate DESC, friend.id ASC]
+      Coord Projection[friend.id, r.creationDate, friend]
+        Fetch[relational] in=(r) out=(r, r.creationDate)
+          : GetProperty(r.creationDate) [rel:KNOWS]
+          :   Argument(r)
+          Fetch[relational] in=(friend) out=(friend, friend.id)
+            : GetProperty(friend.id) [node:Person]
+            :   Argument(friend)
+            StoreQuery[graph] in=(p) out=(p, friend, r)
+              : Expand((p)-[r:KNOWS]-(friend:Person))
+              :   Argument(p)
+              StoreQuery[relational] out=(p)
+                : Filter((p.id = 21990232558284))
+                :   GetProperty(p.id) [node:Person]
+                :     EntityScan(p:Person)
+
+### IS3 @document
+Coord Projection[friend.id, friend.firstName, friend.lastName, r.creationDate]
+  Fetch[document] in=(friend) out=(friend, friend.firstName, friend.lastName)
+    : GetProperty(friend.lastName) [node:Person]
+    :   GetProperty(friend.firstName) [node:Person]
+    :     Argument(friend)
+    Coord Sort[r.creationDate DESC, friend.id ASC]
+      Coord Projection[friend.id, r.creationDate, friend]
+        Fetch[document] in=(r) out=(r, r.creationDate)
+          : GetProperty(r.creationDate) [rel:KNOWS]
+          :   Argument(r)
+          Fetch[document] in=(friend) out=(friend, friend.id)
+            : GetProperty(friend.id) [node:Person]
+            :   Argument(friend)
+            StoreQuery[graph] in=(p) out=(p, friend, r)
+              : Expand((p)-[r:KNOWS]-(friend:Person))
+              :   Argument(p)
+              StoreQuery[document] out=(p)
+                : Filter((p.id = 21990232558284))
+                :   GetProperty(p.id) [node:Person]
+                :     EntityScan(p:Person)
+
+### IS3 @columnar
+Coord Projection[friend.id, friend.firstName, friend.lastName, r.creationDate]
+  Fetch[columnar] in=(friend) out=(friend, friend.firstName, friend.lastName)
+    : GetProperty(friend.lastName) [node:Person]
+    :   GetProperty(friend.firstName) [node:Person]
+    :     Argument(friend)
+    Coord Sort[r.creationDate DESC, friend.id ASC]
+      Coord Projection[friend.id, r.creationDate, friend]
+        Fetch[columnar] in=(r) out=(r, r.creationDate)
+          : GetProperty(r.creationDate) [rel:KNOWS]
+          :   Argument(r)
+          Fetch[columnar] in=(friend) out=(friend, friend.id)
+            : GetProperty(friend.id) [node:Person]
+            :   Argument(friend)
+            StoreQuery[graph] in=(p) out=(p, friend, r)
+              : Expand((p)-[r:KNOWS]-(friend:Person))
+              :   Argument(p)
+              StoreQuery[columnar] out=(p)
+                : Filter((p.id = 21990232558284))
+                :   GetProperty(p.id) [node:Person]
+                :     EntityScan(p:Person)
+
+### IS3 @kvs
+Coord Projection[friend.id, friend.firstName, friend.lastName, r.creationDate]
+  Fetch[kvs] in=(friend) out=(friend, friend.firstName, friend.lastName)
+    : GetProperty(friend.lastName) [node:Person]
+    :   GetProperty(friend.firstName) [node:Person]
+    :     Argument(friend)
+    Coord Sort[r.creationDate DESC, friend.id ASC]
+      Coord Projection[friend.id, r.creationDate, friend]
+        Fetch[kvs] in=(r) out=(r, r.creationDate)
+          : GetProperty(r.creationDate) [rel:KNOWS]
+          :   Argument(r)
+          Fetch[kvs] in=(friend) out=(friend, friend.id)
+            : GetProperty(friend.id) [node:Person]
+            :   Argument(friend)
+            StoreQuery[graph] in=(p) out=(p, friend, r)
+              : Expand((p)-[r:KNOWS]-(friend:Person))
+              :   Argument(p)
+              StoreQuery[kvs] out=(p)
+                : Filter((p.id = 21990232558284))
+                :   GetProperty(p.id) [node:Person]
+                :     EntityScan(p:Person)
+
+### IS4 @graph
+StoreQuery[graph] out=(m.creationDate, coalesce(m.content, m.imageFile))
+  : Projection[m.creationDate, coalesce(m.content, m.imageFile) AS coalesce(m.content, m.imageFile)]
+  :   GetProperty(m.imageFile) [node:Message]
+  :     GetProperty(m.content) [node:Message]
+  :       GetProperty(m.creationDate) [node:Message]
+  :         Filter((m.id = 1030792151051))
+  :           GetProperty(m.id) [node:Message]
+  :             EntityScan(m:Message)
+
+### IS4 @relational
+Coord Projection[m.creationDate, coalesce(m.content, m.imageFile) AS coalesce(m.content, m.imageFile)]
+  Fetch[relational] in=(m) out=(m, m.content, m.creationDate, m.imageFile)
+    : GetProperty(m.imageFile) [node:Message]
+    :   GetProperty(m.content) [node:Message]
+    :     GetProperty(m.creationDate) [node:Message]
+    :       Argument(m)
+    StoreQuery[graph] out=(m)
+      : Filter((m.id = 1030792151051))
+      :   GetProperty(m.id) [node:Message]
+      :     EntityScan(m:Message)
+
+### IS4 @document
+Coord Projection[m.creationDate, coalesce(m.content, m.imageFile) AS coalesce(m.content, m.imageFile)]
+  Fetch[document] in=(m) out=(m, m.content, m.creationDate, m.imageFile)
+    : GetProperty(m.imageFile) [node:Message]
+    :   GetProperty(m.content) [node:Message]
+    :     GetProperty(m.creationDate) [node:Message]
+    :       Argument(m)
+    StoreQuery[graph] out=(m)
+      : Filter((m.id = 1030792151051))
+      :   GetProperty(m.id) [node:Message]
+      :     EntityScan(m:Message)
+
+### IS4 @columnar
+Coord Projection[m.creationDate, coalesce(m.content, m.imageFile) AS coalesce(m.content, m.imageFile)]
+  Fetch[columnar] in=(m) out=(m, m.content, m.creationDate, m.imageFile)
+    : GetProperty(m.imageFile) [node:Message]
+    :   GetProperty(m.content) [node:Message]
+    :     GetProperty(m.creationDate) [node:Message]
+    :       Argument(m)
+    StoreQuery[graph] out=(m)
+      : Filter((m.id = 1030792151051))
+      :   GetProperty(m.id) [node:Message]
+      :     EntityScan(m:Message)
+
+### IS4 @kvs
+Coord Projection[m.creationDate, coalesce(m.content, m.imageFile) AS coalesce(m.content, m.imageFile)]
+  Fetch[kvs] in=(m) out=(m, m.content, m.creationDate, m.imageFile)
+    : GetProperty(m.imageFile) [node:Message]
+    :   GetProperty(m.content) [node:Message]
+    :     GetProperty(m.creationDate) [node:Message]
+    :       Argument(m)
+    StoreQuery[graph] out=(m)
+      : Filter((m.id = 1030792151051))
+      :   GetProperty(m.id) [node:Message]
+      :     EntityScan(m:Message)
+
+### IS5 @graph
+StoreQuery[graph] out=(p.id, p.firstName, p.lastName)
+  : Projection[p.id, p.firstName, p.lastName]
+  :   GetProperty(p.lastName) [node:Person]
+  :     GetProperty(p.firstName) [node:Person]
+  :       GetProperty(p.id) [node:Person]
+  :         Expand((m)-[_r0:HAS_CREATOR]->(p:Person))
+  :           Filter((m.id = 1030792151051))
+  :             GetProperty(m.id) [node:Message]
+  :               EntityScan(m:Message)
+
+### IS5 @relational
+Coord Projection[p.id, p.firstName, p.lastName]
+  Fetch[relational] in=(p) out=(p, p.firstName, p.id, p.lastName)
+    : GetProperty(p.lastName) [node:Person]
+    :   GetProperty(p.firstName) [node:Person]
+    :     GetProperty(p.id) [node:Person]
+    :       Argument(p)
+    StoreQuery[graph] out=(p)
+      : Expand((m)-[_r0:HAS_CREATOR]->(p:Person))
+      :   Filter((m.id = 1030792151051))
+      :     GetProperty(m.id) [node:Message]
+      :       EntityScan(m:Message)
+
+### IS5 @document
+Coord Projection[p.id, p.firstName, p.lastName]
+  Fetch[document] in=(p) out=(p, p.firstName, p.id, p.lastName)
+    : GetProperty(p.lastName) [node:Person]
+    :   GetProperty(p.firstName) [node:Person]
+    :     GetProperty(p.id) [node:Person]
+    :       Argument(p)
+    StoreQuery[graph] out=(p)
+      : Expand((m)-[_r0:HAS_CREATOR]->(p:Person))
+      :   Filter((m.id = 1030792151051))
+      :     GetProperty(m.id) [node:Message]
+      :       EntityScan(m:Message)
+
+### IS5 @columnar
+Coord Projection[p.id, p.firstName, p.lastName]
+  Fetch[columnar] in=(p) out=(p, p.firstName, p.id, p.lastName)
+    : GetProperty(p.lastName) [node:Person]
+    :   GetProperty(p.firstName) [node:Person]
+    :     GetProperty(p.id) [node:Person]
+    :       Argument(p)
+    StoreQuery[graph] out=(p)
+      : Expand((m)-[_r0:HAS_CREATOR]->(p:Person))
+      :   Filter((m.id = 1030792151051))
+      :     GetProperty(m.id) [node:Message]
+      :       EntityScan(m:Message)
+
+### IS5 @kvs
+Coord Projection[p.id, p.firstName, p.lastName]
+  Fetch[kvs] in=(p) out=(p, p.firstName, p.id, p.lastName)
+    : GetProperty(p.lastName) [node:Person]
+    :   GetProperty(p.firstName) [node:Person]
+    :     GetProperty(p.id) [node:Person]
+    :       Argument(p)
+    StoreQuery[graph] out=(p)
+      : Expand((m)-[_r0:HAS_CREATOR]->(p:Person))
+      :   Filter((m.id = 1030792151051))
+      :     GetProperty(m.id) [node:Message]
+      :       EntityScan(m:Message)
+
+### IS6 @graph
+StoreQuery[graph] out=(f.id, f.title, mod.id, mod.firstName, mod.lastName)
+  : Projection[f.id, f.title, mod.id, mod.firstName, mod.lastName]
+  :   GetProperty(mod.lastName) [node:Person]
+  :     GetProperty(mod.firstName) [node:Person]
+  :       GetProperty(mod.id) [node:Person]
+  :         GetProperty(f.title) [node:Forum]
+  :           GetProperty(f.id) [node:Forum]
+  :             Expand((f)-[_r2:HAS_MODERATOR]->(mod:Person))
+  :               Expand((_n0)<-[_r1:CONTAINER_OF]-(f:Forum))
+  :                 VarLengthExpand((m)-[_r0:REPLY_OF*0..]->(_n0:Post))
+  :                   Filter((m.id = 1030792151051))
+  :                     GetProperty(m.id) [node:Message]
+  :                       EntityScan(m:Message)
+
+### IS6 @relational
+Coord Projection[f.id, f.title, mod.id, mod.firstName, mod.lastName]
+  Fetch[relational] in=(mod) out=(mod, mod.firstName, mod.id, mod.lastName)
+    : GetProperty(mod.lastName) [node:Person]
+    :   GetProperty(mod.firstName) [node:Person]
+    :     GetProperty(mod.id) [node:Person]
+    :       Argument(mod)
+    Fetch[relational] in=(f) out=(f, f.id, f.title)
+      : GetProperty(f.title) [node:Forum]
+      :   GetProperty(f.id) [node:Forum]
+      :     Argument(f)
+      StoreQuery[graph] out=(f, mod)
+        : Expand((f)-[_r2:HAS_MODERATOR]->(mod:Person))
+        :   Expand((_n0)<-[_r1:CONTAINER_OF]-(f:Forum))
+        :     VarLengthExpand((m)-[_r0:REPLY_OF*0..]->(_n0:Post))
+        :       Filter((m.id = 1030792151051))
+        :         GetProperty(m.id) [node:Message]
+        :           EntityScan(m:Message)
+
+### IS6 @document
+Coord Projection[f.id, f.title, mod.id, mod.firstName, mod.lastName]
+  Fetch[document] in=(mod) out=(mod, mod.firstName, mod.id, mod.lastName)
+    : GetProperty(mod.lastName) [node:Person]
+    :   GetProperty(mod.firstName) [node:Person]
+    :     GetProperty(mod.id) [node:Person]
+    :       Argument(mod)
+    Fetch[document] in=(f) out=(f, f.id, f.title)
+      : GetProperty(f.title) [node:Forum]
+      :   GetProperty(f.id) [node:Forum]
+      :     Argument(f)
+      StoreQuery[graph] out=(f, mod)
+        : Expand((f)-[_r2:HAS_MODERATOR]->(mod:Person))
+        :   Expand((_n0)<-[_r1:CONTAINER_OF]-(f:Forum))
+        :     VarLengthExpand((m)-[_r0:REPLY_OF*0..]->(_n0:Post))
+        :       Filter((m.id = 1030792151051))
+        :         GetProperty(m.id) [node:Message]
+        :           EntityScan(m:Message)
+
+### IS6 @columnar
+Coord Projection[f.id, f.title, mod.id, mod.firstName, mod.lastName]
+  Fetch[columnar] in=(mod) out=(mod, mod.firstName, mod.id, mod.lastName)
+    : GetProperty(mod.lastName) [node:Person]
+    :   GetProperty(mod.firstName) [node:Person]
+    :     GetProperty(mod.id) [node:Person]
+    :       Argument(mod)
+    Fetch[columnar] in=(f) out=(f, f.id, f.title)
+      : GetProperty(f.title) [node:Forum]
+      :   GetProperty(f.id) [node:Forum]
+      :     Argument(f)
+      StoreQuery[graph] out=(f, mod)
+        : Expand((f)-[_r2:HAS_MODERATOR]->(mod:Person))
+        :   Expand((_n0)<-[_r1:CONTAINER_OF]-(f:Forum))
+        :     VarLengthExpand((m)-[_r0:REPLY_OF*0..]->(_n0:Post))
+        :       Filter((m.id = 1030792151051))
+        :         GetProperty(m.id) [node:Message]
+        :           EntityScan(m:Message)
+
+### IS6 @kvs
+Coord Projection[f.id, f.title, mod.id, mod.firstName, mod.lastName]
+  Fetch[kvs] in=(mod) out=(mod, mod.firstName, mod.id, mod.lastName)
+    : GetProperty(mod.lastName) [node:Person]
+    :   GetProperty(mod.firstName) [node:Person]
+    :     GetProperty(mod.id) [node:Person]
+    :       Argument(mod)
+    Fetch[kvs] in=(f) out=(f, f.id, f.title)
+      : GetProperty(f.title) [node:Forum]
+      :   GetProperty(f.id) [node:Forum]
+      :     Argument(f)
+      StoreQuery[graph] out=(f, mod)
+        : Expand((f)-[_r2:HAS_MODERATOR]->(mod:Person))
+        :   Expand((_n0)<-[_r1:CONTAINER_OF]-(f:Forum))
+        :     VarLengthExpand((m)-[_r0:REPLY_OF*0..]->(_n0:Post))
+        :       Filter((m.id = 1030792151051))
+        :         GetProperty(m.id) [node:Message]
+        :           EntityScan(m:Message)
+
+### IS7
+UNSUPPORTED: ast: unsupported syntax: 4 syntax error(s)
+
+### ISNULL @graph
+StoreQuery[graph] out=(m.id, m.content)
+  : Limit[20]
+  :   Sort[m.id ASC]
+  :     Projection[m.id, m.content]
+  :       GetProperty(m.id) [node:Message]
+  :         Filter((m.content IS NOT NULL))
+  :           GetProperty(m.content) [node:Message]
+  :             Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+  :               Filter((p.id = 15393162799448))
+  :                 GetProperty(p.id) [node:Person]
+  :                   EntityScan(p:Person)
+
+### ISNULL @relational
+Coord Limit[20]
+  Coord Sort[m.id ASC]
+    Coord Projection[m.id, m.content]
+      StoreQuery[relational] in=(m) out=(m, m.content, m.id)
+        : GetProperty(m.id) [node:Message]
+        :   Filter((m.content IS NOT NULL))
+        :     GetProperty(m.content) [node:Message]
+        :       Argument(m)
+        StoreQuery[graph] out=(m)
+          : Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+          :   Filter((p.id = 15393162799448))
+          :     GetProperty(p.id) [node:Person]
+          :       EntityScan(p:Person)
+
+### ISNULL @document
+Coord Limit[20]
+  Coord Sort[m.id ASC]
+    Coord Projection[m.id, m.content]
+      StoreQuery[document] in=(m) out=(m, m.content, m.id)
+        : GetProperty(m.id) [node:Message]
+        :   Filter((m.content IS NOT NULL))
+        :     GetProperty(m.content) [node:Message]
+        :       Argument(m)
+        StoreQuery[graph] out=(m)
+          : Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+          :   Filter((p.id = 15393162799448))
+          :     GetProperty(p.id) [node:Person]
+          :       EntityScan(p:Person)
+
+### ISNULL @columnar
+Coord Limit[20]
+  Coord Sort[m.id ASC]
+    Coord Projection[m.id, m.content]
+      Fetch[columnar] in=(m) out=(m, m.id)
+        : GetProperty(m.id) [node:Message]
+        :   Argument(m)
+        Coord Filter((m.content IS NOT NULL))
+          Fetch[columnar] in=(m) out=(m, m.content)
+            : GetProperty(m.content) [node:Message]
+            :   Argument(m)
+            StoreQuery[graph] out=(m)
+              : Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+              :   Filter((p.id = 15393162799448))
+              :     GetProperty(p.id) [node:Person]
+              :       EntityScan(p:Person)
+
+### ISNULL @kvs
+Coord Limit[20]
+  Coord Sort[m.id ASC]
+    Coord Projection[m.id, m.content]
+      StoreQuery[kvs] in=(m) out=(m, m.content, m.id)
+        : GetProperty(m.id) [node:Message]
+        :   Filter((m.content IS NOT NULL))
+        :     GetProperty(m.content) [node:Message]
+        :       Argument(m)
+        StoreQuery[graph] out=(m)
+          : Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+          :   Filter((p.id = 15393162799448))
+          :     GetProperty(p.id) [node:Person]
+          :       EntityScan(p:Person)
+
+### MULTIPAT @graph
+StoreQuery[graph] out=(friend.id, friend.firstName, city.id)
+  : Projection[friend.id, friend.firstName, city.id]
+  :   GetProperty(city.id) [node:Place]
+  :     GetProperty(friend.firstName) [node:Person]
+  :       Limit[20]
+  :         Sort[friend.id ASC]
+  :           Projection[friend.id, city, friend]
+  :             GetProperty(friend.id) [node:Person]
+  :               Expand((friend)-[_r1:IS_LOCATED_IN]->(city:Place))
+  :                 Expand((p)-[_r0:KNOWS]-(friend:Person))
+  :                   Filter((p.id = 15393162799448))
+  :                     GetProperty(p.id) [node:Person]
+  :                       EntityScan(p:Person)
+
+### MULTIPAT @relational
+Coord Projection[friend.id, friend.firstName, city.id]
+  Fetch[relational] in=(city) out=(city, city.id)
+    : GetProperty(city.id) [node:Place]
+    :   Argument(city)
+    Fetch[relational] in=(friend) out=(friend, friend.firstName)
+      : GetProperty(friend.firstName) [node:Person]
+      :   Argument(friend)
+      Coord Limit[20]
+        Coord Sort[friend.id ASC]
+          Coord Projection[friend.id, city, friend]
+            Fetch[relational] in=(friend) out=(friend, friend.id)
+              : GetProperty(friend.id) [node:Person]
+              :   Argument(friend)
+              StoreQuery[graph] in=(p) out=(p, city, friend)
+                : Expand((friend)-[_r1:IS_LOCATED_IN]->(city:Place))
+                :   Expand((p)-[_r0:KNOWS]-(friend:Person))
+                :     Argument(p)
+                StoreQuery[relational] out=(p)
+                  : Filter((p.id = 15393162799448))
+                  :   GetProperty(p.id) [node:Person]
+                  :     EntityScan(p:Person)
+
+### MULTIPAT @document
+Coord Projection[friend.id, friend.firstName, city.id]
+  Fetch[document] in=(city) out=(city, city.id)
+    : GetProperty(city.id) [node:Place]
+    :   Argument(city)
+    Fetch[document] in=(friend) out=(friend, friend.firstName)
+      : GetProperty(friend.firstName) [node:Person]
+      :   Argument(friend)
+      Coord Limit[20]
+        Coord Sort[friend.id ASC]
+          Coord Projection[friend.id, city, friend]
+            Fetch[document] in=(friend) out=(friend, friend.id)
+              : GetProperty(friend.id) [node:Person]
+              :   Argument(friend)
+              StoreQuery[graph] in=(p) out=(p, city, friend)
+                : Expand((friend)-[_r1:IS_LOCATED_IN]->(city:Place))
+                :   Expand((p)-[_r0:KNOWS]-(friend:Person))
+                :     Argument(p)
+                StoreQuery[document] out=(p)
+                  : Filter((p.id = 15393162799448))
+                  :   GetProperty(p.id) [node:Person]
+                  :     EntityScan(p:Person)
+
+### MULTIPAT @columnar
+Coord Projection[friend.id, friend.firstName, city.id]
+  Fetch[columnar] in=(city) out=(city, city.id)
+    : GetProperty(city.id) [node:Place]
+    :   Argument(city)
+    Fetch[columnar] in=(friend) out=(friend, friend.firstName)
+      : GetProperty(friend.firstName) [node:Person]
+      :   Argument(friend)
+      Coord Limit[20]
+        Coord Sort[friend.id ASC]
+          Coord Projection[friend.id, city, friend]
+            Fetch[columnar] in=(friend) out=(friend, friend.id)
+              : GetProperty(friend.id) [node:Person]
+              :   Argument(friend)
+              StoreQuery[graph] in=(p) out=(p, city, friend)
+                : Expand((friend)-[_r1:IS_LOCATED_IN]->(city:Place))
+                :   Expand((p)-[_r0:KNOWS]-(friend:Person))
+                :     Argument(p)
+                StoreQuery[columnar] out=(p)
+                  : Filter((p.id = 15393162799448))
+                  :   GetProperty(p.id) [node:Person]
+                  :     EntityScan(p:Person)
+
+### MULTIPAT @kvs
+Coord Projection[friend.id, friend.firstName, city.id]
+  Fetch[kvs] in=(city) out=(city, city.id)
+    : GetProperty(city.id) [node:Place]
+    :   Argument(city)
+    Fetch[kvs] in=(friend) out=(friend, friend.firstName)
+      : GetProperty(friend.firstName) [node:Person]
+      :   Argument(friend)
+      Coord Limit[20]
+        Coord Sort[friend.id ASC]
+          Coord Projection[friend.id, city, friend]
+            Fetch[kvs] in=(friend) out=(friend, friend.id)
+              : GetProperty(friend.id) [node:Person]
+              :   Argument(friend)
+              StoreQuery[graph] in=(p) out=(p, city, friend)
+                : Expand((friend)-[_r1:IS_LOCATED_IN]->(city:Place))
+                :   Expand((p)-[_r0:KNOWS]-(friend:Person))
+                :     Argument(p)
+                StoreQuery[kvs] out=(p)
+                  : Filter((p.id = 15393162799448))
+                  :   GetProperty(p.id) [node:Person]
+                  :     EntityScan(p:Person)
+
+### PATHFILT @graph
+StoreQuery[graph] out=(other.id, other.firstName)
+  : Projection[other.id, other.firstName]
+  :   GetProperty(other.firstName) [node:Person]
+  :     Limit[20]
+  :       Sort[other.id ASC]
+  :         Projection[other.id, other]
+  :           GetProperty(other.id) [node:Person]
+  :             VarLengthExpand((person)-[_r0:KNOWS*1..3]-(other:Person)) seg[all(r IN rels WHERE (r.creationDate > "2010-01-01T00:00:00.000Z"))]
+  :               Filter((person.id = 17592186049378))
+  :                 GetProperty(person.id) [node:Person]
+  :                   EntityScan(person:Person)
+
+### PATHFILT @relational
+Coord Projection[other.id, other.firstName]
+  Fetch[relational] in=(other) out=(other, other.firstName)
+    : GetProperty(other.firstName) [node:Person]
+    :   Argument(other)
+    Coord Limit[20]
+      Coord Sort[other.id ASC]
+        Coord Projection[other.id, other]
+          Fetch[relational] in=(other) out=(other, other.id)
+            : GetProperty(other.id) [node:Person]
+            :   Argument(other)
+            StoreQuery[graph] in=(person) out=(person, other)
+              : VarLengthExpand((person)-[_r0:KNOWS*1..3]-(other:Person)) seg[all(r IN rels WHERE (r.creationDate > "2010-01-01T00:00:00.000Z"))]
+              :   Argument(person)
+              StoreQuery[relational] out=(person)
+                : Filter((person.id = 17592186049378))
+                :   GetProperty(person.id) [node:Person]
+                :     EntityScan(person:Person)
+
+### PATHFILT @document
+Coord Projection[other.id, other.firstName]
+  Fetch[document] in=(other) out=(other, other.firstName)
+    : GetProperty(other.firstName) [node:Person]
+    :   Argument(other)
+    Coord Limit[20]
+      Coord Sort[other.id ASC]
+        Coord Projection[other.id, other]
+          Fetch[document] in=(other) out=(other, other.id)
+            : GetProperty(other.id) [node:Person]
+            :   Argument(other)
+            StoreQuery[graph] in=(person) out=(person, other)
+              : VarLengthExpand((person)-[_r0:KNOWS*1..3]-(other:Person)) seg[all(r IN rels WHERE (r.creationDate > "2010-01-01T00:00:00.000Z"))]
+              :   Argument(person)
+              StoreQuery[document] out=(person)
+                : Filter((person.id = 17592186049378))
+                :   GetProperty(person.id) [node:Person]
+                :     EntityScan(person:Person)
+
+### PATHFILT @columnar
+Coord Projection[other.id, other.firstName]
+  Fetch[columnar] in=(other) out=(other, other.firstName)
+    : GetProperty(other.firstName) [node:Person]
+    :   Argument(other)
+    Coord Limit[20]
+      Coord Sort[other.id ASC]
+        Coord Projection[other.id, other]
+          Fetch[columnar] in=(other) out=(other, other.id)
+            : GetProperty(other.id) [node:Person]
+            :   Argument(other)
+            StoreQuery[graph] in=(person) out=(person, other)
+              : VarLengthExpand((person)-[_r0:KNOWS*1..3]-(other:Person)) seg[all(r IN rels WHERE (r.creationDate > "2010-01-01T00:00:00.000Z"))]
+              :   Argument(person)
+              StoreQuery[columnar] out=(person)
+                : Filter((person.id = 17592186049378))
+                :   GetProperty(person.id) [node:Person]
+                :     EntityScan(person:Person)
+
+### PATHFILT @kvs
+Coord Projection[other.id, other.firstName]
+  Fetch[kvs] in=(other) out=(other, other.firstName)
+    : GetProperty(other.firstName) [node:Person]
+    :   Argument(other)
+    Coord Limit[20]
+      Coord Sort[other.id ASC]
+        Coord Projection[other.id, other]
+          Fetch[kvs] in=(other) out=(other, other.id)
+            : GetProperty(other.id) [node:Person]
+            :   Argument(other)
+            StoreQuery[graph] in=(person) out=(person, other)
+              : VarLengthExpand((person)-[_r0:KNOWS*1..3]-(other:Person)) seg[all(r IN rels WHERE (r.creationDate > "2010-01-01T00:00:00.000Z"))]
+              :   Argument(person)
+              StoreQuery[kvs] out=(person)
+                : Filter((person.id = 17592186049378))
+                :   GetProperty(person.id) [node:Person]
+                :     EntityScan(person:Person)
+
+### Q11 @graph
+StoreQuery[graph] out=(friend.id, friend.firstName, friend.lastName, comp.name, work.workFrom)
+  : Projection[friend.id, friend.firstName, friend.lastName, comp.name, work.workFrom]
+  :   GetProperty(friend.lastName) [node:Person]
+  :     GetProperty(friend.firstName) [node:Person]
+  :       Limit[10]
+  :         Sort[work.workFrom ASC, friend.id ASC, comp.name DESC]
+  :           Projection[friend.id, comp.name, work.workFrom, friend]
+  :             GetProperty(comp.name) [node:Organisation]
+  :               GetProperty(friend.id) [node:Person]
+  :                 Filter((p.id = 15393162799448))
+  :                   GetProperty(p.id) [node:Person]
+  :                     VarLengthExpand((friend)-[_r0:KNOWS*1..3]-(p:Person))
+  :                       Filter((work.workFrom < 2008))
+  :                         GetProperty(work.workFrom) [rel:WORK_AT]
+  :                           Expand((comp)<-[work:WORK_AT]-(friend:Person))
+  :                             Filter((comp.type = "Company"))
+  :                               GetProperty(comp.type) [node:Organisation]
+  :                                 Expand((_n0)<-[_r1:IS_LOCATED_IN]-(comp:Organisation))
+  :                                   Filter((_n0.name = "Germany"))
+  :                                     GetProperty(_n0.name) [node:Place]
+  :                                       Filter((_n0.type = "Country"))
+  :                                         GetProperty(_n0.type) [node:Place]
+  :                                           EntityScan(_n0:Place)
+
+### Q11 @relational
+Coord Projection[friend.id, friend.firstName, friend.lastName, comp.name, work.workFrom]
+  Fetch[relational] in=(friend) out=(friend, friend.firstName, friend.lastName)
+    : GetProperty(friend.lastName) [node:Person]
+    :   GetProperty(friend.firstName) [node:Person]
+    :     Argument(friend)
+    Coord Limit[10]
+      Coord Sort[work.workFrom ASC, friend.id ASC, comp.name DESC]
+        Coord Projection[friend.id, comp.name, work.workFrom, friend]
+          Fetch[relational] in=(comp) out=(comp, comp.name)
+            : GetProperty(comp.name) [node:Organisation]
+            :   Argument(comp)
+            Fetch[relational] in=(friend) out=(friend, friend.id)
+              : GetProperty(friend.id) [node:Person]
+              :   Argument(friend)
+              StoreQuery[relational] in=(p) out=(p)
+                : Filter((p.id = 15393162799448))
+                :   GetProperty(p.id) [node:Person]
+                :     Argument(p)
+                StoreQuery[graph] in=(friend) out=(friend, p)
+                  : VarLengthExpand((friend)-[_r0:KNOWS*1..3]-(p:Person))
+                  :   Argument(friend)
+                  StoreQuery[relational] in=(work) out=(work, work.workFrom)
+                    : Filter((work.workFrom < 2008))
+                    :   GetProperty(work.workFrom) [rel:WORK_AT]
+                    :     Argument(work)
+                    StoreQuery[graph] in=(comp) out=(comp, friend, work)
+                      : Expand((comp)<-[work:WORK_AT]-(friend:Person))
+                      :   Argument(comp)
+                      StoreQuery[relational] in=(comp) out=(comp)
+                        : Filter((comp.type = "Company"))
+                        :   GetProperty(comp.type) [node:Organisation]
+                        :     Argument(comp)
+                        StoreQuery[graph] in=(_n0) out=(_n0, comp)
+                          : Expand((_n0)<-[_r1:IS_LOCATED_IN]-(comp:Organisation))
+                          :   Argument(_n0)
+                          StoreQuery[relational] out=(_n0)
+                            : Filter((_n0.name = "Germany"))
+                            :   GetProperty(_n0.name) [node:Place]
+                            :     Filter((_n0.type = "Country"))
+                            :       GetProperty(_n0.type) [node:Place]
+                            :         EntityScan(_n0:Place)
+
+### Q11 @document
+Coord Projection[friend.id, friend.firstName, friend.lastName, comp.name, work.workFrom]
+  Fetch[document] in=(friend) out=(friend, friend.firstName, friend.lastName)
+    : GetProperty(friend.lastName) [node:Person]
+    :   GetProperty(friend.firstName) [node:Person]
+    :     Argument(friend)
+    Coord Limit[10]
+      Coord Sort[work.workFrom ASC, friend.id ASC, comp.name DESC]
+        Coord Projection[friend.id, comp.name, work.workFrom, friend]
+          Fetch[document] in=(comp) out=(comp, comp.name)
+            : GetProperty(comp.name) [node:Organisation]
+            :   Argument(comp)
+            Fetch[document] in=(friend) out=(friend, friend.id)
+              : GetProperty(friend.id) [node:Person]
+              :   Argument(friend)
+              StoreQuery[document] in=(p) out=(p)
+                : Filter((p.id = 15393162799448))
+                :   GetProperty(p.id) [node:Person]
+                :     Argument(p)
+                StoreQuery[graph] in=(friend) out=(friend, p)
+                  : VarLengthExpand((friend)-[_r0:KNOWS*1..3]-(p:Person))
+                  :   Argument(friend)
+                  StoreQuery[document] in=(work) out=(work, work.workFrom)
+                    : Filter((work.workFrom < 2008))
+                    :   GetProperty(work.workFrom) [rel:WORK_AT]
+                    :     Argument(work)
+                    StoreQuery[graph] in=(comp) out=(comp, friend, work)
+                      : Expand((comp)<-[work:WORK_AT]-(friend:Person))
+                      :   Argument(comp)
+                      StoreQuery[document] in=(comp) out=(comp)
+                        : Filter((comp.type = "Company"))
+                        :   GetProperty(comp.type) [node:Organisation]
+                        :     Argument(comp)
+                        StoreQuery[graph] in=(_n0) out=(_n0, comp)
+                          : Expand((_n0)<-[_r1:IS_LOCATED_IN]-(comp:Organisation))
+                          :   Argument(_n0)
+                          StoreQuery[document] out=(_n0)
+                            : Filter((_n0.name = "Germany"))
+                            :   GetProperty(_n0.name) [node:Place]
+                            :     Filter((_n0.type = "Country"))
+                            :       GetProperty(_n0.type) [node:Place]
+                            :         EntityScan(_n0:Place)
+
+### Q11 @columnar
+Coord Projection[friend.id, friend.firstName, friend.lastName, comp.name, work.workFrom]
+  Fetch[columnar] in=(friend) out=(friend, friend.firstName, friend.lastName)
+    : GetProperty(friend.lastName) [node:Person]
+    :   GetProperty(friend.firstName) [node:Person]
+    :     Argument(friend)
+    Coord Limit[10]
+      Coord Sort[work.workFrom ASC, friend.id ASC, comp.name DESC]
+        Coord Projection[friend.id, comp.name, work.workFrom, friend]
+          Fetch[columnar] in=(comp) out=(comp, comp.name)
+            : GetProperty(comp.name) [node:Organisation]
+            :   Argument(comp)
+            Fetch[columnar] in=(friend) out=(friend, friend.id)
+              : GetProperty(friend.id) [node:Person]
+              :   Argument(friend)
+              StoreQuery[columnar] in=(p) out=(p)
+                : Filter((p.id = 15393162799448))
+                :   GetProperty(p.id) [node:Person]
+                :     Argument(p)
+                StoreQuery[graph] in=(friend) out=(friend, p)
+                  : VarLengthExpand((friend)-[_r0:KNOWS*1..3]-(p:Person))
+                  :   Argument(friend)
+                  StoreQuery[columnar] in=(work) out=(work, work.workFrom)
+                    : Filter((work.workFrom < 2008))
+                    :   GetProperty(work.workFrom) [rel:WORK_AT]
+                    :     Argument(work)
+                    StoreQuery[graph] in=(comp) out=(comp, friend, work)
+                      : Expand((comp)<-[work:WORK_AT]-(friend:Person))
+                      :   Argument(comp)
+                      StoreQuery[columnar] in=(comp) out=(comp)
+                        : Filter((comp.type = "Company"))
+                        :   GetProperty(comp.type) [node:Organisation]
+                        :     Argument(comp)
+                        StoreQuery[graph] in=(_n0) out=(_n0, comp)
+                          : Expand((_n0)<-[_r1:IS_LOCATED_IN]-(comp:Organisation))
+                          :   Argument(_n0)
+                          StoreQuery[columnar] out=(_n0)
+                            : Filter((_n0.name = "Germany"))
+                            :   GetProperty(_n0.name) [node:Place]
+                            :     Filter((_n0.type = "Country"))
+                            :       GetProperty(_n0.type) [node:Place]
+                            :         EntityScan(_n0:Place)
+
+### Q11 @kvs
+Coord Projection[friend.id, friend.firstName, friend.lastName, comp.name, work.workFrom]
+  Fetch[kvs] in=(friend) out=(friend, friend.firstName, friend.lastName)
+    : GetProperty(friend.lastName) [node:Person]
+    :   GetProperty(friend.firstName) [node:Person]
+    :     Argument(friend)
+    Coord Limit[10]
+      Coord Sort[work.workFrom ASC, friend.id ASC, comp.name DESC]
+        Coord Projection[friend.id, comp.name, work.workFrom, friend]
+          Fetch[kvs] in=(comp) out=(comp, comp.name)
+            : GetProperty(comp.name) [node:Organisation]
+            :   Argument(comp)
+            Fetch[kvs] in=(friend) out=(friend, friend.id)
+              : GetProperty(friend.id) [node:Person]
+              :   Argument(friend)
+              StoreQuery[kvs] in=(p) out=(p)
+                : Filter((p.id = 15393162799448))
+                :   GetProperty(p.id) [node:Person]
+                :     Argument(p)
+                StoreQuery[graph] in=(friend) out=(friend, p)
+                  : VarLengthExpand((friend)-[_r0:KNOWS*1..3]-(p:Person))
+                  :   Argument(friend)
+                  StoreQuery[kvs] in=(work) out=(work, work.workFrom)
+                    : Filter((work.workFrom < 2008))
+                    :   GetProperty(work.workFrom) [rel:WORK_AT]
+                    :     Argument(work)
+                    StoreQuery[graph] in=(comp) out=(comp, friend, work)
+                      : Expand((comp)<-[work:WORK_AT]-(friend:Person))
+                      :   Argument(comp)
+                      StoreQuery[kvs] in=(comp) out=(comp)
+                        : Filter((comp.type = "Company"))
+                        :   GetProperty(comp.type) [node:Organisation]
+                        :     Argument(comp)
+                        StoreQuery[graph] in=(_n0) out=(_n0, comp)
+                          : Expand((_n0)<-[_r1:IS_LOCATED_IN]-(comp:Organisation))
+                          :   Argument(_n0)
+                          StoreQuery[kvs] out=(_n0)
+                            : Filter((_n0.name = "Germany"))
+                            :   GetProperty(_n0.name) [node:Place]
+                            :     Filter((_n0.type = "Country"))
+                            :       GetProperty(_n0.type) [node:Place]
+                            :         EntityScan(_n0:Place)
+
+### Q2 @graph
+StoreQuery[graph] out=(friend.id, friend.firstName, friend.lastName, m.id, coalesce(m.content, m.imageFile), m.creationDate)
+  : Projection[friend.id, friend.firstName, friend.lastName, m.id, coalesce(m.content, m.imageFile), m.creationDate]
+  :   GetProperty(friend.lastName) [node:Person]
+  :     GetProperty(friend.firstName) [node:Person]
+  :       GetProperty(friend.id) [node:Person]
+  :         Limit[20]
+  :           Sort[m.creationDate DESC, m.id ASC]
+  :             Projection[m.id, coalesce(m.content, m.imageFile) AS coalesce(m.content, m.imageFile), m.creationDate, friend]
+  :               GetProperty(m.imageFile) [node:Message]
+  :                 GetProperty(m.content) [node:Message]
+  :                   GetProperty(m.id) [node:Message]
+  :                     Filter((m.creationDate <= "2011-06-16T00:00:00.000Z"))
+  :                       GetProperty(m.creationDate) [node:Message]
+  :                         Expand((friend)<-[_r1:HAS_CREATOR]-(m:Message))
+  :                           Expand((_n0)-[_r0:KNOWS]-(friend:Person))
+  :                             Filter((_n0.id = 15393162799448))
+  :                               GetProperty(_n0.id) [node:Person]
+  :                                 EntityScan(_n0:Person)
+
+### Q2 @relational
+Coord Projection[friend.id, friend.firstName, friend.lastName, m.id, coalesce(m.content, m.imageFile), m.creationDate]
+  Fetch[relational] in=(friend) out=(friend, friend.firstName, friend.id, friend.lastName)
+    : GetProperty(friend.lastName) [node:Person]
+    :   GetProperty(friend.firstName) [node:Person]
+    :     GetProperty(friend.id) [node:Person]
+    :       Argument(friend)
+    Coord Limit[20]
+      Coord Sort[m.creationDate DESC, m.id ASC]
+        Coord Projection[m.id, coalesce(m.content, m.imageFile) AS coalesce(m.content, m.imageFile), m.creationDate, friend]
+          StoreQuery[relational] in=(m) out=(m, m.content, m.creationDate, m.id, m.imageFile)
+            : GetProperty(m.imageFile) [node:Message]
+            :   GetProperty(m.content) [node:Message]
+            :     GetProperty(m.id) [node:Message]
+            :       Filter((m.creationDate <= "2011-06-16T00:00:00.000Z"))
+            :         GetProperty(m.creationDate) [node:Message]
+            :           Argument(m)
+            StoreQuery[graph] in=(_n0) out=(_n0, friend, m)
+              : Expand((friend)<-[_r1:HAS_CREATOR]-(m:Message))
+              :   Expand((_n0)-[_r0:KNOWS]-(friend:Person))
+              :     Argument(_n0)
+              StoreQuery[relational] out=(_n0)
+                : Filter((_n0.id = 15393162799448))
+                :   GetProperty(_n0.id) [node:Person]
+                :     EntityScan(_n0:Person)
+
+### Q2 @document
+Coord Projection[friend.id, friend.firstName, friend.lastName, m.id, coalesce(m.content, m.imageFile), m.creationDate]
+  Fetch[document] in=(friend) out=(friend, friend.firstName, friend.id, friend.lastName)
+    : GetProperty(friend.lastName) [node:Person]
+    :   GetProperty(friend.firstName) [node:Person]
+    :     GetProperty(friend.id) [node:Person]
+    :       Argument(friend)
+    Coord Limit[20]
+      Coord Sort[m.creationDate DESC, m.id ASC]
+        Coord Projection[m.id, coalesce(m.content, m.imageFile) AS coalesce(m.content, m.imageFile), m.creationDate, friend]
+          StoreQuery[document] in=(m) out=(m, m.content, m.creationDate, m.id, m.imageFile)
+            : GetProperty(m.imageFile) [node:Message]
+            :   GetProperty(m.content) [node:Message]
+            :     GetProperty(m.id) [node:Message]
+            :       Filter((m.creationDate <= "2011-06-16T00:00:00.000Z"))
+            :         GetProperty(m.creationDate) [node:Message]
+            :           Argument(m)
+            StoreQuery[graph] in=(_n0) out=(_n0, friend, m)
+              : Expand((friend)<-[_r1:HAS_CREATOR]-(m:Message))
+              :   Expand((_n0)-[_r0:KNOWS]-(friend:Person))
+              :     Argument(_n0)
+              StoreQuery[document] out=(_n0)
+                : Filter((_n0.id = 15393162799448))
+                :   GetProperty(_n0.id) [node:Person]
+                :     EntityScan(_n0:Person)
+
+### Q2 @columnar
+Coord Projection[friend.id, friend.firstName, friend.lastName, m.id, coalesce(m.content, m.imageFile), m.creationDate]
+  Fetch[columnar] in=(friend) out=(friend, friend.firstName, friend.id, friend.lastName)
+    : GetProperty(friend.lastName) [node:Person]
+    :   GetProperty(friend.firstName) [node:Person]
+    :     GetProperty(friend.id) [node:Person]
+    :       Argument(friend)
+    Coord Limit[20]
+      Coord Sort[m.creationDate DESC, m.id ASC]
+        Coord Projection[m.id, coalesce(m.content, m.imageFile) AS coalesce(m.content, m.imageFile), m.creationDate, friend]
+          StoreQuery[columnar] in=(m) out=(m, m.content, m.creationDate, m.id, m.imageFile)
+            : GetProperty(m.imageFile) [node:Message]
+            :   GetProperty(m.content) [node:Message]
+            :     GetProperty(m.id) [node:Message]
+            :       Filter((m.creationDate <= "2011-06-16T00:00:00.000Z"))
+            :         GetProperty(m.creationDate) [node:Message]
+            :           Argument(m)
+            StoreQuery[graph] in=(_n0) out=(_n0, friend, m)
+              : Expand((friend)<-[_r1:HAS_CREATOR]-(m:Message))
+              :   Expand((_n0)-[_r0:KNOWS]-(friend:Person))
+              :     Argument(_n0)
+              StoreQuery[columnar] out=(_n0)
+                : Filter((_n0.id = 15393162799448))
+                :   GetProperty(_n0.id) [node:Person]
+                :     EntityScan(_n0:Person)
+
+### Q2 @kvs
+Coord Projection[friend.id, friend.firstName, friend.lastName, m.id, coalesce(m.content, m.imageFile), m.creationDate]
+  Fetch[kvs] in=(friend) out=(friend, friend.firstName, friend.id, friend.lastName)
+    : GetProperty(friend.lastName) [node:Person]
+    :   GetProperty(friend.firstName) [node:Person]
+    :     GetProperty(friend.id) [node:Person]
+    :       Argument(friend)
+    Coord Limit[20]
+      Coord Sort[m.creationDate DESC, m.id ASC]
+        Coord Projection[m.id, coalesce(m.content, m.imageFile) AS coalesce(m.content, m.imageFile), m.creationDate, friend]
+          StoreQuery[kvs] in=(m) out=(m, m.content, m.creationDate, m.id, m.imageFile)
+            : GetProperty(m.imageFile) [node:Message]
+            :   GetProperty(m.content) [node:Message]
+            :     GetProperty(m.id) [node:Message]
+            :       Filter((m.creationDate <= "2011-06-16T00:00:00.000Z"))
+            :         GetProperty(m.creationDate) [node:Message]
+            :           Argument(m)
+            StoreQuery[graph] in=(_n0) out=(_n0, friend, m)
+              : Expand((friend)<-[_r1:HAS_CREATOR]-(m:Message))
+              :   Expand((_n0)-[_r0:KNOWS]-(friend:Person))
+              :     Argument(_n0)
+              StoreQuery[kvs] out=(_n0)
+                : Filter((_n0.id = 15393162799448))
+                :   GetProperty(_n0.id) [node:Person]
+                :     EntityScan(_n0:Person)
+
+### Q8 @graph
+StoreQuery[graph] out=(author.id, author.firstName, author.lastName, comment.creationDate, comment.id, comment.content)
+  : Projection[author.id, author.firstName, author.lastName, comment.creationDate, comment.id, comment.content]
+  :   GetProperty(comment.content) [node:Comment]
+  :     GetProperty(author.lastName) [node:Person]
+  :       GetProperty(author.firstName) [node:Person]
+  :         GetProperty(author.id) [node:Person]
+  :           Limit[20]
+  :             Sort[comment.creationDate DESC, comment.id ASC]
+  :               Projection[comment.creationDate, comment.id, comment, author]
+  :                 GetProperty(comment.id) [node:Comment]
+  :                   GetProperty(comment.creationDate) [node:Comment]
+  :                     RelUniqueFilter[_r0, _r2]
+  :                       Expand((comment)-[_r2:HAS_CREATOR]->(author:Person))
+  :                         Expand((m)<-[_r1:REPLY_OF]-(comment:Comment))
+  :                           Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+  :                             Filter((p.id = 15393162799448))
+  :                               GetProperty(p.id) [node:Person]
+  :                                 EntityScan(p:Person)
+
+### Q8 @relational
+Coord Projection[author.id, author.firstName, author.lastName, comment.creationDate, comment.id, comment.content]
+  Fetch[graph] in=(comment) out=(comment, comment.content)
+    : GetProperty(comment.content) [node:Comment]
+    :   Argument(comment)
+    Fetch[relational] in=(author) out=(author, author.firstName, author.id, author.lastName)
+      : GetProperty(author.lastName) [node:Person]
+      :   GetProperty(author.firstName) [node:Person]
+      :     GetProperty(author.id) [node:Person]
+      :       Argument(author)
+      Coord Limit[20]
+        Coord Sort[comment.creationDate DESC, comment.id ASC]
+          Coord Projection[comment.creationDate, comment.id, comment, author]
+            StoreQuery[graph] in=(p) out=(p, author, comment, comment.creationDate, comment.id)
+              : GetProperty(comment.id) [node:Comment]
+              :   GetProperty(comment.creationDate) [node:Comment]
+              :     RelUniqueFilter[_r0, _r2]
+              :       Expand((comment)-[_r2:HAS_CREATOR]->(author:Person))
+              :         Expand((m)<-[_r1:REPLY_OF]-(comment:Comment))
+              :           Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+              :             Argument(p)
+              StoreQuery[relational] out=(p)
+                : Filter((p.id = 15393162799448))
+                :   GetProperty(p.id) [node:Person]
+                :     EntityScan(p:Person)
+
+### Q8 @document
+Coord Projection[author.id, author.firstName, author.lastName, comment.creationDate, comment.id, comment.content]
+  Fetch[graph] in=(comment) out=(comment, comment.content)
+    : GetProperty(comment.content) [node:Comment]
+    :   Argument(comment)
+    Fetch[document] in=(author) out=(author, author.firstName, author.id, author.lastName)
+      : GetProperty(author.lastName) [node:Person]
+      :   GetProperty(author.firstName) [node:Person]
+      :     GetProperty(author.id) [node:Person]
+      :       Argument(author)
+      Coord Limit[20]
+        Coord Sort[comment.creationDate DESC, comment.id ASC]
+          Coord Projection[comment.creationDate, comment.id, comment, author]
+            StoreQuery[graph] in=(p) out=(p, author, comment, comment.creationDate, comment.id)
+              : GetProperty(comment.id) [node:Comment]
+              :   GetProperty(comment.creationDate) [node:Comment]
+              :     RelUniqueFilter[_r0, _r2]
+              :       Expand((comment)-[_r2:HAS_CREATOR]->(author:Person))
+              :         Expand((m)<-[_r1:REPLY_OF]-(comment:Comment))
+              :           Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+              :             Argument(p)
+              StoreQuery[document] out=(p)
+                : Filter((p.id = 15393162799448))
+                :   GetProperty(p.id) [node:Person]
+                :     EntityScan(p:Person)
+
+### Q8 @columnar
+Coord Projection[author.id, author.firstName, author.lastName, comment.creationDate, comment.id, comment.content]
+  Fetch[graph] in=(comment) out=(comment, comment.content)
+    : GetProperty(comment.content) [node:Comment]
+    :   Argument(comment)
+    Fetch[columnar] in=(author) out=(author, author.firstName, author.id, author.lastName)
+      : GetProperty(author.lastName) [node:Person]
+      :   GetProperty(author.firstName) [node:Person]
+      :     GetProperty(author.id) [node:Person]
+      :       Argument(author)
+      Coord Limit[20]
+        Coord Sort[comment.creationDate DESC, comment.id ASC]
+          Coord Projection[comment.creationDate, comment.id, comment, author]
+            StoreQuery[graph] in=(p) out=(p, author, comment, comment.creationDate, comment.id)
+              : GetProperty(comment.id) [node:Comment]
+              :   GetProperty(comment.creationDate) [node:Comment]
+              :     RelUniqueFilter[_r0, _r2]
+              :       Expand((comment)-[_r2:HAS_CREATOR]->(author:Person))
+              :         Expand((m)<-[_r1:REPLY_OF]-(comment:Comment))
+              :           Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+              :             Argument(p)
+              StoreQuery[columnar] out=(p)
+                : Filter((p.id = 15393162799448))
+                :   GetProperty(p.id) [node:Person]
+                :     EntityScan(p:Person)
+
+### Q8 @kvs
+Coord Projection[author.id, author.firstName, author.lastName, comment.creationDate, comment.id, comment.content]
+  Fetch[graph] in=(comment) out=(comment, comment.content)
+    : GetProperty(comment.content) [node:Comment]
+    :   Argument(comment)
+    Fetch[kvs] in=(author) out=(author, author.firstName, author.id, author.lastName)
+      : GetProperty(author.lastName) [node:Person]
+      :   GetProperty(author.firstName) [node:Person]
+      :     GetProperty(author.id) [node:Person]
+      :       Argument(author)
+      Coord Limit[20]
+        Coord Sort[comment.creationDate DESC, comment.id ASC]
+          Coord Projection[comment.creationDate, comment.id, comment, author]
+            StoreQuery[graph] in=(p) out=(p, author, comment, comment.creationDate, comment.id)
+              : GetProperty(comment.id) [node:Comment]
+              :   GetProperty(comment.creationDate) [node:Comment]
+              :     RelUniqueFilter[_r0, _r2]
+              :       Expand((comment)-[_r2:HAS_CREATOR]->(author:Person))
+              :         Expand((m)<-[_r1:REPLY_OF]-(comment:Comment))
+              :           Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+              :             Argument(p)
+              StoreQuery[kvs] out=(p)
+                : Filter((p.id = 15393162799448))
+                :   GetProperty(p.id) [node:Person]
+                :     EntityScan(p:Person)
+
+### Q9 @graph
+StoreQuery[graph] out=(other.id, other.firstName, other.lastName, m.id, coalesce(m.content, m.imageFile), m.creationDate)
+  : Projection[other.id, other.firstName, other.lastName, m.id, coalesce(m.content, m.imageFile), m.creationDate]
+  :   GetProperty(other.lastName) [node:Person]
+  :     GetProperty(other.firstName) [node:Person]
+  :       GetProperty(other.id) [node:Person]
+  :         Limit[20]
+  :           Sort[m.creationDate DESC, m.id ASC]
+  :             Projection[m.id, coalesce(m.content, m.imageFile) AS coalesce(m.content, m.imageFile), m.creationDate, other]
+  :               GetProperty(m.imageFile) [node:Message]
+  :                 GetProperty(m.content) [node:Message]
+  :                   GetProperty(m.id) [node:Message]
+  :                     Filter((m.creationDate < "2011-06-16T00:00:00.000Z"))
+  :                       GetProperty(m.creationDate) [node:Message]
+  :                         Expand((other)<-[_r1:HAS_CREATOR]-(m:Message))
+  :                           VarLengthExpand((p)-[_r0:KNOWS*1..2]-(other:Person))
+  :                             Filter((p.id = 17592186049378))
+  :                               GetProperty(p.id) [node:Person]
+  :                                 EntityScan(p:Person)
+
+### Q9 @relational
+Coord Projection[other.id, other.firstName, other.lastName, m.id, coalesce(m.content, m.imageFile), m.creationDate]
+  Fetch[relational] in=(other) out=(other, other.firstName, other.id, other.lastName)
+    : GetProperty(other.lastName) [node:Person]
+    :   GetProperty(other.firstName) [node:Person]
+    :     GetProperty(other.id) [node:Person]
+    :       Argument(other)
+    Coord Limit[20]
+      Coord Sort[m.creationDate DESC, m.id ASC]
+        Coord Projection[m.id, coalesce(m.content, m.imageFile) AS coalesce(m.content, m.imageFile), m.creationDate, other]
+          StoreQuery[relational] in=(m) out=(m, m.content, m.creationDate, m.id, m.imageFile)
+            : GetProperty(m.imageFile) [node:Message]
+            :   GetProperty(m.content) [node:Message]
+            :     GetProperty(m.id) [node:Message]
+            :       Filter((m.creationDate < "2011-06-16T00:00:00.000Z"))
+            :         GetProperty(m.creationDate) [node:Message]
+            :           Argument(m)
+            StoreQuery[graph] in=(p) out=(p, m, other)
+              : Expand((other)<-[_r1:HAS_CREATOR]-(m:Message))
+              :   VarLengthExpand((p)-[_r0:KNOWS*1..2]-(other:Person))
+              :     Argument(p)
+              StoreQuery[relational] out=(p)
+                : Filter((p.id = 17592186049378))
+                :   GetProperty(p.id) [node:Person]
+                :     EntityScan(p:Person)
+
+### Q9 @document
+Coord Projection[other.id, other.firstName, other.lastName, m.id, coalesce(m.content, m.imageFile), m.creationDate]
+  Fetch[document] in=(other) out=(other, other.firstName, other.id, other.lastName)
+    : GetProperty(other.lastName) [node:Person]
+    :   GetProperty(other.firstName) [node:Person]
+    :     GetProperty(other.id) [node:Person]
+    :       Argument(other)
+    Coord Limit[20]
+      Coord Sort[m.creationDate DESC, m.id ASC]
+        Coord Projection[m.id, coalesce(m.content, m.imageFile) AS coalesce(m.content, m.imageFile), m.creationDate, other]
+          StoreQuery[document] in=(m) out=(m, m.content, m.creationDate, m.id, m.imageFile)
+            : GetProperty(m.imageFile) [node:Message]
+            :   GetProperty(m.content) [node:Message]
+            :     GetProperty(m.id) [node:Message]
+            :       Filter((m.creationDate < "2011-06-16T00:00:00.000Z"))
+            :         GetProperty(m.creationDate) [node:Message]
+            :           Argument(m)
+            StoreQuery[graph] in=(p) out=(p, m, other)
+              : Expand((other)<-[_r1:HAS_CREATOR]-(m:Message))
+              :   VarLengthExpand((p)-[_r0:KNOWS*1..2]-(other:Person))
+              :     Argument(p)
+              StoreQuery[document] out=(p)
+                : Filter((p.id = 17592186049378))
+                :   GetProperty(p.id) [node:Person]
+                :     EntityScan(p:Person)
+
+### Q9 @columnar
+Coord Projection[other.id, other.firstName, other.lastName, m.id, coalesce(m.content, m.imageFile), m.creationDate]
+  Fetch[columnar] in=(other) out=(other, other.firstName, other.id, other.lastName)
+    : GetProperty(other.lastName) [node:Person]
+    :   GetProperty(other.firstName) [node:Person]
+    :     GetProperty(other.id) [node:Person]
+    :       Argument(other)
+    Coord Limit[20]
+      Coord Sort[m.creationDate DESC, m.id ASC]
+        Coord Projection[m.id, coalesce(m.content, m.imageFile) AS coalesce(m.content, m.imageFile), m.creationDate, other]
+          StoreQuery[columnar] in=(m) out=(m, m.content, m.creationDate, m.id, m.imageFile)
+            : GetProperty(m.imageFile) [node:Message]
+            :   GetProperty(m.content) [node:Message]
+            :     GetProperty(m.id) [node:Message]
+            :       Filter((m.creationDate < "2011-06-16T00:00:00.000Z"))
+            :         GetProperty(m.creationDate) [node:Message]
+            :           Argument(m)
+            StoreQuery[graph] in=(p) out=(p, m, other)
+              : Expand((other)<-[_r1:HAS_CREATOR]-(m:Message))
+              :   VarLengthExpand((p)-[_r0:KNOWS*1..2]-(other:Person))
+              :     Argument(p)
+              StoreQuery[columnar] out=(p)
+                : Filter((p.id = 17592186049378))
+                :   GetProperty(p.id) [node:Person]
+                :     EntityScan(p:Person)
+
+### Q9 @kvs
+Coord Projection[other.id, other.firstName, other.lastName, m.id, coalesce(m.content, m.imageFile), m.creationDate]
+  Fetch[kvs] in=(other) out=(other, other.firstName, other.id, other.lastName)
+    : GetProperty(other.lastName) [node:Person]
+    :   GetProperty(other.firstName) [node:Person]
+    :     GetProperty(other.id) [node:Person]
+    :       Argument(other)
+    Coord Limit[20]
+      Coord Sort[m.creationDate DESC, m.id ASC]
+        Coord Projection[m.id, coalesce(m.content, m.imageFile) AS coalesce(m.content, m.imageFile), m.creationDate, other]
+          StoreQuery[kvs] in=(m) out=(m, m.content, m.creationDate, m.id, m.imageFile)
+            : GetProperty(m.imageFile) [node:Message]
+            :   GetProperty(m.content) [node:Message]
+            :     GetProperty(m.id) [node:Message]
+            :       Filter((m.creationDate < "2011-06-16T00:00:00.000Z"))
+            :         GetProperty(m.creationDate) [node:Message]
+            :           Argument(m)
+            StoreQuery[graph] in=(p) out=(p, m, other)
+              : Expand((other)<-[_r1:HAS_CREATOR]-(m:Message))
+              :   VarLengthExpand((p)-[_r0:KNOWS*1..2]-(other:Person))
+              :     Argument(p)
+              StoreQuery[kvs] out=(p)
+                : Filter((p.id = 17592186049378))
+                :   GetProperty(p.id) [node:Person]
+                :     EntityScan(p:Person)
+
+### TP1 @graph
+StoreQuery[graph] out=(author.firstName, author.lastName, replyCount)
+  : Limit[20]
+  :   Sort[replyCount DESC, author.lastName ASC]
+  :     Aggregation[keys: author.firstName, author.lastName | count(comment) AS replyCount]
+  :       GetProperty(author.lastName) [node:Person]
+  :         GetProperty(author.firstName) [node:Person]
+  :           RelUniqueFilter[_r0, _r2]
+  :             Expand((comment)-[_r2:HAS_CREATOR]->(author:Person))
+  :               Expand((m)<-[_r1:REPLY_OF]-(comment:Comment))
+  :                 Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+  :                   Filter((p.id = 15393162799448))
+  :                     GetProperty(p.id) [node:Person]
+  :                       EntityScan(p:Person)
+
+### TP1 @relational
+Coord Limit[20]
+  Coord Sort[replyCount DESC, author.lastName ASC]
+    Coord Aggregation[keys: author.firstName, author.lastName | count(comment) AS replyCount]
+      Fetch[relational] in=(author) out=(author, author.firstName, author.lastName)
+        : GetProperty(author.lastName) [node:Person]
+        :   GetProperty(author.firstName) [node:Person]
+        :     Argument(author)
+        StoreQuery[graph] out=(author, comment)
+          : RelUniqueFilter[_r0, _r2]
+          :   Expand((comment)-[_r2:HAS_CREATOR]->(author:Person))
+          :     Expand((m)<-[_r1:REPLY_OF]-(comment:Comment))
+          :       Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+          :         Filter((p.id = 15393162799448))
+          :           GetProperty(p.id) [node:Person]
+          :             EntityScan(p:Person)
+
+### TP1 @document
+Coord Limit[20]
+  Coord Sort[replyCount DESC, author.lastName ASC]
+    Coord Aggregation[keys: author.firstName, author.lastName | count(comment) AS replyCount]
+      Fetch[document] in=(author) out=(author, author.firstName, author.lastName)
+        : GetProperty(author.lastName) [node:Person]
+        :   GetProperty(author.firstName) [node:Person]
+        :     Argument(author)
+        StoreQuery[graph] out=(author, comment)
+          : RelUniqueFilter[_r0, _r2]
+          :   Expand((comment)-[_r2:HAS_CREATOR]->(author:Person))
+          :     Expand((m)<-[_r1:REPLY_OF]-(comment:Comment))
+          :       Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+          :         Filter((p.id = 15393162799448))
+          :           GetProperty(p.id) [node:Person]
+          :             EntityScan(p:Person)
+
+### TP1 @columnar
+Coord Limit[20]
+  Coord Sort[replyCount DESC, author.lastName ASC]
+    Coord Aggregation[keys: author.firstName, author.lastName | count(comment) AS replyCount]
+      Fetch[columnar] in=(author) out=(author, author.firstName, author.lastName)
+        : GetProperty(author.lastName) [node:Person]
+        :   GetProperty(author.firstName) [node:Person]
+        :     Argument(author)
+        StoreQuery[graph] out=(author, comment)
+          : RelUniqueFilter[_r0, _r2]
+          :   Expand((comment)-[_r2:HAS_CREATOR]->(author:Person))
+          :     Expand((m)<-[_r1:REPLY_OF]-(comment:Comment))
+          :       Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+          :         Filter((p.id = 15393162799448))
+          :           GetProperty(p.id) [node:Person]
+          :             EntityScan(p:Person)
+
+### TP1 @kvs
+Coord Limit[20]
+  Coord Sort[replyCount DESC, author.lastName ASC]
+    Coord Aggregation[keys: author.firstName, author.lastName | count(comment) AS replyCount]
+      Fetch[kvs] in=(author) out=(author, author.firstName, author.lastName)
+        : GetProperty(author.lastName) [node:Person]
+        :   GetProperty(author.firstName) [node:Person]
+        :     Argument(author)
+        StoreQuery[graph] out=(author, comment)
+          : RelUniqueFilter[_r0, _r2]
+          :   Expand((comment)-[_r2:HAS_CREATOR]->(author:Person))
+          :     Expand((m)<-[_r1:REPLY_OF]-(comment:Comment))
+          :       Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+          :         Filter((p.id = 15393162799448))
+          :           GetProperty(p.id) [node:Person]
+          :             EntityScan(p:Person)
+
+### VARCMP @graph
+StoreQuery[graph] out=(a.id, b.id, b.firstName)
+  : Projection[a.id, b.id, b.firstName]
+  :   GetProperty(b.firstName) [node:Person]
+  :     Limit[20]
+  :       Sort[b.id ASC]
+  :         Projection[a.id, b.id, b]
+  :           Filter((a.id < b.id))
+  :             GetProperty(b.id) [node:Person]
+  :               Expand((a)-[_r0:KNOWS]-(b:Person))
+  :                 Filter((a.id = 15393162799448))
+  :                   GetProperty(a.id) [node:Person]
+  :                     EntityScan(a:Person)
+
+### VARCMP @relational
+Coord Projection[a.id, b.id, b.firstName]
+  Fetch[relational] in=(b) out=(b, b.firstName)
+    : GetProperty(b.firstName) [node:Person]
+    :   Argument(b)
+    Coord Limit[20]
+      Coord Sort[b.id ASC]
+        Coord Projection[a.id, b.id, b]
+          Coord Filter((a.id < b.id))
+            Fetch[relational] in=(b) out=(b, b.id)
+              : GetProperty(b.id) [node:Person]
+              :   Argument(b)
+              StoreQuery[graph] in=(a) out=(a, b)
+                : Expand((a)-[_r0:KNOWS]-(b:Person))
+                :   Argument(a)
+                StoreQuery[relational] out=(a, a.id)
+                  : Filter((a.id = 15393162799448))
+                  :   GetProperty(a.id) [node:Person]
+                  :     EntityScan(a:Person)
+
+### VARCMP @document
+Coord Projection[a.id, b.id, b.firstName]
+  Fetch[document] in=(b) out=(b, b.firstName)
+    : GetProperty(b.firstName) [node:Person]
+    :   Argument(b)
+    Coord Limit[20]
+      Coord Sort[b.id ASC]
+        Coord Projection[a.id, b.id, b]
+          Coord Filter((a.id < b.id))
+            Fetch[document] in=(b) out=(b, b.id)
+              : GetProperty(b.id) [node:Person]
+              :   Argument(b)
+              StoreQuery[graph] in=(a) out=(a, b)
+                : Expand((a)-[_r0:KNOWS]-(b:Person))
+                :   Argument(a)
+                StoreQuery[document] out=(a, a.id)
+                  : Filter((a.id = 15393162799448))
+                  :   GetProperty(a.id) [node:Person]
+                  :     EntityScan(a:Person)
+
+### VARCMP @columnar
+Coord Projection[a.id, b.id, b.firstName]
+  Fetch[columnar] in=(b) out=(b, b.firstName)
+    : GetProperty(b.firstName) [node:Person]
+    :   Argument(b)
+    Coord Limit[20]
+      Coord Sort[b.id ASC]
+        Coord Projection[a.id, b.id, b]
+          Coord Filter((a.id < b.id))
+            Fetch[columnar] in=(b) out=(b, b.id)
+              : GetProperty(b.id) [node:Person]
+              :   Argument(b)
+              StoreQuery[graph] in=(a) out=(a, b)
+                : Expand((a)-[_r0:KNOWS]-(b:Person))
+                :   Argument(a)
+                StoreQuery[columnar] out=(a, a.id)
+                  : Filter((a.id = 15393162799448))
+                  :   GetProperty(a.id) [node:Person]
+                  :     EntityScan(a:Person)
+
+### VARCMP @kvs
+Coord Projection[a.id, b.id, b.firstName]
+  Fetch[kvs] in=(b) out=(b, b.firstName)
+    : GetProperty(b.firstName) [node:Person]
+    :   Argument(b)
+    Coord Limit[20]
+      Coord Sort[b.id ASC]
+        Coord Projection[a.id, b.id, b]
+          Coord Filter((a.id < b.id))
+            Fetch[kvs] in=(b) out=(b, b.id)
+              : GetProperty(b.id) [node:Person]
+              :   Argument(b)
+              StoreQuery[graph] in=(a) out=(a, b)
+                : Expand((a)-[_r0:KNOWS]-(b:Person))
+                :   Argument(a)
+                StoreQuery[kvs] out=(a, a.id)
+                  : Filter((a.id = 15393162799448))
+                  :   GetProperty(a.id) [node:Person]
+                  :     EntityScan(a:Person)
+

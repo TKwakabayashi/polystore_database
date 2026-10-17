@@ -1,0 +1,643 @@
+package physical
+
+import (
+	"fmt"
+	"sort"
+
+	"polystore_database/src/go/ast"
+	"polystore_database/src/go/logical"
+	"polystore_database/src/go/store"
+)
+
+// build.go は §5.6 の計画アルゴリズム。論理計画を葉から根へ 1 演算子ずつ見て、
+//   - ストアに割り当てられた演算子は、同じストアの「開いている」クエリに足せれば足す（統合・吸収）。
+//     足せなければ今のクエリを閉じ、境界の識別列を IN $ids で受け取る新しいクエリを開く。
+//   - コーディネータの演算子は、開いているクエリを閉じてから Coord として積む。
+//     ただし葉のクエリ（入力を持たない）で、そのストアが実行できるなら吸収する。
+// 値は GetProperty の位置（＝論理計画が決めた「最初に使う直前」）で取得するので、遅延実体化は論理側の
+// 位置と統合の規則だけで成り立つ。最後に要求解析（finalize）で各クエリが返す列を決める。
+
+// Build は論理計画を物理計画にする。表現できない形は ast.ErrUnsupported を包んだエラー。
+func Build(root logical.Node, cat *Catalog) (Node, error) {
+	pl := &planner{cat: cat, parent: map[logical.Node]logical.Node{},
+		nodeLabels: map[string][]string{}, relTypes: map[string][]string{},
+		segTypes: map[string][]string{}, pathElems: map[string][]logical.PathElem{}}
+	pl.index(root, nil)
+	st, err := pl.build(root)
+	if err != nil {
+		return nil, err
+	}
+	pl.close(st)
+	finalize(st.phys, nil, true)
+	return st.phys, nil
+}
+
+type planner struct {
+	cat    *Catalog
+	parent map[logical.Node]logical.Node
+
+	// 変数の型情報（リスト要素のラベル解決に使う）。
+	nodeLabels map[string][]string
+	relTypes   map[string][]string
+	segTypes   map[string][]string
+	pathElems  map[string][]logical.PathElem
+}
+
+func (pl *planner) index(n, parent logical.Node) {
+	if n == nil {
+		return
+	}
+	pl.parent[n] = parent
+	switch x := n.(type) {
+	case *logical.EntityScan:
+		pl.nodeLabels[x.Alias] = x.Labels
+	case *logical.Expand:
+		pl.relTypes[x.Rel] = x.Types
+		if len(x.ToLabels) > 0 {
+			pl.nodeLabels[x.To] = x.ToLabels
+		}
+	case *logical.ExpandInto:
+		pl.relTypes[x.Rel] = x.Types
+	case *logical.VarLengthExpand:
+		pl.segTypes[x.Seg] = x.Types
+		if len(x.ToLabels) > 0 {
+			pl.nodeLabels[x.To] = x.ToLabels
+		}
+	case *logical.ProjectPath:
+		pl.pathElems[x.Path] = x.Elems
+	case *logical.GetProperty:
+		if x.Kind == logical.NodeObj && len(x.Labels) > 0 && len(pl.nodeLabels[x.Alias]) == 0 {
+			pl.nodeLabels[x.Alias] = x.Labels
+		}
+	}
+	for _, c := range n.Children() {
+		pl.index(c, n)
+	}
+}
+
+// state は部分木を処理した結果: 閉じた物理木と、まだ演算子を足せる開いたクエリ。
+type state struct {
+	phys Node
+	open *openQ
+}
+
+type openQ struct {
+	store  store.Kind
+	ops    logical.Node
+	input  Node
+	keys   []string
+	leaf   bool
+	avail  map[string]bool // クエリの行にある列
+	idents map[string]bool // そのうち識別列
+	single string          // 非 graph のクエリが扱う唯一の alias
+}
+
+func newOpen(k store.Kind, ops logical.Node, input Node, keys []string, single string) *openQ {
+	q := &openQ{store: k, ops: ops, input: input, keys: keys, leaf: input == nil && len(keys) == 0,
+		avail: map[string]bool{}, idents: map[string]bool{}, single: single}
+	for _, key := range keys {
+		q.avail[key] = true
+		q.idents[key] = true
+	}
+	return q
+}
+
+func (pl *planner) close(st *state) {
+	if st.open == nil {
+		return
+	}
+	o := st.open
+	st.phys = &StoreQuery{Store: o.store, Ops: o.ops, Input: o.input, Keys: o.keys}
+	st.open = nil
+}
+
+// boundary は st を閉じ、keys を受け取る新しいクエリを開く。
+func (pl *planner) boundary(st *state, k store.Kind, op logical.Node, keys []string, single string) {
+	pl.close(st)
+	st.open = newOpen(k, logical.WithInput(op, &Argument{Cols: keys}), st.phys, keys, single)
+	st.phys = nil
+	produce(st.open, op)
+}
+
+func (pl *planner) extend(st *state, op logical.Node) {
+	st.open.ops = logical.WithInput(op, st.open.ops)
+	produce(st.open, op)
+}
+
+func (pl *planner) coord(st *state, op logical.Node) {
+	pl.close(st)
+	st.phys = &Coord{Op: logical.WithInput(op, &Argument{}), Inputs: []Node{st.phys}}
+}
+
+func (pl *planner) build(n logical.Node) (*state, error) {
+	switch x := n.(type) {
+	case *logical.EntityScan:
+		k, single := pl.scanStore(x)
+		o := newOpen(k, x, nil, nil, single)
+		o.avail[x.Alias], o.idents[x.Alias] = true, true
+		return &state{open: o}, nil
+
+	case *logical.NodeHashJoin:
+		l, err := pl.build(x.Left)
+		if err != nil {
+			return nil, err
+		}
+		r, err := pl.build(x.Right)
+		if err != nil {
+			return nil, err
+		}
+		if l.open != nil && r.open != nil && l.open.leaf && r.open.leaf &&
+			l.open.store == store.Graph && r.open.store == store.Graph {
+			// 両側が graph だけで完結するなら 1 本の MATCH にまとめる。
+			o := l.open
+			o.ops = &logical.NodeHashJoin{Left: l.open.ops, Right: r.open.ops, Keys: x.Keys}
+			for k := range r.open.avail {
+				o.avail[k] = true
+			}
+			for k := range r.open.idents {
+				o.idents[k] = true
+			}
+			return &state{open: o}, nil
+		}
+		pl.close(l)
+		pl.close(r)
+		return &state{phys: &Coord{
+			Op:     &logical.NodeHashJoin{Left: &Argument{}, Right: &Argument{}, Keys: x.Keys},
+			Inputs: []Node{l.phys, r.phys},
+		}}, nil
+	}
+
+	c := logical.Child(n)
+	if c == nil {
+		return nil, unsupported("leaf operator %T", n)
+	}
+	st, err := pl.build(c)
+	if err != nil {
+		return nil, err
+	}
+	if err := pl.add(st, n); err != nil {
+		return nil, err
+	}
+	return st, nil
+}
+
+func unsupported(format string, args ...any) error {
+	return fmt.Errorf("%w: %s", ast.ErrUnsupported, fmt.Sprintf(format, args...))
+}
+
+// scanStore は EntityScan のストア。直上の GetProperty/Filter の連なりを見て、
+//   - 最初の Filter が参照する列のストア、
+//   - Filter が無ければ、連なりの最初の GetProperty のストア（必要な列がそこにあるので吸収できる）、
+//   - どちらも無ければ graph。
+func (pl *planner) scanStore(s *logical.EntityScan) (store.Kind, string) {
+	props := map[string]*logical.GetProperty{}
+	var first *logical.GetProperty
+	pick := func(g *logical.GetProperty) (store.Kind, string) {
+		k := pl.cat.StoreOf(g.Alias, g.Kind, g.Labels, g.Prop)
+		if k == store.Graph {
+			return k, ""
+		}
+		return k, s.Alias
+	}
+walk:
+	for p := pl.parent[s]; p != nil; p = pl.parent[p] {
+		switch x := p.(type) {
+		case *logical.GetProperty:
+			if x.Alias != s.Alias {
+				break walk
+			}
+			props[x.Key()] = x
+			if first == nil {
+				first = x
+			}
+		case *logical.Filter:
+			for _, col := range logical.Columns(x.Pred) {
+				if g, ok := props[col]; ok {
+					return pick(g)
+				}
+			}
+			break walk
+		default:
+			break walk
+		}
+	}
+	if first != nil {
+		return pick(first)
+	}
+	return store.Graph, ""
+}
+
+func (pl *planner) add(st *state, op logical.Node) error {
+	o := st.open
+	switch x := op.(type) {
+	case *logical.GetProperty:
+		k := pl.cat.StoreOf(x.Alias, x.Kind, x.Labels, x.Prop)
+		if o != nil && o.store == k && o.idents[x.Alias] && (k == store.Graph || o.single == x.Alias) {
+			pl.extend(st, op)
+			return nil
+		}
+		single := x.Alias
+		if k == store.Graph {
+			single = ""
+		}
+		pl.boundary(st, k, op, []string{x.Alias}, single)
+		return nil
+
+	case *logical.Filter:
+		if o != nil && availAll(o, filterRefs(x)) && CanExpress(o.store, x.Pred) {
+			pl.extend(st, op)
+			return nil
+		}
+		pl.coord(st, op)
+		return nil
+
+	case *logical.Expand:
+		return pl.addGraph(st, op, []string{x.From})
+	case *logical.ExpandInto:
+		return pl.addGraph(st, op, []string{x.From, x.To})
+	case *logical.VarLengthExpand:
+		return pl.addVarLength(st, x)
+
+	case *logical.ProjectPath:
+		if o != nil && o.store == store.Graph && availAll(o, logical.Refs(x)) {
+			pl.extend(st, op)
+			return nil
+		}
+		pl.coord(st, op)
+		return nil
+
+	case *logical.GetListProperty:
+		labels := x.ElemLabels
+		if len(labels) == 0 {
+			labels = pl.listLabels(x.Source, x.Part)
+		}
+		k, err := pl.listStore(labels, x.Part, x.Prop)
+		if err != nil {
+			return err
+		}
+		if o != nil && o.store == store.Graph && k == store.Graph && o.avail[x.Source] {
+			pl.extend(st, op)
+			return nil
+		}
+		pl.close(st)
+		st.phys = &ListFetch{Input: st.phys, Store: k, Source: x.Source, Part: x.Part, Prop: x.Prop, Labels: labels}
+		return nil
+
+	case *logical.RelUniqueFilter:
+		if o != nil && o.store == store.Graph && availAll(o, logical.Refs(x)) && !anyKey(o, logical.Refs(x)) {
+			pl.extend(st, op)
+			return nil
+		}
+		pl.coord(st, op)
+		return nil
+
+	case *logical.Projection, *logical.Aggregation, *logical.Sort, *logical.Limit, *logical.Distinct:
+		if o != nil && o.leaf && CanAbsorb(o.store, op) && availAll(o, logical.Refs(op)) {
+			pl.extend(st, op)
+			return nil
+		}
+		pl.coord(st, op)
+		return nil
+	}
+	return unsupported("operator %T", op)
+}
+
+// addGraph は graph の演算子（トラバーサル）を足す。開いた graph クエリが必要な識別列を持っていれば統合する。
+func (pl *planner) addGraph(st *state, op logical.Node, need []string) error {
+	o := st.open
+	if o != nil && o.store == store.Graph && identAll(o, need) {
+		pl.extend(st, op)
+		return nil
+	}
+	pl.boundary(st, store.Graph, op, need, "")
+	return nil
+}
+
+// addVarLength は可変長を足す。区間条件のうち graph 以外の列を参照するものは、区間の中身を返させて
+// 要素の値を取得し、コーディネータで評価する（§5.5 案 a）。
+func (pl *planner) addVarLength(st *state, x *logical.VarLengthExpand) error {
+	var keep, moved []logical.SegPred
+	for _, sp := range x.SegPreds {
+		labels := pl.cat.ElemLabels(x.Types, sp.Part)
+		inGraph := true
+		for _, prop := range elemProps(sp.Pred, sp.Var) {
+			k, err := pl.listStore(labels, sp.Part, prop)
+			if err != nil {
+				return err
+			}
+			if k != store.Graph {
+				inGraph = false
+			}
+		}
+		if inGraph {
+			keep = append(keep, sp)
+		} else {
+			moved = append(moved, sp)
+		}
+	}
+	y := *x
+	y.SegPreds = keep
+	if err := pl.addGraph(st, &y, []string{x.From}); err != nil {
+		return err
+	}
+	seg := logical.SegColumn(x.Seg)
+	for _, sp := range moved {
+		labels := pl.cat.ElemLabels(x.Types, sp.Part)
+		for _, prop := range elemProps(sp.Pred, sp.Var) {
+			if err := pl.add(st, &logical.GetListProperty{Input: nil, Source: seg, Part: sp.Part, Prop: prop, ElemLabels: labels}); err != nil {
+				return err
+			}
+		}
+		fn := "nodes"
+		if sp.Part == logical.SegRels {
+			fn = "relationships"
+		}
+		pred := &logical.Quant{Kind: "all", Var: sp.Var,
+			List: &logical.Call{Fn: fn, Args: []logical.Expr{&logical.Column{Key: seg}}}, Pred: sp.Pred}
+		if err := pl.add(st, &logical.Filter{Pred: pred}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// listStore はリスト要素のプロパティのストア。要素のラベルが複数あり得るときは、すべてのラベルで
+// 同じストアでなければならない（ListFetch は 1 ストアへの取得）。違えば未対応。
+func (pl *planner) listStore(labels []string, part logical.SegPart, prop string) (store.Kind, error) {
+	kind := logical.NodeObj
+	if part == logical.SegRels {
+		kind = logical.RelObj
+	}
+	if len(labels) == 0 {
+		return store.Graph, nil
+	}
+	first := pl.cat.StoreOf("", kind, labels[:1], prop)
+	for _, l := range labels[1:] {
+		if k := pl.cat.StoreOf("", kind, []string{l}, prop); k != first {
+			return 0, unsupported("list elements of %v keep %s in different stores", labels, prop)
+		}
+	}
+	return first, nil
+}
+
+// listLabels はリスト列（パス列・区間列）の要素のラベル候補。
+func (pl *planner) listLabels(source string, part logical.SegPart) []string {
+	var out []string
+	add := func(ls []string) {
+		for _, l := range ls {
+			if !contains(out, l) {
+				out = append(out, l)
+			}
+		}
+	}
+	addSeg := func(seg string) { add(pl.cat.ElemLabels(pl.segTypes[seg], part)) }
+	if elems, ok := pl.pathElems[source]; ok {
+		for _, e := range elems {
+			switch {
+			case e.Seg:
+				addSeg(e.Var)
+			case part == logical.SegNodes && pl.nodeLabels[e.Var] != nil:
+				add(pl.nodeLabels[e.Var])
+			case part == logical.SegRels && pl.relTypes[e.Var] != nil:
+				add(pl.relTypes[e.Var])
+			}
+		}
+		return out
+	}
+	for seg := range pl.segTypes {
+		if logical.SegColumn(seg) == source {
+			addSeg(seg)
+		}
+	}
+	return out
+}
+
+func elemProps(e logical.Expr, v string) []string {
+	var out []string
+	seen := map[string]bool{}
+	logical.Walk(e, func(x logical.Expr) {
+		if ep, ok := x.(*logical.ElemProp); ok && ep.Var == v && !seen[ep.Prop] {
+			seen[ep.Prop] = true
+			out = append(out, ep.Prop)
+		}
+	})
+	return out
+}
+
+func filterRefs(f *logical.Filter) []string { return logical.Refs(f) }
+
+func availAll(o *openQ, cols []string) bool {
+	for _, c := range cols {
+		if !o.avail[c] {
+			return false
+		}
+	}
+	return true
+}
+
+func identAll(o *openQ, cols []string) bool {
+	for _, c := range cols {
+		if !o.idents[c] {
+			return false
+		}
+	}
+	return true
+}
+
+func anyKey(o *openQ, cols []string) bool {
+	for _, c := range cols {
+		for _, k := range o.keys {
+			if c == k {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// produce は op がクエリの行に足す列を記録する。
+func produce(o *openQ, op logical.Node) {
+	switch x := op.(type) {
+	case *logical.GetProperty:
+		o.avail[x.Key()] = true
+	case *logical.GetListProperty:
+		o.avail[x.Key()] = true
+	case *logical.Expand:
+		o.avail[x.Rel], o.idents[x.Rel] = true, true
+		o.avail[x.To], o.idents[x.To] = true, true
+	case *logical.ExpandInto:
+		o.avail[x.Rel], o.idents[x.Rel] = true, true
+	case *logical.VarLengthExpand:
+		o.avail[x.To], o.idents[x.To] = true, true
+		o.avail[logical.SegColumn(x.Seg)] = true
+	case *logical.ProjectPath:
+		o.avail[x.Path] = true
+	case *logical.Projection:
+		resetTo(o, x.Items)
+	case *logical.Aggregation:
+		items := append([]logical.ProjItem{}, x.Keys...)
+		for _, a := range x.Aggs {
+			items = append(items, logical.ProjItem{Name: a.Name})
+		}
+		resetTo(o, items)
+	}
+}
+
+func resetTo(o *openQ, items []logical.ProjItem) {
+	avail, idents := map[string]bool{}, map[string]bool{}
+	for _, it := range items {
+		avail[it.Name] = true
+		if c, ok := it.Expr.(*logical.Column); ok && o.idents[c.Key] {
+			idents[it.Name] = true
+		}
+	}
+	o.avail, o.idents = avail, idents
+}
+
+// ================================
+// 要求解析（各クエリが返す列・区間列の出力）
+// ================================
+
+// finalize は上から下へ「上が必要とする列」を伝え、StoreQuery.Outputs と VarLengthExpand.EmitPath を決める。
+// all は「根なので出力列すべてが必要」。
+func finalize(n Node, need map[string]bool, all bool) {
+	switch x := n.(type) {
+	case *StoreQuery:
+		cols := topCols(x.Ops)
+		var out []string
+		if all {
+			out = cols
+		} else {
+			out = append(out, x.Keys...)
+			var rest []string
+			for _, c := range cols {
+				if need[c] && !contains(x.Keys, c) {
+					rest = append(rest, c)
+				}
+			}
+			sort.Strings(rest)
+			out = append(out, rest...)
+		}
+		x.Outputs = out
+		markEmit(x.Ops, out)
+		if x.Input != nil {
+			below := map[string]bool{}
+			for k := range need {
+				if !contains(cols, k) {
+					below[k] = true
+				}
+			}
+			for _, k := range x.Keys {
+				below[k] = true
+			}
+			finalize(x.Input, below, all)
+		}
+	case *ListFetch:
+		below := map[string]bool{x.Source: true}
+		for k := range need {
+			if k != x.Key() {
+				below[k] = true
+			}
+		}
+		finalize(x.Input, below, all)
+	case *Coord:
+		below := map[string]bool{}
+		belowAll := all
+		switch x.Op.(type) {
+		case *logical.Projection, *logical.Aggregation:
+			belowAll = false
+		default:
+			for k := range need {
+				below[k] = true
+			}
+		}
+		for _, k := range logical.Refs(x.Op) {
+			below[k] = true
+		}
+		for _, in := range x.Inputs {
+			finalize(in, below, belowAll)
+		}
+	}
+}
+
+// topCols はクエリの最上位の行にある列（生成順。Projection/Aggregation で付け替わる）。
+func topCols(n logical.Node) []string {
+	var cols []string
+	add := func(ks ...string) {
+		for _, k := range ks {
+			if !contains(cols, k) {
+				cols = append(cols, k)
+			}
+		}
+	}
+	var walk func(logical.Node)
+	walk = func(n logical.Node) {
+		if n == nil {
+			return
+		}
+		switch x := n.(type) {
+		case *logical.NodeHashJoin:
+			walk(x.Left)
+			walk(x.Right)
+			return
+		case *Argument:
+			add(x.Cols...)
+			return
+		case *logical.EntityScan:
+			add(x.Alias)
+			return
+		}
+		walk(logical.Child(n))
+		switch x := n.(type) {
+		case *logical.GetProperty:
+			add(x.Key())
+		case *logical.GetListProperty:
+			add(x.Key())
+		case *logical.Expand:
+			add(x.Rel, x.To)
+		case *logical.ExpandInto:
+			add(x.Rel)
+		case *logical.VarLengthExpand:
+			add(x.To, logical.SegColumn(x.Seg))
+		case *logical.ProjectPath:
+			add(x.Path)
+		case *logical.Projection:
+			cols = nil
+			for _, it := range x.Items {
+				add(it.Name)
+			}
+		case *logical.Aggregation:
+			cols = nil
+			for _, it := range x.Keys {
+				add(it.Name)
+			}
+			for _, a := range x.Aggs {
+				add(a.Name)
+			}
+		}
+	}
+	walk(n)
+	return cols
+}
+
+// markEmit は返す列に区間列が含まれる VarLengthExpand に EmitPath を立てる。
+func markEmit(n logical.Node, out []string) {
+	if n == nil {
+		return
+	}
+	if v, ok := n.(*logical.VarLengthExpand); ok && contains(out, logical.SegColumn(v.Seg)) {
+		v.EmitPath = true
+	}
+	for _, c := range n.Children() {
+		markEmit(c, out)
+	}
+}
+
+func contains(xs []string, s string) bool {
+	for _, x := range xs {
+		if x == s {
+			return true
+		}
+	}
+	return false
+}
