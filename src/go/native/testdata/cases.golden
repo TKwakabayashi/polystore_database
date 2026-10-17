@@ -1,0 +1,181 @@
+### all_graph_single_query
+MATCH (p:Person {id: $x})-[:KNOWS]->(f:Person) WHERE f.gender = 'male' RETURN f.firstName, f.id
+[graph] columns=(f.firstName, f.id)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)-[_r0:KNOWS]->(f:Person) WHERE (f.gender = $p1) WITH f.firstName AS v0, f.id AS v1 RETURN v0 AS c0, v1 AS c1
+  params: p0=1(int64), p1="male"
+
+### three_stores_chain
+MATCH (p:Person {id: $x})-[:KNOWS]->(f:Person) WHERE f.gender = 'male' RETURN f.firstName, f.id
+[graph] columns=(f)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)-[_r0:KNOWS]->(f:Person) RETURN f.uuid AS c0
+  params: p0=1(int64)
+[document] columns=(f) in=(f)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}, gender: {$eq: "male"}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[relational] columns=(f, f.firstName) in=(f)
+  SELECT `uuid` AS c0, `firstName` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[graph] columns=(f, f.id) in=(f)
+  MATCH (f:Entity) WHERE f.uuid IN $in RETURN f.uuid AS c0, f.id AS c1
+[coordinator] Projection[f.firstName, f.id]
+
+### sort_limit_then_fetch
+MATCH (p:Person {id: $x})-[:KNOWS]->(f:Person) RETURN f.firstName ORDER BY f.id ASC LIMIT 10
+[graph] columns=(f)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)-[_r0:KNOWS]->(f:Person) WITH f.id AS v0, f AS f RETURN f.uuid AS c0 ORDER BY v0 LIMIT 10
+  params: p0=1(int64)
+[relational] columns=(f, f.firstName) in=(f)
+  SELECT `uuid` AS c0, `firstName` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[f.firstName]
+
+### scan_in_document
+MATCH (p:Person) WHERE p.gender = 'male' MATCH (p)-[:KNOWS]->(f:Person) RETURN f.id
+[document] columns=(p)
+  db.Person.aggregate([
+    {$match: {gender: {$eq: "male"}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[graph] columns=(p, f.id) in=(p)
+  MATCH (p:Entity) WHERE p.uuid IN $in MATCH (p)-[_r0:KNOWS]->(f:Person) RETURN p.uuid AS c0, f.id AS c1
+[coordinator] Projection[f.id]
+
+### aggregate_single_store
+MATCH (p:Person) WHERE p.gender = 'male' RETURN p.gender, count(*) AS cnt
+[document] columns=(p.gender, cnt)
+  db.Person.aggregate([
+    {$match: {gender: {$eq: "male"}}}
+    {$group: {_id: {k0: "$gender"}, a0: {$sum: 1(int64)}}}
+    {$project: {_id: 0(int), v0: "$_id.k0", v1: "$a0"}}
+    {$project: {_id: 0(int), c0: "$v0", c1: "$v1"}}
+  ])
+
+### aggregate_distinct_document
+MATCH (p:Person) WHERE p.gender IN ['male', 'female'] RETURN p.gender, count(DISTINCT p.gender) AS kinds, count(*) AS cnt ORDER BY cnt DESC LIMIT 2
+[document] columns=(p.gender, kinds, cnt)
+  db.Person.aggregate([
+    {$match: {gender: {$in: ["male", "female"]}}}
+    {$group: {_id: {k0: "$gender"}, a0: {$addToSet: "$gender"}, a1: {$sum: 1(int64)}}}
+    {$project: {_id: 0(int), v0: "$_id.k0", v1: {$size: "$a0"}, v2: "$a1"}}
+    {$sort: {v2: -1(int64)}}
+    {$limit: {n: 2(int64)}}
+    {$project: {_id: 0(int), c0: "$v0", c1: "$v1", c2: "$v2"}}
+  ])
+
+### columnar_fetch_and_filter
+MATCH (p:Person {id: $x})-[:KNOWS]->(f:Person) WHERE f.birthday IS NULL RETURN f.id
+[graph] columns=(f)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)-[_r0:KNOWS]->(f:Person) RETURN f.uuid AS c0
+  params: p0=1(int64)
+[columnar] columns=(f, f.birthday) in=(f)
+  SELECT "uuid" AS c0, "birthday" AS c1 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Filter((f.birthday IS NULL))
+[graph] columns=(f, f.id) in=(f)
+  MATCH (f:Entity) WHERE f.uuid IN $in RETURN f.uuid AS c0, f.id AS c1
+[coordinator] Projection[f.id]
+
+### relational_scan_aggregate
+MATCH (p:Person) WHERE p.firstName = 'Jan' RETURN p.lastName, count(*) AS n ORDER BY n DESC LIMIT 5
+[relational] columns=(p.lastName, n)
+  SELECT `lastName` AS c0, count(*) AS c1 FROM `Person` WHERE (`firstName` = ?) GROUP BY `lastName` ORDER BY count(*) DESC LIMIT 5
+  args: "Jan"
+
+### datetime_literal_typed
+MATCH (p:Person {id: $x})<-[:HAS_CREATOR]-(m:Message) WHERE m.creationDate < '2011-06-16T00:00:00.000Z' RETURN m.id
+[graph] columns=(m.id)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) WHERE (m.creationDate < $p1) WITH m.id AS v0 RETURN v0 AS c0
+  params: p0=1(int64), p1=2011-06-16 00:00:00 +0000 UTC(time.Time)
+
+### cycle_all_graph
+MATCH (a:Person {id: $x})-[:KNOWS]->(b:Person)-[:KNOWS]->(c:Person)-[:KNOWS]->(a) RETURN b.id, c.id
+[graph] columns=(b.id, c.id)
+  MATCH (a:Person) WHERE (a.id = $p0) MATCH (a)-[_r0:KNOWS]->(b:Person) MATCH (b)-[_r1:KNOWS]->(c:Person) MATCH (c)-[_r2:KNOWS]->(a) WHERE _r0 <> _r1 AND _r0 <> _r2 AND _r1 <> _r2 WITH b.id AS v0, c.id AS v1 RETURN v0 AS c0, v1 AS c1
+  params: p0=1(int64)
+
+### cartesian_graph
+MATCH (a:Person {id: $x}), (t:Tag {name: 'x'}) RETURN a.id, t.id
+[graph] columns=(a.id, t.id)
+  MATCH (a:Person) WHERE (a.id = $p0) MATCH (t:Tag) WHERE (t.name = $p1) WITH a.id AS v0, t.id AS v1 RETURN v0 AS c0, v1 AS c1
+  params: p0=1(int64), p1="x"
+
+### path_preds_graph
+MATCH p=(a:Person {id: $x})-[:KNOWS]->(b:Person)-[:KNOWS*1..3]-(c:Person) WHERE all(n IN nodes(p) WHERE n.gender = 'male') AND length(p) <= 3 RETURN c.id
+[graph] columns=(c.id)
+  MATCH (a:Person) WHERE (a.gender = $p0) AND (a.id = $p1) MATCH (a)-[_r0:KNOWS]->(b:Person) WHERE (b.gender = $p2) MATCH _sp_r1 = (b)-[:KNOWS*1..2]-(c:Person) WHERE all(n IN nodes(_sp_r1)[1..-1] WHERE (n.gender = $p3)) AND (c.gender = $p4) AND NOT _r0 IN relationships(_sp_r1) WITH c.id AS v0 RETURN v0 AS c0
+  params: p0="male", p1=1(int64), p2="male", p3="male", p4="male"
+
+### path_preds_document
+MATCH p=(a:Person {id: $x})-[:KNOWS]->(b:Person)-[:KNOWS*1..3]-(c:Person) WHERE all(n IN nodes(p) WHERE n.gender = 'male') AND length(p) <= 3 RETURN c.id
+[document] columns=(a)
+  db.Person.aggregate([
+    {$match: {gender: {$eq: "male"}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[graph] columns=(a, _r0, b) in=(a)
+  MATCH (a:Entity) WHERE a.uuid IN $in AND (a.id = $p0) MATCH (a)-[_r0:KNOWS]->(b:Person) RETURN a.uuid AS c0, _r0.uuid AS c1, b.uuid AS c2
+  params: p0=1(int64)
+[document] columns=(b) in=(b)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}, gender: {$eq: "male"}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[graph] columns=(b, _seg__r1, c) in=(b)
+  MATCH (b:Entity) WHERE b.uuid IN $in MATCH _sp_r1 = (b)-[:KNOWS*1..2]-(c:Person) RETURN b.uuid AS c0, {nodes: [_x IN nodes(_sp_r1)[1..-1] | _x.uuid], rels: [_x IN relationships(_sp_r1) | _x.uuid]} AS c1, c.uuid AS c2
+(list) [document] columns=(_e, _e.gender) in=(_e)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$gender"}}
+  ])
+[coordinator] Filter(all(n IN nodes(_seg__r1) WHERE (n.gender = "male")))
+[document] columns=(c) in=(c)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}, gender: {$eq: "male"}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[coordinator] RelUniqueFilter[_r0, _seg__r1]
+[graph] columns=(c, c.id) in=(c)
+  MATCH (c:Entity) WHERE c.uuid IN $in RETURN c.uuid AS c0, c.id AS c1
+[coordinator] Projection[c.id]
+
+### path_any_graph
+MATCH p=(a:Person {id: $x})-[:KNOWS*1..2]-(c:Person) WHERE any(n IN nodes(p) WHERE n.gender = 'female') RETURN c.id, length(p) AS len
+[graph] columns=(c.id, len)
+  MATCH (a:Person) WHERE (a.id = $p0) MATCH _sp_r0 = (a)-[:KNOWS*1..2]-(c:Person) WHERE any(n IN [a] + nodes(_sp_r0)[1..-1] + [c] WHERE (n.gender = $p1)) WITH c.id AS v0, size(relationships(_sp_r0)) AS v1 RETURN v0 AS c0, v1 AS c1
+  params: p0=1(int64), p1="female"
+
+### path_any_document
+MATCH p=(a:Person {id: $x})-[:KNOWS*1..2]-(c:Person) WHERE any(n IN nodes(p) WHERE n.gender = 'female') RETURN c.id
+[graph] columns=(c, p)
+  MATCH (a:Person) WHERE (a.id = $p0) MATCH _sp_r0 = (a)-[:KNOWS*1..2]-(c:Person) RETURN c.uuid AS c0, {nodes: [_x IN [a] + nodes(_sp_r0)[1..-1] + [c] | _x.uuid], rels: [_x IN relationships(_sp_r0) | _x.uuid]} AS c1
+  params: p0=1(int64)
+(list) [document] columns=(_e, _e.gender) in=(_e)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$gender"}}
+  ])
+[coordinator] Filter(any(n IN nodes(p) WHERE (n.gender = "female")))
+[graph] columns=(c, c.id) in=(c)
+  MATCH (c:Entity) WHERE c.uuid IN $in RETURN c.uuid AS c0, c.id AS c1
+[coordinator] Projection[c.id]
+
+### with_stage_graph
+MATCH (p:Person)-[:KNOWS]->(f:Person) WITH p, count(f) AS deg WHERE deg > 10 RETURN p.firstName, deg ORDER BY deg DESC LIMIT 3
+[graph] columns=(p.firstName, deg)
+  MATCH (p:Person) MATCH (p)-[_r0:KNOWS]->(f:Person) WITH p AS p, count(f) AS v1 WHERE (v1 > $p0) WITH v1 AS v2, p AS p WITH * ORDER BY v2 DESC LIMIT 3 WITH p.firstName AS v4, v2 AS v5 RETURN v4 AS c0, v5 AS c1
+  params: p0=10(int64)
+
+### with_distinct_order
+MATCH (p:Person {id: $x})-[:KNOWS]-(f:Person) WITH DISTINCT f ORDER BY f.id ASC LIMIT 3 MATCH (f)-[:KNOWS]-(g:Person) RETURN g.id
+[graph] columns=(g.id)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)-[_r0:KNOWS]-(f:Person) WITH f AS f WITH DISTINCT f AS f WITH * ORDER BY f.id LIMIT 3 WITH f AS f MATCH (f)-[_r1:KNOWS]-(g:Person) WITH g.id AS v3 RETURN v3 AS c0
+  params: p0=1(int64)
+
+### kvs_scan_index_eq
+MATCH (p:Person) WHERE p.gender = 'male' RETURN p.firstName
+[kvs] columns=(p.firstName)
+  KVS Person index gender="male" get=(gender, firstName) filter (p.gender = "male")
+[coordinator] Projection[p.firstName]
+

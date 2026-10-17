@@ -231,3 +231,26 @@ func CanAbsorb(k store.Kind, op logical.Node) bool {
 	}
 	return false
 }
+
+// TypeOf はプロパティの型名（mapping の type。不明なら空）。ネイティブクエリのリテラルの型付けに使う。
+func (c *Catalog) TypeOf(kind logical.ObjKind, labels []string, prop string) string {
+	if c.md == nil {
+		return ""
+	}
+	for _, l := range labels {
+		if kind == logical.RelObj {
+			if r, ok := c.md.Relationships[l]; ok {
+				if p, ok := r.Properties[prop]; ok {
+					return p.Type
+				}
+			}
+			continue
+		}
+		if e, ok := c.md.Entities[l]; ok {
+			if p, ok := e.Properties[prop]; ok {
+				return p.Type
+			}
+		}
+	}
+	return ""
+}
