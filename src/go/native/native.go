@@ -27,9 +27,11 @@ type TypeFn func(kind logical.ObjKind, labels []string, prop string) string
 
 // Query は 1 本のネイティブクエリ。
 type Query struct {
-	Store   store.Kind
-	Columns []string // 結果の ci に対応する計画上の列キー
-	InKeys  []string // 境界から受け取る識別列（空なら葉）
+	Store    store.Kind
+	Columns  []string  // 結果の ci に対応する計画上の列キー
+	ColTypes []string  // 各列の型名（プロパティ列のみ。結果の値の復元に使う）
+	ColKinds []ColKind // 各列の種類（識別列 / 値列 / 区間・パス列）
+	InKeys   []string  // 境界から受け取る識別列（空なら葉）
 
 	// graph（Cypher）・relational（SQL）・columnar（CQL）
 	Text   string
@@ -44,6 +46,15 @@ type Query struct {
 	// kvs
 	KVS *KVSQuery
 }
+
+// ColKind は結果の列の種類。識別列は uuid 文字列、区間・パス列は {nodes, rels} の uuid リストで返る。
+type ColKind int
+
+const (
+	KindValue ColKind = iota
+	KindIdent
+	KindList
+)
 
 // Stage は Mongo の集約パイプラインの 1 段（演算子 → 中身）。表示用に順序付きの組で持つ。
 type Stage struct {
@@ -86,19 +97,36 @@ func unsupported(format string, args ...any) error {
 
 // Lower は StoreQuery をネイティブクエリにする。
 func Lower(q *physical.StoreQuery, types TypeFn) (*Query, error) {
+	var (
+		out *Query
+		err error
+	)
 	switch q.Store {
 	case store.Graph:
-		return lowerCypher(q, types)
+		out, err = lowerCypher(q, types)
 	case store.Relational:
-		return lowerSQL(q, types, dialectMySQL)
+		out, err = lowerSQL(q, types, dialectMySQL)
 	case store.Columnar:
-		return lowerSQL(q, types, dialectCQL)
+		out, err = lowerSQL(q, types, dialectCQL)
 	case store.Document:
-		return lowerMongo(q, types)
+		out, err = lowerMongo(q, types)
 	case store.Kvs:
-		return lowerKVS(q, types)
+		out, err = lowerKVS(q, types)
+	default:
+		return nil, unsupported("store %s", q.Store)
 	}
-	return nil, unsupported("store %s", q.Store)
+	if err != nil {
+		return nil, err
+	}
+	own := owners(q.Ops)
+	out.ColTypes = make([]string, len(out.Columns))
+	for i, c := range out.Columns {
+		out.ColTypes[i] = colType(c, own, types)
+	}
+	if len(out.ColKinds) != len(out.Columns) {
+		return nil, unsupported("column kinds not set for %s query", q.Store)
+	}
+	return out, nil
 }
 
 // LowerList は ListFetch を、要素のラベルごとの値取得クエリにする（結果の列は c0=uuid, c1=値）。

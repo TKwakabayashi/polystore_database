@@ -50,7 +50,11 @@ func lowerMongo(q *physical.StoreQuery, types TypeFn) (*Query, error) {
 	}
 
 	out := Doc{{Key: "_id", Val: 0}}
+	kinds := make([]ColKind, len(q.Outputs))
 	for i, col := range q.Outputs {
+		if col == b.alias {
+			kinds[i] = KindIdent
+		}
 		f, ok := b.fields[col]
 		if !ok {
 			return nil, unsupported("output column %s not produced", col)
@@ -59,7 +63,7 @@ func lowerMongo(q *physical.StoreQuery, types TypeFn) (*Query, error) {
 	}
 	pipeline := append([]Stage{{Op: "$match", Body: b.match}}, b.stages...)
 	pipeline = append(pipeline, Stage{Op: "$project", Body: out})
-	return &Query{Store: store.Document, Columns: q.Outputs, InKeys: q.Keys, Collection: b.coll, Pipeline: pipeline, InArg: -1}, nil
+	return &Query{Store: store.Document, Columns: q.Outputs, ColKinds: kinds, InKeys: q.Keys, Collection: b.coll, Pipeline: pipeline, InArg: -1}, nil
 }
 
 func (b *mongoBuilder) setColl(alias string, labels []string) error {
@@ -141,14 +145,15 @@ func (b *mongoBuilder) op(n logical.Node) error {
 		}
 		b.visible = appendNew(b.visible, x.Key())
 	case *logical.Filter:
-		if len(b.stages) > 0 {
-			return unsupported("filter after projection in a document query")
-		}
 		d, err := b.cond(x.Pred)
 		if err != nil {
 			return err
 		}
-		b.match = append(b.match, d...)
+		if len(b.stages) > 0 {
+			b.stages = append(b.stages, Stage{Op: "$match", Body: d}) // 射影・集約の後の条件
+		} else {
+			b.match = append(b.match, d...)
+		}
 	case *logical.Projection:
 		items := map[string]string{}
 		var order []string

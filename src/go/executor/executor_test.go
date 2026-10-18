@@ -1,0 +1,383 @@
+package executor
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"sort"
+	"strings"
+	"testing"
+	"time"
+
+	"polystore_database/src/go/id"
+	"polystore_database/src/go/logical"
+	"polystore_database/src/go/schema"
+)
+
+// ================================
+// 式の評価（Cypher の null 意味論）
+// ================================
+
+func col(k string) logical.Expr { return &logical.Column{Key: k} }
+func lit(v any) logical.Expr    { return &logical.Lit{Val: v} }
+func bin(op string, l, r logical.Expr) logical.Expr {
+	return &logical.Bin{Op: op, L: l, R: r}
+}
+
+func TestEvalNullSemantics(t *testing.T) {
+	r := Row{"a": int64(1), "n": nil, "f": 1.0, "s": "x"}
+	cases := []struct {
+		e    logical.Expr
+		want any
+	}{
+		{bin("=", col("a"), col("f")), true},
+		{bin("=", col("a"), col("n")), nil},
+		{bin("<>", col("a"), col("s")), true},
+		{bin("<", col("a"), col("s")), nil},
+		{bin("AND", lit(false), col("n")), false},
+		{bin("AND", lit(true), col("n")), nil},
+		{bin("OR", lit(true), col("n")), true},
+		{bin("OR", lit(false), col("n")), nil},
+		{bin("IN", col("a"), &logical.List{Elems: []logical.Expr{lit(int64(2)), lit(nil)}}), nil},
+		{bin("IN", col("a"), &logical.List{Elems: []logical.Expr{lit(int64(1)), lit(nil)}}), true},
+		{&logical.Un{Op: "IS NULL", X: col("n")}, true},
+		{&logical.Un{Op: "NOT", X: col("n")}, nil},
+		{bin("+", col("a"), lit(int64(2))), int64(3)},
+		{bin("/", col("f"), lit(int64(4))), 0.25},
+		{&logical.Call{Fn: "coalesce", Args: []logical.Expr{col("n"), col("s")}}, "x"},
+		{&logical.Case{Whens: []logical.CaseWhen{{When: col("n"), Then: lit(int64(1))}}, Else: lit(int64(0))}, int64(0)},
+	}
+	for _, c := range cases {
+		got, err := Eval(c.e, r)
+		if err != nil {
+			t.Fatalf("%s: %v", c.e, err)
+		}
+		if got != c.want {
+			t.Errorf("%s = %v (%T), want %v", c.e, got, got, c.want)
+		}
+	}
+}
+
+func TestEvalQuantifiers(t *testing.T) {
+	r := Row{
+		"p":         &ListVal{Nodes: []id.UUID{"n1", "n2", "n3"}},
+		"p.nodes.g": []any{"m", nil, "f"},
+		"q":         &ListVal{Nodes: []id.UUID{"n1", "n3"}},
+		"q.nodes.g": []any{"m", "f"},
+	}
+	q := func(kind, src string) logical.Expr {
+		return &logical.Quant{Kind: kind, Var: "x",
+			List: &logical.Call{Fn: "nodes", Args: []logical.Expr{col(src)}},
+			Pred: bin("=", &logical.ElemProp{Var: "x", Prop: "g"}, lit("m"))}
+	}
+	cases := []struct {
+		kind, src string
+		want      any
+	}{
+		{"any", "p", true}, {"all", "p", false}, {"none", "p", false}, {"single", "p", nil},
+		{"single", "q", true}, {"all", "q", false},
+	}
+	for _, c := range cases {
+		got, err := Eval(q(c.kind, c.src), r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != c.want {
+			t.Errorf("%s over %s = %v, want %v", c.kind, c.src, got, c.want)
+		}
+	}
+}
+
+// ================================
+// コーディネータの演算子
+// ================================
+
+func TestAggregateSemantics(t *testing.T) {
+	rows := []Row{
+		{"k": "a", "v": int64(1)}, {"k": "a", "v": nil}, {"k": "a", "v": int64(1)},
+		{"k": "b", "v": int64(4)},
+	}
+	agg := &logical.Aggregation{
+		Keys: []logical.ProjItem{{Name: "k", Expr: col("k")}},
+		Aggs: []logical.AggItem{
+			{Name: "all", Fn: "count"},
+			{Name: "cnt", Fn: "count", Arg: col("v")},
+			{Name: "dc", Fn: "count", Arg: col("v"), Distinct: true},
+			{Name: "sum", Fn: "sum", Arg: col("v")},
+			{Name: "avg", Fn: "avg", Arg: col("v")},
+			{Name: "max", Fn: "max", Arg: col("v")},
+		},
+	}
+	out, err := runCoord(agg, [][]Row{rows})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]Row{
+		"a": {"k": "a", "all": int64(3), "cnt": int64(2), "dc": int64(1), "sum": int64(2), "avg": 1.0, "max": int64(1)},
+		"b": {"k": "b", "all": int64(1), "cnt": int64(1), "dc": int64(1), "sum": int64(4), "avg": 4.0, "max": int64(4)},
+	}
+	for _, r := range out {
+		w := want[r["k"].(string)]
+		for k, v := range w {
+			if r[k] != v {
+				t.Errorf("group %v: %s = %v, want %v", r["k"], k, r[k], v)
+			}
+		}
+	}
+	// キー無しの集約は空入力でも 1 行（count = 0、avg/max = null）。
+	empty, err := runCoord(&logical.Aggregation{Aggs: agg.Aggs}, [][]Row{nil})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(empty) != 1 || empty[0]["all"] != int64(0) || empty[0]["avg"] != nil || empty[0]["sum"] != int64(0) {
+		t.Errorf("empty aggregation: %v", empty)
+	}
+}
+
+func TestSortLimitDistinct(t *testing.T) {
+	rows := []Row{{"v": int64(2)}, {"v": nil}, {"v": int64(1)}, {"v": int64(2)}}
+	asc, _ := runCoord(&logical.Sort{Keys: []logical.SortKey{{Expr: col("v")}}}, [][]Row{rows})
+	desc, _ := runCoord(&logical.Sort{Keys: []logical.SortKey{{Expr: col("v"), Desc: true}}}, [][]Row{rows})
+	vals := func(rs []Row) string {
+		var parts []string
+		for _, r := range rs {
+			parts = append(parts, fmt.Sprint(r["v"]))
+		}
+		return strings.Join(parts, ",")
+	}
+	if vals(asc) != "1,2,2,<nil>" || vals(desc) != "<nil>,2,2,1" {
+		t.Errorf("sort: asc=%s desc=%s", vals(asc), vals(desc))
+	}
+	lim, _ := runCoord(&logical.Limit{Skip: 1, Count: 2}, [][]Row{asc})
+	if vals(lim) != "2,2" {
+		t.Errorf("limit: %s", vals(lim))
+	}
+	d, _ := runCoord(&logical.Distinct{}, [][]Row{asc})
+	if vals(d) != "1,2,<nil>" {
+		t.Errorf("distinct: %s", vals(d))
+	}
+}
+
+func TestHashJoinAndRelUnique(t *testing.T) {
+	l := []Row{{"a": id.UUID("1")}, {"a": id.UUID("2")}}
+	r := []Row{{"a": id.UUID("1"), "b": id.UUID("x")}, {"a": id.UUID("1"), "b": id.UUID("y")}}
+	if got := hashJoin(l, r, []string{"a"}); len(got) != 2 {
+		t.Errorf("keyed join: %d rows", len(got))
+	}
+	if got := hashJoin(l, r, nil); len(got) != 4 {
+		t.Errorf("cartesian: %d rows", len(got))
+	}
+	rows := []Row{
+		{"r1": id.UUID("e1"), "r2": id.UUID("e2"), "_seg_s": &ListVal{Rels: []id.UUID{"e3"}}},
+		{"r1": id.UUID("e1"), "r2": id.UUID("e2"), "_seg_s": &ListVal{Rels: []id.UUID{"e1"}}},
+		{"r1": id.UUID("e1"), "r2": id.UUID("e1"), "_seg_s": &ListVal{}},
+	}
+	got, _ := runCoord(&logical.RelUniqueFilter{Rels: []string{"r1", "r2"}, Segs: []string{"s"}}, [][]Row{rows})
+	if len(got) != 1 {
+		t.Errorf("rel uniqueness kept %d rows, want 1", len(got))
+	}
+}
+
+// ================================
+// 配置によらず同じ結果になること（メモリ上のグラフ）
+// ================================
+
+// socialGraph は 6 人の KNOWS グラフ（三角形 p1-p2-p3 を含む）と所在地。
+func socialGraph() *memGraph {
+	g := newMemGraph()
+	d := func(s string) time.Time { t, _ := time.Parse("2006-01-02", s); return t }
+	p := []id.UUID{
+		g.node("p1", "Person", map[string]any{"id": 1, "firstName": "Ann", "lastName": "Lee", "gender": "female", "birthday": d("1990-01-01")}),
+		g.node("p2", "Person", map[string]any{"id": 2, "firstName": "Bob", "lastName": "Kim", "gender": "male", "birthday": d("1985-05-05")}),
+		g.node("p3", "Person", map[string]any{"id": 3, "firstName": "Cid", "lastName": "Lee", "gender": "male"}),
+		g.node("p4", "Person", map[string]any{"id": 4, "firstName": "Dee", "lastName": "Ono", "gender": "female", "birthday": d("2000-02-02")}),
+		g.node("p5", "Person", map[string]any{"id": 5, "firstName": "Eve", "lastName": "Kim", "gender": "male"}),
+		g.node("p6", "Person", map[string]any{"id": 6, "firstName": "Fay", "gender": "female"}),
+	}
+	city := g.node("c1", "Place", map[string]any{"id": 100, "name": "Tokyo", "type": "City"})
+	city2 := g.node("c2", "Place", map[string]any{"id": 101, "name": "Kyoto", "type": "City"})
+	knows := [][3]any{{0, 1, 2010}, {1, 2, 2011}, {2, 0, 2012}, {1, 3, 2009}, {3, 4, 2013}, {4, 5, 2014}, {0, 4, 2015}}
+	for i, k := range knows {
+		g.rel(fmt.Sprintf("k%d", i), "KNOWS", p[k[0].(int)], p[k[1].(int)], map[string]any{"creationDate": d(fmt.Sprintf("%d-01-01", k[2].(int)))})
+	}
+	for i, pi := range []int{0, 1, 2, 3} {
+		c := city
+		if i%2 == 1 {
+			c = city2
+		}
+		g.rel(fmt.Sprintf("l%d", i), "IS_LOCATED_IN", p[pi], c, nil)
+	}
+	return g
+}
+
+func loadMapping(t *testing.T) *schema.MappingDictionary {
+	t.Helper()
+	md, err := schema.LoadMappingDictionary("../../../catalog/mapping.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return md
+}
+
+func cloneMD(t *testing.T, md *schema.MappingDictionary) *schema.MappingDictionary {
+	b, err := json.Marshal(md)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out schema.MappingDictionary
+	if err := json.Unmarshal(b, &out); err != nil {
+		t.Fatal(err)
+	}
+	return &out
+}
+
+func placementsFor(t *testing.T) map[string]*schema.MappingDictionary {
+	base := loadMapping(t)
+	out := map[string]*schema.MappingDictionary{"graph": base}
+	mixed := cloneMD(t, base)
+	pp := mixed.Entities["Person"].Properties
+	pp["firstName"].Databases = []string{"relational"}
+	pp["lastName"].Databases = []string{"relational"}
+	pp["gender"].Databases = []string{"document"}
+	pp["birthday"].Databases = []string{"columnar"}
+	mixed.Relationships["KNOWS"].Properties["creationDate"].Databases = []string{"relational"}
+	out["mixed"] = mixed
+	for _, k := range []string{"relational", "document", "columnar", "kvs"} {
+		md := cloneMD(t, base)
+		for _, p := range md.Entities["Person"].Properties {
+			p.Databases = []string{k}
+		}
+		for _, p := range md.Entities["Place"].Properties {
+			p.Databases = []string{k}
+		}
+		out["all-"+k] = md
+	}
+	return out
+}
+
+func canon(rows []map[string]any) []string {
+	out := make([]string, len(rows))
+	for i, r := range rows {
+		keys := make([]string, 0, len(r))
+		for k := range r {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		var b strings.Builder
+		for _, k := range keys {
+			fmt.Fprintf(&b, "%s=%v;", k, r[k])
+		}
+		out[i] = b.String()
+	}
+	sort.Strings(out)
+	return out
+}
+
+func runMem(t *testing.T, g *memGraph, md *schema.MappingDictionary, q string) []map[string]any {
+	t.Helper()
+	p, cat, err := Plan(q, map[string]string{"x": "1"}, md)
+	if err != nil {
+		t.Fatalf("Plan(%q): %v", q, err)
+	}
+	ex := New(context.Background(), &memBackend{g: g}, cat.TypeOf)
+	rows, err := ex.Execute(p)
+	if err != nil {
+		t.Fatalf("Execute(%q): %v", q, err)
+	}
+	return OutputRows(p, rows)
+}
+
+var equivalenceQueries = []struct {
+	name string
+	q    string
+	want int // 期待行数（-1 は確認しない）
+}{
+	{"chain_filter", "MATCH (p:Person {id: $x})-[:KNOWS]-(f:Person) WHERE f.gender = 'male' RETURN f.firstName, f.id", 3},
+	{"two_hops_values", "MATCH (p:Person {id: $x})-[:KNOWS]->(f:Person)-[:KNOWS]->(g:Person) RETURN f.firstName, g.firstName, g.lastName", 3},
+	{"sort_limit", "MATCH (p:Person) RETURN p.firstName, p.lastName ORDER BY p.id DESC LIMIT 3", 3},
+	{"order_by_value_desc", "MATCH (p:Person)-[:KNOWS]->(f:Person) RETURN f.firstName, f.birthday ORDER BY f.birthday DESC, f.firstName ASC", 7},
+	{"aggregate_group", "MATCH (p:Person)-[:KNOWS]-(f:Person) RETURN p.lastName, count(*) AS n, count(DISTINCT f.gender) AS g ORDER BY n DESC, p.lastName ASC", -1},
+	{"aggregate_no_keys", "MATCH (p:Person)-[k:KNOWS]->(f:Person) WHERE k.creationDate >= '2012-01-01T00:00:00Z' RETURN count(*) AS n, min(f.id) AS lo, max(f.id) AS hi", 1},
+	{"is_null", "MATCH (p:Person) WHERE p.birthday IS NULL RETURN p.id", 3},
+	{"in_list", "MATCH (p:Person) WHERE p.firstName IN ['Ann', 'Eve', 'Zed'] RETURN p.id", 2},
+	{"cross_alias", "MATCH (a:Person)-[:KNOWS]-(b:Person) WHERE a.lastName = b.lastName RETURN a.id, b.id", 2},
+	{"rel_property_filter", "MATCH (a:Person {id: $x})-[k:KNOWS]-(b:Person) WHERE k.creationDate < '2013-01-01T00:00:00Z' RETURN b.id, k.creationDate", 2},
+	{"cycle", "MATCH (a:Person {id: $x})-[:KNOWS]->(b:Person)-[:KNOWS]->(c:Person)-[:KNOWS]->(a) RETURN b.id, c.id", 1},
+	{"rel_uniqueness", "MATCH (a:Person {id: $x})-[:KNOWS]-(b:Person)-[:KNOWS]-(c:Person) RETURN c.id", -1},
+	{"reverse_connection", "MATCH (a:Person {id: $x}), (b:Person)-[:KNOWS]->(a) RETURN b.firstName", 1},
+	{"cartesian", "MATCH (a:Person {id: $x}), (c:Place {name: 'Kyoto'}) RETURN a.firstName, c.name", 1},
+	{"multi_pattern", "MATCH (p:Person)-[:KNOWS]->(f:Person), (f)-[:IS_LOCATED_IN]->(c:Place) RETURN f.firstName, c.name", -1},
+	{"var_length", "MATCH (p:Person {id: $x})-[:KNOWS*1..2]->(f:Person) RETURN f.id", -1},
+	{"var_length_zero", "MATCH (p:Person {id: $x})-[:KNOWS*0..1]->(f:Person) RETURN f.id", 3},
+	{"path_all_nodes", "MATCH p=(a:Person {id: $x})-[:KNOWS*1..3]-(c:Person) WHERE all(n IN nodes(p) WHERE n.gender = 'female') RETURN c.id", -1},
+	{"path_any_nodes", "MATCH p=(a:Person {id: $x})-[:KNOWS*1..2]-(c:Person) WHERE any(n IN nodes(p) WHERE n.lastName = 'Kim') RETURN c.id, length(p) AS len", -1},
+	{"path_rels", "MATCH p=(a:Person {id: $x})-[:KNOWS*1..3]->(c:Person) WHERE all(r IN relationships(p) WHERE r.creationDate > '2009-06-01T00:00:00Z') AND length(p) >= 2 RETURN c.id", -1},
+	{"path_fixed_and_var", "MATCH p=(a:Person {id: $x})-[:KNOWS]->(b:Person)-[:KNOWS*1..2]->(c:Person) WHERE length(p) <= 2 AND none(n IN nodes(p) WHERE n.firstName = 'Cid') RETURN c.id", -1},
+	{"with_aggregate_rematch", "MATCH (p:Person)-[:KNOWS]-(f:Person) WITH p, count(f) AS deg WHERE deg >= 3 MATCH (p)-[:IS_LOCATED_IN]->(c:Place) RETURN p.firstName, deg, c.name ORDER BY deg DESC", -1},
+	{"with_distinct_limit", "MATCH (p:Person {id: $x})-[:KNOWS]-(f:Person) WITH DISTINCT f ORDER BY f.id ASC LIMIT 2 MATCH (f)-[:KNOWS]-(g:Person) RETURN f.id, g.id", -1},
+	{"with_values", "MATCH (p:Person) WITH p.lastName AS ln, count(*) AS c WHERE c > 1 RETURN ln, c ORDER BY ln ASC", 2},
+	{"case_expr", "MATCH (p:Person) RETURN p.id, CASE WHEN p.gender = 'male' THEN 1 ELSE 0 END AS isMale ORDER BY p.id ASC", 6},
+}
+
+func TestPlacementEquivalence(t *testing.T) {
+	g := socialGraph()
+	pls := placementsFor(t)
+	names := make([]string, 0, len(pls))
+	for n := range pls {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	for _, c := range equivalenceQueries {
+		t.Run(c.name, func(t *testing.T) {
+			ref := canon(runMem(t, g, pls["graph"], c.q))
+			if c.want >= 0 && len(ref) != c.want {
+				t.Errorf("graph: %d rows, want %d\n%s", len(ref), c.want, strings.Join(ref, "\n"))
+			}
+			for _, n := range names {
+				if n == "graph" {
+					continue
+				}
+				got := canon(runMem(t, g, pls[n], c.q))
+				if strings.Join(got, "\n") != strings.Join(ref, "\n") {
+					t.Errorf("%s differs from graph\n--- graph ---\n%s\n--- %s ---\n%s", n, strings.Join(ref, "\n"), n, strings.Join(got, "\n"))
+				}
+			}
+		})
+	}
+}
+
+// 手で確かめた結果（意味論の取り違えを検出する）。
+func TestHandCheckedResults(t *testing.T) {
+	g := socialGraph()
+	md := loadMapping(t)
+	cases := []struct {
+		q    string
+		want []string
+	}{
+		// p1 の友人（向き無し）は p2, p3, p5 で、いずれも male
+		{"MATCH (p:Person {id: $x})-[:KNOWS]-(f:Person) WHERE f.gender = 'male' RETURN f.id",
+			[]string{"f.id=2;", "f.id=3;", "f.id=5;"}},
+		// 三角形 p1→p2→p3→p1
+		{"MATCH (a:Person {id: $x})-[:KNOWS]->(b:Person)-[:KNOWS]->(c:Person)-[:KNOWS]->(a) RETURN b.id, c.id",
+			[]string{"b.id=2;c.id=3;"}},
+		// 関係一意性: p1-p2-? で同じ辺を戻る p1 は出ない（p2 経由: p3, p4 / p3 経由: p2 / p5 経由: p4, p6）
+		{"MATCH (a:Person {id: $x})-[:KNOWS]-(b:Person)-[:KNOWS]-(c:Person) RETURN c.id",
+			[]string{"c.id=2;", "c.id=3;", "c.id=4;", "c.id=4;", "c.id=6;"}},
+		// 0 ホップは自分自身を含む
+		{"MATCH (p:Person {id: $x})-[:KNOWS*0..1]->(f:Person) RETURN f.id",
+			[]string{"f.id=1;", "f.id=2;", "f.id=5;"}},
+		// 経路ごとに 1 行（p1→p2→p4 と p1→p5→p6 … 2 ホップの到達先）
+		{"MATCH (p:Person {id: $x})-[:KNOWS*2]->(f:Person) RETURN f.id",
+			[]string{"f.id=3;", "f.id=4;", "f.id=6;"}},
+		// 集約の後の ORDER BY / LIMIT（WITH の途中）
+		{"MATCH (p:Person)-[:KNOWS]-(f:Person) WITH p, count(f) AS deg ORDER BY deg DESC, p.id ASC LIMIT 2 RETURN p.id, deg",
+			[]string{"deg=3;p.id=1;", "deg=3;p.id=2;"}},
+	}
+	for _, c := range cases {
+		got := canon(runMem(t, g, md, c.q))
+		sort.Strings(c.want)
+		if strings.Join(got, "|") != strings.Join(c.want, "|") {
+			t.Errorf("%s\n got: %v\nwant: %v", c.q, got, c.want)
+		}
+	}
+}

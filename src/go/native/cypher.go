@@ -76,12 +76,19 @@ func lowerCypher(q *physical.StoreQuery, types TypeFn) (*Query, error) {
 		}
 	}
 	rets := make([]string, len(q.Outputs))
+	kinds := make([]ColKind, len(q.Outputs))
 	for i, col := range q.Outputs {
 		e, err := b.output(col)
 		if err != nil {
 			return nil, err
 		}
 		rets[i] = e + " AS " + colName(i)
+		switch b.cols[col].kind {
+		case cyIdent:
+			kinds[i] = KindIdent
+		case cySeg, cyPath:
+			kinds[i] = KindList
+		}
 	}
 	var parts []string
 	for _, c := range b.clauses {
@@ -100,7 +107,7 @@ func lowerCypher(q *physical.StoreQuery, types TypeFn) (*Query, error) {
 	}
 	parts = append(parts, ret)
 
-	out := &Query{Store: store.Graph, Columns: q.Outputs, InKeys: q.Keys, Text: strings.Join(parts, " "), InArg: -1}
+	out := &Query{Store: store.Graph, Columns: q.Outputs, ColKinds: kinds, InKeys: q.Keys, Text: strings.Join(parts, " "), InArg: -1}
 	if len(b.params) > 0 {
 		out.Params = b.params
 	}

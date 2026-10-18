@@ -55,12 +55,17 @@ func lowerKVS(q *physical.StoreQuery, types TypeFn) (*Query, error) {
 			return nil, unsupported("%T in a kvs query", op)
 		}
 	}
-	for _, col := range q.Outputs {
-		if col != k.Alias && !contains(k.Props, propOf(col)) {
+	kinds := make([]ColKind, len(q.Outputs))
+	for i, col := range q.Outputs {
+		if col == k.Alias {
+			kinds[i] = KindIdent
+			continue
+		}
+		if !contains(k.Props, propOf(col)) {
 			return nil, unsupported("kvs output %s not fetched", col)
 		}
 	}
-	return &Query{Store: store.Kvs, Columns: q.Outputs, InKeys: q.Keys, KVS: k, InArg: -1}, nil
+	return &Query{Store: store.Kvs, Columns: q.Outputs, ColKinds: kinds, InKeys: q.Keys, KVS: k, InArg: -1}, nil
 }
 
 // primaryEq は `a.p = リテラル` を逆引きインデックスの条件として取り出す。

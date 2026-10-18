@@ -37,6 +37,7 @@ type sqlBuilder struct {
 	inArg    int
 	group    []string
 	grouped  bool
+	having   []string
 	order    []string
 	limit    int
 	offset   int
@@ -61,12 +62,16 @@ func lowerSQL(q *physical.StoreQuery, types TypeFn, d dialect) (*Query, error) {
 	}
 
 	sel := make([]string, len(q.Outputs))
+	kinds := make([]ColKind, len(q.Outputs))
 	for i, col := range q.Outputs {
 		e, ok := b.cols[col]
 		if !ok {
 			return nil, unsupported("output column %s not produced", col)
 		}
 		sel[i] = e + " AS " + colName(i)
+		if col == b.alias {
+			kinds[i] = KindIdent
+		}
 	}
 	head := "SELECT "
 	if b.distinct {
@@ -78,6 +83,12 @@ func lowerSQL(q *physical.StoreQuery, types TypeFn, d dialect) (*Query, error) {
 	}
 	if b.grouped && len(b.group) > 0 {
 		text += " GROUP BY " + strings.Join(b.group, ", ")
+	}
+	if len(b.having) > 0 {
+		if d == dialectCQL {
+			return nil, unsupported("HAVING in CQL")
+		}
+		text += " HAVING " + strings.Join(b.having, " AND ")
 	}
 	if len(b.order) > 0 {
 		text += " ORDER BY " + strings.Join(b.order, ", ")
@@ -91,7 +102,7 @@ func lowerSQL(q *physical.StoreQuery, types TypeFn, d dialect) (*Query, error) {
 	if d == dialectCQL && (len(b.where) > 1 || (len(b.where) == 1 && b.inArg < 0)) {
 		text += " ALLOW FILTERING"
 	}
-	return &Query{Store: q.Store, Columns: q.Outputs, InKeys: q.Keys, Text: text, Args: b.args, InArg: b.inArg}, nil
+	return &Query{Store: q.Store, Columns: q.Outputs, ColKinds: kinds, InKeys: q.Keys, Text: text, Args: b.args, InArg: b.inArg}, nil
 }
 
 func (b *sqlBuilder) setTable(alias string, labels []string) error {
@@ -148,7 +159,11 @@ func (b *sqlBuilder) op(n logical.Node) error {
 		if err != nil {
 			return err
 		}
-		b.where = append(b.where, e)
+		if b.grouped {
+			b.having = append(b.having, e) // 集約の後の条件
+		} else {
+			b.where = append(b.where, e)
+		}
 	case *logical.Projection:
 		cols := map[string]string{}
 		var vis []string

@@ -616,8 +616,8 @@ StoreQuery[graph] out=(person.id, person.firstName, person.lastName, threadCount
   :           GetProperty(person.lastName) [node:Person]
   :             GetProperty(person.firstName) [node:Person]
   :               GetProperty(person.id) [node:Person]
-  :                 Filter((reply.creationDate <= "2013-01-01T00:00:00.000Z"))
-  :                   Filter((reply.creationDate >= "2010-01-01T00:00:00.000Z"))
+  :                 Filter((reply.creationDate <= 2013-01-01 00:00:00 +0000 UTC))
+  :                   Filter((reply.creationDate >= 2010-01-01 00:00:00 +0000 UTC))
   :                     GetProperty(reply.creationDate) [node:Message]
   :                       VarLengthExpand((post)<-[_r1:REPLY_OF*0..]-(reply:Message))
   :                         Expand((post)-[_r0:HAS_CREATOR]->(person:Person))
@@ -642,8 +642,8 @@ Coord Limit[100]
             :     GetProperty(person.id) [node:Person]
             :       Argument(person)
             StoreQuery[relational] in=(reply) out=(reply)
-              : Filter((reply.creationDate <= "2013-01-01T00:00:00.000Z"))
-              :   Filter((reply.creationDate >= "2010-01-01T00:00:00.000Z"))
+              : Filter((reply.creationDate <= 2013-01-01 00:00:00 +0000 UTC))
+              :   Filter((reply.creationDate >= 2010-01-01 00:00:00 +0000 UTC))
               :     GetProperty(reply.creationDate) [node:Message]
               :       Argument(reply)
               StoreQuery[graph] out=(person, post, reply)
@@ -670,8 +670,8 @@ Coord Limit[100]
             :     GetProperty(person.id) [node:Person]
             :       Argument(person)
             StoreQuery[document] in=(reply) out=(reply)
-              : Filter((reply.creationDate <= "2013-01-01T00:00:00.000Z"))
-              :   Filter((reply.creationDate >= "2010-01-01T00:00:00.000Z"))
+              : Filter((reply.creationDate <= 2013-01-01 00:00:00 +0000 UTC))
+              :   Filter((reply.creationDate >= 2010-01-01 00:00:00 +0000 UTC))
               :     GetProperty(reply.creationDate) [node:Message]
               :       Argument(reply)
               StoreQuery[graph] out=(person, post, reply)
@@ -698,8 +698,8 @@ Coord Limit[100]
             :     GetProperty(person.id) [node:Person]
             :       Argument(person)
             StoreQuery[columnar] in=(reply) out=(reply)
-              : Filter((reply.creationDate <= "2013-01-01T00:00:00.000Z"))
-              :   Filter((reply.creationDate >= "2010-01-01T00:00:00.000Z"))
+              : Filter((reply.creationDate <= 2013-01-01 00:00:00 +0000 UTC))
+              :   Filter((reply.creationDate >= 2010-01-01 00:00:00 +0000 UTC))
               :     GetProperty(reply.creationDate) [node:Message]
               :       Argument(reply)
               StoreQuery[graph] out=(person, post, reply)
@@ -726,8 +726,8 @@ Coord Limit[100]
             :     GetProperty(person.id) [node:Person]
             :       Argument(person)
             StoreQuery[kvs] in=(reply) out=(reply)
-              : Filter((reply.creationDate <= "2013-01-01T00:00:00.000Z"))
-              :   Filter((reply.creationDate >= "2010-01-01T00:00:00.000Z"))
+              : Filter((reply.creationDate <= 2013-01-01 00:00:00 +0000 UTC))
+              :   Filter((reply.creationDate >= 2010-01-01 00:00:00 +0000 UTC))
               :     GetProperty(reply.creationDate) [node:Message]
               :       Argument(reply)
               StoreQuery[graph] out=(person, post, reply)
@@ -1539,7 +1539,7 @@ StoreQuery[graph] out=(other.id, other.firstName)
   :       Sort[other.id ASC]
   :         Projection[other.id, other]
   :           GetProperty(other.id) [node:Person]
-  :             VarLengthExpand((person)-[_r0:KNOWS*1..3]-(other:Person)) seg[all(r IN rels WHERE (r.creationDate > "2010-01-01T00:00:00.000Z"))]
+  :             VarLengthExpand((person)-[_r0:KNOWS*1..3]-(other:Person)) seg[all(r IN rels WHERE (r.creationDate > 2010-01-01 00:00:00 +0000 UTC))]
   :               Filter((person.id = 17592186049378))
   :                 GetProperty(person.id) [node:Person]
   :                   EntityScan(person:Person)
@@ -1556,7 +1556,7 @@ Coord Projection[other.id, other.firstName]
             : GetProperty(other.id) [node:Person]
             :   Argument(other)
             StoreQuery[graph] in=(person) out=(person, other)
-              : VarLengthExpand((person)-[_r0:KNOWS*1..3]-(other:Person)) seg[all(r IN rels WHERE (r.creationDate > "2010-01-01T00:00:00.000Z"))]
+              : VarLengthExpand((person)-[_r0:KNOWS*1..3]-(other:Person)) seg[all(r IN rels WHERE (r.creationDate > 2010-01-01 00:00:00 +0000 UTC))]
               :   Argument(person)
               StoreQuery[relational] out=(person)
                 : Filter((person.id = 17592186049378))
@@ -1575,7 +1575,7 @@ Coord Projection[other.id, other.firstName]
             : GetProperty(other.id) [node:Person]
             :   Argument(other)
             StoreQuery[graph] in=(person) out=(person, other)
-              : VarLengthExpand((person)-[_r0:KNOWS*1..3]-(other:Person)) seg[all(r IN rels WHERE (r.creationDate > "2010-01-01T00:00:00.000Z"))]
+              : VarLengthExpand((person)-[_r0:KNOWS*1..3]-(other:Person)) seg[all(r IN rels WHERE (r.creationDate > 2010-01-01 00:00:00 +0000 UTC))]
               :   Argument(person)
               StoreQuery[document] out=(person)
                 : Filter((person.id = 17592186049378))
@@ -1594,7 +1594,7 @@ Coord Projection[other.id, other.firstName]
             : GetProperty(other.id) [node:Person]
             :   Argument(other)
             StoreQuery[graph] in=(person) out=(person, other)
-              : VarLengthExpand((person)-[_r0:KNOWS*1..3]-(other:Person)) seg[all(r IN rels WHERE (r.creationDate > "2010-01-01T00:00:00.000Z"))]
+              : VarLengthExpand((person)-[_r0:KNOWS*1..3]-(other:Person)) seg[all(r IN rels WHERE (r.creationDate > 2010-01-01 00:00:00 +0000 UTC))]
               :   Argument(person)
               StoreQuery[columnar] out=(person)
                 : Filter((person.id = 17592186049378))
@@ -1613,7 +1613,7 @@ Coord Projection[other.id, other.firstName]
             : GetProperty(other.id) [node:Person]
             :   Argument(other)
             StoreQuery[graph] in=(person) out=(person, other)
-              : VarLengthExpand((person)-[_r0:KNOWS*1..3]-(other:Person)) seg[all(r IN rels WHERE (r.creationDate > "2010-01-01T00:00:00.000Z"))]
+              : VarLengthExpand((person)-[_r0:KNOWS*1..3]-(other:Person)) seg[all(r IN rels WHERE (r.creationDate > 2010-01-01 00:00:00 +0000 UTC))]
               :   Argument(person)
               StoreQuery[kvs] out=(person)
                 : Filter((person.id = 17592186049378))
@@ -1829,7 +1829,7 @@ StoreQuery[graph] out=(friend.id, friend.firstName, friend.lastName, m.id, coale
   :               GetProperty(m.imageFile) [node:Message]
   :                 GetProperty(m.content) [node:Message]
   :                   GetProperty(m.id) [node:Message]
-  :                     Filter((m.creationDate <= "2011-06-16T00:00:00.000Z"))
+  :                     Filter((m.creationDate <= 2011-06-16 00:00:00 +0000 UTC))
   :                       GetProperty(m.creationDate) [node:Message]
   :                         Expand((friend)<-[_r1:HAS_CREATOR]-(m:Message))
   :                           Expand((_n0)-[_r0:KNOWS]-(friend:Person))
@@ -1851,7 +1851,7 @@ Coord Projection[friend.id, friend.firstName, friend.lastName, m.id, coalesce(m.
             : GetProperty(m.imageFile) [node:Message]
             :   GetProperty(m.content) [node:Message]
             :     GetProperty(m.id) [node:Message]
-            :       Filter((m.creationDate <= "2011-06-16T00:00:00.000Z"))
+            :       Filter((m.creationDate <= 2011-06-16 00:00:00 +0000 UTC))
             :         GetProperty(m.creationDate) [node:Message]
             :           Argument(m)
             StoreQuery[graph] in=(_n0) out=(_n0, friend, m)
@@ -1877,7 +1877,7 @@ Coord Projection[friend.id, friend.firstName, friend.lastName, m.id, coalesce(m.
             : GetProperty(m.imageFile) [node:Message]
             :   GetProperty(m.content) [node:Message]
             :     GetProperty(m.id) [node:Message]
-            :       Filter((m.creationDate <= "2011-06-16T00:00:00.000Z"))
+            :       Filter((m.creationDate <= 2011-06-16 00:00:00 +0000 UTC))
             :         GetProperty(m.creationDate) [node:Message]
             :           Argument(m)
             StoreQuery[graph] in=(_n0) out=(_n0, friend, m)
@@ -1903,7 +1903,7 @@ Coord Projection[friend.id, friend.firstName, friend.lastName, m.id, coalesce(m.
             : GetProperty(m.imageFile) [node:Message]
             :   GetProperty(m.content) [node:Message]
             :     GetProperty(m.id) [node:Message]
-            :       Filter((m.creationDate <= "2011-06-16T00:00:00.000Z"))
+            :       Filter((m.creationDate <= 2011-06-16 00:00:00 +0000 UTC))
             :         GetProperty(m.creationDate) [node:Message]
             :           Argument(m)
             StoreQuery[graph] in=(_n0) out=(_n0, friend, m)
@@ -1929,7 +1929,7 @@ Coord Projection[friend.id, friend.firstName, friend.lastName, m.id, coalesce(m.
             : GetProperty(m.imageFile) [node:Message]
             :   GetProperty(m.content) [node:Message]
             :     GetProperty(m.id) [node:Message]
-            :       Filter((m.creationDate <= "2011-06-16T00:00:00.000Z"))
+            :       Filter((m.creationDate <= 2011-06-16 00:00:00 +0000 UTC))
             :         GetProperty(m.creationDate) [node:Message]
             :           Argument(m)
             StoreQuery[graph] in=(_n0) out=(_n0, friend, m)
@@ -2077,7 +2077,7 @@ StoreQuery[graph] out=(other.id, other.firstName, other.lastName, m.id, coalesce
   :               GetProperty(m.imageFile) [node:Message]
   :                 GetProperty(m.content) [node:Message]
   :                   GetProperty(m.id) [node:Message]
-  :                     Filter((m.creationDate < "2011-06-16T00:00:00.000Z"))
+  :                     Filter((m.creationDate < 2011-06-16 00:00:00 +0000 UTC))
   :                       GetProperty(m.creationDate) [node:Message]
   :                         Expand((other)<-[_r1:HAS_CREATOR]-(m:Message))
   :                           VarLengthExpand((p)-[_r0:KNOWS*1..2]-(other:Person))
@@ -2099,7 +2099,7 @@ Coord Projection[other.id, other.firstName, other.lastName, m.id, coalesce(m.con
             : GetProperty(m.imageFile) [node:Message]
             :   GetProperty(m.content) [node:Message]
             :     GetProperty(m.id) [node:Message]
-            :       Filter((m.creationDate < "2011-06-16T00:00:00.000Z"))
+            :       Filter((m.creationDate < 2011-06-16 00:00:00 +0000 UTC))
             :         GetProperty(m.creationDate) [node:Message]
             :           Argument(m)
             StoreQuery[graph] in=(p) out=(p, m, other)
@@ -2125,7 +2125,7 @@ Coord Projection[other.id, other.firstName, other.lastName, m.id, coalesce(m.con
             : GetProperty(m.imageFile) [node:Message]
             :   GetProperty(m.content) [node:Message]
             :     GetProperty(m.id) [node:Message]
-            :       Filter((m.creationDate < "2011-06-16T00:00:00.000Z"))
+            :       Filter((m.creationDate < 2011-06-16 00:00:00 +0000 UTC))
             :         GetProperty(m.creationDate) [node:Message]
             :           Argument(m)
             StoreQuery[graph] in=(p) out=(p, m, other)
@@ -2151,7 +2151,7 @@ Coord Projection[other.id, other.firstName, other.lastName, m.id, coalesce(m.con
             : GetProperty(m.imageFile) [node:Message]
             :   GetProperty(m.content) [node:Message]
             :     GetProperty(m.id) [node:Message]
-            :       Filter((m.creationDate < "2011-06-16T00:00:00.000Z"))
+            :       Filter((m.creationDate < 2011-06-16 00:00:00 +0000 UTC))
             :         GetProperty(m.creationDate) [node:Message]
             :           Argument(m)
             StoreQuery[graph] in=(p) out=(p, m, other)
@@ -2177,7 +2177,7 @@ Coord Projection[other.id, other.firstName, other.lastName, m.id, coalesce(m.con
             : GetProperty(m.imageFile) [node:Message]
             :   GetProperty(m.content) [node:Message]
             :     GetProperty(m.id) [node:Message]
-            :       Filter((m.creationDate < "2011-06-16T00:00:00.000Z"))
+            :       Filter((m.creationDate < 2011-06-16 00:00:00 +0000 UTC))
             :         GetProperty(m.creationDate) [node:Message]
             :           Argument(m)
             StoreQuery[graph] in=(p) out=(p, m, other)
