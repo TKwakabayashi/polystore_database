@@ -9,6 +9,7 @@ import (
 
 	"polystore_database/src/go/ast"
 	"polystore_database/src/go/logical"
+	"polystore_database/src/go/settings"
 	"polystore_database/src/go/store"
 )
 
@@ -551,6 +552,7 @@ func finalize(n Node, need map[string]bool, all bool) {
 		}
 		x.Outputs = out
 		markEmit(x.Ops, out)
+		x.Weighted = settings.WeightedRows && weighable(x)
 		if x.Input != nil {
 			below := map[string]bool{}
 			for k := range need {
@@ -649,6 +651,39 @@ func topCols(n logical.Node) []string {
 	}
 	walk(n)
 	return cols
+}
+
+// weighable は StoreQuery の結果を重み付きの 1 行にまとめてよいか: graph で、可変長の展開を含み
+// （経路ごとの重複が出る）、区間・パスを返さず、行を並べ替え・作り直す演算子を吸収していないもの。
+func weighable(q *StoreQuery) bool {
+	if q.Store != store.Graph {
+		return false
+	}
+	varLen, ok := false, true
+	var walk func(logical.Node)
+	walk = func(n logical.Node) {
+		if n == nil {
+			return
+		}
+		switch x := n.(type) {
+		case *logical.VarLengthExpand:
+			varLen = true
+			if contains(q.Outputs, logical.SegColumn(x.Seg)) {
+				ok = false
+			}
+		case *logical.ProjectPath:
+			if contains(q.Outputs, x.Path) {
+				ok = false
+			}
+		case *logical.Projection, *logical.Aggregation, *logical.Sort, *logical.Limit, *logical.Distinct:
+			ok = false
+		}
+		for _, c := range n.Children() {
+			walk(c)
+		}
+	}
+	walk(q.Ops)
+	return varLen && ok
 }
 
 // markEmit は返す列に区間列が含まれる VarLengthExpand に EmitPath を立てる。

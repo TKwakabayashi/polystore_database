@@ -35,7 +35,15 @@ type StoreQuery struct {
 	Input   Node
 	Keys    []string
 	Outputs []string
+
+	// Weighted は、同じ出力の組を 1 行にまとめ、件数（重み）を列 WeightCol に付けて返すか。
+	// 可変長の展開は経路ごとに行を作るが、区間を返さないなら出力列が同じ重複になるので、
+	// 転送と中間行を「経路の数」から「異なる組の数」へ減らす。意味は重みで保つ（executor が扱う）。
+	Weighted bool
 }
+
+// WeightCol は行の重み（その行が表す元の行の数）を入れる列。無ければ 1。
+const WeightCol = "_w"
 
 // IsFetch は Ops が「Argument の上の GetProperty だけ」か（値の取得専用のクエリ）。
 func (q *StoreQuery) IsFetch() bool {
@@ -73,7 +81,11 @@ func (q *StoreQuery) Describe() string {
 	if len(q.Keys) > 0 {
 		keys = " in=(" + strings.Join(q.Keys, ", ") + ")"
 	}
-	return fmt.Sprintf("%s[%s]%s out=(%s)", kind, q.Store, keys, strings.Join(q.Outputs, ", "))
+	w := ""
+	if q.Weighted {
+		w = " weighted"
+	}
+	return fmt.Sprintf("%s[%s]%s out=(%s)%s", kind, q.Store, keys, strings.Join(q.Outputs, ", "), w)
 }
 
 // ListFetch はリスト列 Source の要素（全行の和集合）について Prop を取得し、値のリスト列 Key() を作る。

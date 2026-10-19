@@ -34,7 +34,7 @@ func runCoord(op logical.Node, inputs [][]Row) ([]Row, error) {
 	case *logical.Projection:
 		out := make([]Row, 0, len(in()))
 		for _, r := range in() {
-			nr := make(Row, len(x.Items))
+			nr := make(Row, len(x.Items)+1)
 			for _, it := range x.Items {
 				v, err := Eval(it.Expr, r)
 				if err != nil {
@@ -42,6 +42,7 @@ func runCoord(op logical.Node, inputs [][]Row) ([]Row, error) {
 				}
 				nr[it.Name] = v
 			}
+			setWeight(nr, weightOf(r))
 			out = append(out, nr)
 		}
 		return out, nil
@@ -93,15 +94,8 @@ func runCoord(op logical.Node, inputs [][]Row) ([]Row, error) {
 		return out, nil
 
 	case *logical.Limit:
-		rows := in()
-		if x.Skip >= len(rows) {
-			return nil, nil
-		}
-		rows = rows[x.Skip:]
-		if x.Count >= 0 && x.Count < len(rows) {
-			rows = rows[:x.Count]
-		}
-		return rows, nil
+		out, _ := (&limitState{skip: x.Skip, count: x.Count}).take(in())
+		return out, nil
 
 	case *logical.Distinct:
 		seen := map[string]bool{}
@@ -111,14 +105,18 @@ func runCoord(op logical.Node, inputs [][]Row) ([]Row, error) {
 			if len(cols) == 0 {
 				cols = sortedKeys(r)
 			}
-			vals := make([]any, len(cols))
-			for i, c := range cols {
-				vals[i] = r[c]
+			var vals []any
+			for _, c := range cols {
+				if c != weightCol { // 重みは行の数であって値ではない
+					vals = append(vals, r[c])
+				}
 			}
 			k := keyString(vals...)
 			if !seen[k] {
 				seen[k] = true
-				out = append(out, r)
+				nr := r.clone()
+				setWeight(nr, 1)
+				out = append(out, nr)
 			}
 		}
 		return out, nil
@@ -219,6 +217,7 @@ func hashJoin(left, right []Row, keys []string) []Row {
 			for k, v := range r {
 				nr[k] = v
 			}
+			setWeight(nr, weightOf(l)*weightOf(r))
 			out = append(out, nr)
 		}
 	}
@@ -263,10 +262,11 @@ func aggregate(x *logical.Aggregation, rows []Row) ([]Row, error) {
 			groups[gk] = g
 			order = append(order, gk)
 		}
+		rw := weightOf(r) // この行が表す元の行の数
 		for i, a := range x.Aggs {
 			s := g.state[i]
 			if a.Arg == nil { // count(*)
-				s.count++
+				s.count += rw
 				continue
 			}
 			v, err := Eval(a.Arg, r)
@@ -276,18 +276,26 @@ func aggregate(x *logical.Aggregation, rows []Row) ([]Row, error) {
 			if v == nil {
 				continue
 			}
-			if a.Distinct {
+			w := rw
+			if a.Distinct { // DISTINCT は値の種類を数えるので重みを使わない
 				k := keyString(v)
 				if s.seen[k] {
 					continue
 				}
 				s.seen[k] = true
+				w = 1
 			}
-			s.count++
-			s.n++
+			s.count += w
+			s.n += w
 			switch a.Fn {
 			case "sum", "avg":
-				sum, err := arith("+", orZero(s.sum), v)
+				term := v
+				if w != 1 {
+					if term, err = arith("*", v, w); err != nil {
+						return nil, err
+					}
+				}
+				sum, err := arith("+", orZero(s.sum), term)
 				if err != nil {
 					return nil, err
 				}
@@ -301,7 +309,9 @@ func aggregate(x *logical.Aggregation, rows []Row) ([]Row, error) {
 					s.max = v
 				}
 			case "collect":
-				s.list = append(s.list, v)
+				for j := int64(0); j < w; j++ {
+					s.list = append(s.list, v)
+				}
 			}
 		}
 	}

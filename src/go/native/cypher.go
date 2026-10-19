@@ -101,13 +101,23 @@ func lowerCypher(q *physical.StoreQuery, types TypeFn) (*Query, error) {
 		}
 		parts = append(parts, s)
 	}
+	columns := q.Outputs
+	if q.Weighted {
+		// 同じ出力の組をまとめ、件数を重みとして返す（Cypher は集約以外の RETURN 項目でグループ化する）。
+		if mods != "" {
+			return nil, unsupported("weighted query with ORDER BY / LIMIT")
+		}
+		rets = append(rets, "count(*) AS "+colName(len(rets)))
+		kinds = append(kinds, KindValue)
+		columns = append(append([]string{}, q.Outputs...), physical.WeightCol)
+	}
 	ret := "RETURN " + strings.Join(rets, ", ")
 	if mods != "" {
 		ret += " " + mods
 	}
 	parts = append(parts, ret)
 
-	out := &Query{Store: store.Graph, Columns: q.Outputs, ColKinds: kinds, InKeys: q.Keys, Text: strings.Join(parts, " "), InArg: -1}
+	out := &Query{Store: store.Graph, Columns: columns, ColKinds: kinds, InKeys: q.Keys, Text: strings.Join(parts, " "), InArg: -1}
 	if len(b.params) > 0 {
 		out.Params = b.params
 	}

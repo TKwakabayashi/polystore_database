@@ -477,7 +477,7 @@ Coord Limit[20]
             :   GetProperty(forum.title) [node:Forum]
             :     GetProperty(forum.id) [node:Forum]
             :       Argument(forum)
-            StoreQuery[graph] out=(forum, message, person)
+            StoreQuery[graph] out=(forum, message, person) weighted
               : Filter((tagclass.name = "MusicalArtist"))
               :   GetProperty(tagclass.name) [node:TagClass]
               :     Expand((tag)-[_r6:HAS_TYPE]->(tagclass:TagClass))
@@ -508,7 +508,7 @@ Coord Limit[20]
             :   GetProperty(forum.title) [node:Forum]
             :     GetProperty(forum.id) [node:Forum]
             :       Argument(forum)
-            StoreQuery[graph] out=(forum, message, person)
+            StoreQuery[graph] out=(forum, message, person) weighted
               : Filter((tagclass.name = "MusicalArtist"))
               :   GetProperty(tagclass.name) [node:TagClass]
               :     Expand((tag)-[_r6:HAS_TYPE]->(tagclass:TagClass))
@@ -539,7 +539,7 @@ Coord Limit[20]
             :   GetProperty(forum.title) [node:Forum]
             :     GetProperty(forum.id) [node:Forum]
             :       Argument(forum)
-            StoreQuery[graph] out=(forum, message, person)
+            StoreQuery[graph] out=(forum, message, person) weighted
               : Filter((tagclass.name = "MusicalArtist"))
               :   GetProperty(tagclass.name) [node:TagClass]
               :     Expand((tag)-[_r6:HAS_TYPE]->(tagclass:TagClass))
@@ -570,7 +570,7 @@ Coord Limit[20]
             :   GetProperty(forum.title) [node:Forum]
             :     GetProperty(forum.id) [node:Forum]
             :       Argument(forum)
-            StoreQuery[graph] out=(forum, message, person)
+            StoreQuery[graph] out=(forum, message, person) weighted
               : Filter((tagclass.name = "MusicalArtist"))
               :   GetProperty(tagclass.name) [node:TagClass]
               :     Expand((tag)-[_r6:HAS_TYPE]->(tagclass:TagClass))
@@ -638,7 +638,7 @@ Coord Limit[100]
               :   Filter((reply.creationDate >= 2010-01-01 00:00:00 +0000 UTC))
               :     GetProperty(reply.creationDate) [node:Message]
               :       Argument(reply)
-              StoreQuery[graph] in=(post) out=(post, person, reply)
+              StoreQuery[graph] in=(post) out=(post, person, reply) weighted
                 : VarLengthExpand((post)<-[_r1:REPLY_OF*0..]-(reply:Message))
                 :   Expand((post)-[_r0:HAS_CREATOR]->(person:Person))
                 :     Argument(post)
@@ -670,7 +670,7 @@ Coord Limit[100]
               :   Filter((reply.creationDate >= 2010-01-01 00:00:00 +0000 UTC))
               :     GetProperty(reply.creationDate) [node:Message]
               :       Argument(reply)
-              StoreQuery[graph] in=(post) out=(post, person, reply)
+              StoreQuery[graph] in=(post) out=(post, person, reply) weighted
                 : VarLengthExpand((post)<-[_r1:REPLY_OF*0..]-(reply:Message))
                 :   Expand((post)-[_r0:HAS_CREATOR]->(person:Person))
                 :     Argument(post)
@@ -702,7 +702,7 @@ Coord Limit[100]
               :   Filter((reply.creationDate >= 2010-01-01 00:00:00 +0000 UTC))
               :     GetProperty(reply.creationDate) [node:Message]
               :       Argument(reply)
-              StoreQuery[graph] in=(post) out=(post, person, reply)
+              StoreQuery[graph] in=(post) out=(post, person, reply) weighted
                 : VarLengthExpand((post)<-[_r1:REPLY_OF*0..]-(reply:Message))
                 :   Expand((post)-[_r0:HAS_CREATOR]->(person:Person))
                 :     Argument(post)
@@ -734,7 +734,7 @@ Coord Limit[100]
               :   Filter((reply.creationDate >= 2010-01-01 00:00:00 +0000 UTC))
               :     GetProperty(reply.creationDate) [node:Message]
               :       Argument(reply)
-              StoreQuery[graph] in=(post) out=(post, person, reply)
+              StoreQuery[graph] in=(post) out=(post, person, reply) weighted
                 : VarLengthExpand((post)<-[_r1:REPLY_OF*0..]-(reply:Message))
                 :   Expand((post)-[_r0:HAS_CREATOR]->(person:Person))
                 :     Argument(post)
@@ -1289,7 +1289,7 @@ Coord Projection[f.id, f.title, mod.id, mod.firstName, mod.lastName]
       : GetProperty(f.title) [node:Forum]
       :   GetProperty(f.id) [node:Forum]
       :     Argument(f)
-      StoreQuery[graph] out=(f, mod)
+      StoreQuery[graph] out=(f, mod) weighted
         : Expand((f)-[_r2:HAS_MODERATOR]->(mod:Person))
         :   Expand((_n0)<-[_r1:CONTAINER_OF]-(f:Forum))
         :     VarLengthExpand((m)-[_r0:REPLY_OF*0..]->(_n0:Post))
@@ -1308,7 +1308,7 @@ Coord Projection[f.id, f.title, mod.id, mod.firstName, mod.lastName]
       : GetProperty(f.title) [node:Forum]
       :   GetProperty(f.id) [node:Forum]
       :     Argument(f)
-      StoreQuery[graph] out=(f, mod)
+      StoreQuery[graph] out=(f, mod) weighted
         : Expand((f)-[_r2:HAS_MODERATOR]->(mod:Person))
         :   Expand((_n0)<-[_r1:CONTAINER_OF]-(f:Forum))
         :     VarLengthExpand((m)-[_r0:REPLY_OF*0..]->(_n0:Post))
@@ -1327,7 +1327,7 @@ Coord Projection[f.id, f.title, mod.id, mod.firstName, mod.lastName]
       : GetProperty(f.title) [node:Forum]
       :   GetProperty(f.id) [node:Forum]
       :     Argument(f)
-      StoreQuery[graph] out=(f, mod)
+      StoreQuery[graph] out=(f, mod) weighted
         : Expand((f)-[_r2:HAS_MODERATOR]->(mod:Person))
         :   Expand((_n0)<-[_r1:CONTAINER_OF]-(f:Forum))
         :     VarLengthExpand((m)-[_r0:REPLY_OF*0..]->(_n0:Post))
@@ -1346,7 +1346,7 @@ Coord Projection[f.id, f.title, mod.id, mod.firstName, mod.lastName]
       : GetProperty(f.title) [node:Forum]
       :   GetProperty(f.id) [node:Forum]
       :     Argument(f)
-      StoreQuery[graph] out=(f, mod)
+      StoreQuery[graph] out=(f, mod) weighted
         : Expand((f)-[_r2:HAS_MODERATOR]->(mod:Person))
         :   Expand((_n0)<-[_r1:CONTAINER_OF]-(f:Forum))
         :     VarLengthExpand((m)-[_r0:REPLY_OF*0..]->(_n0:Post))
@@ -1563,7 +1563,7 @@ Coord Projection[other.id, other.firstName]
           Fetch[relational] in=(other) out=(other, other.id)
             : GetProperty(other.id) [node:Person]
             :   Argument(other)
-            StoreQuery[graph] in=(person) out=(person, other)
+            StoreQuery[graph] in=(person) out=(person, other) weighted
               : VarLengthExpand((person)-[_r0:KNOWS*1..3]-(other:Person)) seg[all(r IN rels WHERE (r.creationDate > 2010-01-01 00:00:00 +0000 UTC))]
               :   Argument(person)
               StoreQuery[relational] out=(person)
@@ -1582,7 +1582,7 @@ Coord Projection[other.id, other.firstName]
           Fetch[document] in=(other) out=(other, other.id)
             : GetProperty(other.id) [node:Person]
             :   Argument(other)
-            StoreQuery[graph] in=(person) out=(person, other)
+            StoreQuery[graph] in=(person) out=(person, other) weighted
               : VarLengthExpand((person)-[_r0:KNOWS*1..3]-(other:Person)) seg[all(r IN rels WHERE (r.creationDate > 2010-01-01 00:00:00 +0000 UTC))]
               :   Argument(person)
               StoreQuery[document] out=(person)
@@ -1601,7 +1601,7 @@ Coord Projection[other.id, other.firstName]
           Fetch[columnar] in=(other) out=(other, other.id)
             : GetProperty(other.id) [node:Person]
             :   Argument(other)
-            StoreQuery[graph] in=(person) out=(person, other)
+            StoreQuery[graph] in=(person) out=(person, other) weighted
               : VarLengthExpand((person)-[_r0:KNOWS*1..3]-(other:Person)) seg[all(r IN rels WHERE (r.creationDate > 2010-01-01 00:00:00 +0000 UTC))]
               :   Argument(person)
               StoreQuery[columnar] out=(person)
@@ -1620,7 +1620,7 @@ Coord Projection[other.id, other.firstName]
           Fetch[kvs] in=(other) out=(other, other.id)
             : GetProperty(other.id) [node:Person]
             :   Argument(other)
-            StoreQuery[graph] in=(person) out=(person, other)
+            StoreQuery[graph] in=(person) out=(person, other) weighted
               : VarLengthExpand((person)-[_r0:KNOWS*1..3]-(other:Person)) seg[all(r IN rels WHERE (r.creationDate > 2010-01-01 00:00:00 +0000 UTC))]
               :   Argument(person)
               StoreQuery[kvs] out=(person)
@@ -1685,7 +1685,7 @@ Coord Projection[friend.id, friend.firstName, friend.lastName, comp.name, work.w
                       : Filter((work.workFrom < 2008))
                       :   GetProperty(work.workFrom) [rel:WORK_AT]
                       :     Argument(work)
-                      StoreQuery[graph] in=(p) out=(p, comp, friend, work)
+                      StoreQuery[graph] in=(p) out=(p, comp, friend, work) weighted
                         : Expand((friend)-[work:WORK_AT]->(comp:Organisation))
                         :   VarLengthExpand((p)-[_r0:KNOWS*1..3]-(friend:Person))
                         :     Argument(p)
@@ -1726,7 +1726,7 @@ Coord Projection[friend.id, friend.firstName, friend.lastName, comp.name, work.w
                       : Filter((work.workFrom < 2008))
                       :   GetProperty(work.workFrom) [rel:WORK_AT]
                       :     Argument(work)
-                      StoreQuery[graph] in=(p) out=(p, comp, friend, work)
+                      StoreQuery[graph] in=(p) out=(p, comp, friend, work) weighted
                         : Expand((friend)-[work:WORK_AT]->(comp:Organisation))
                         :   VarLengthExpand((p)-[_r0:KNOWS*1..3]-(friend:Person))
                         :     Argument(p)
@@ -1767,7 +1767,7 @@ Coord Projection[friend.id, friend.firstName, friend.lastName, comp.name, work.w
                       : Filter((work.workFrom < 2008))
                       :   GetProperty(work.workFrom) [rel:WORK_AT]
                       :     Argument(work)
-                      StoreQuery[graph] in=(p) out=(p, comp, friend, work)
+                      StoreQuery[graph] in=(p) out=(p, comp, friend, work) weighted
                         : Expand((friend)-[work:WORK_AT]->(comp:Organisation))
                         :   VarLengthExpand((p)-[_r0:KNOWS*1..3]-(friend:Person))
                         :     Argument(p)
@@ -1808,7 +1808,7 @@ Coord Projection[friend.id, friend.firstName, friend.lastName, comp.name, work.w
                       : Filter((work.workFrom < 2008))
                       :   GetProperty(work.workFrom) [rel:WORK_AT]
                       :     Argument(work)
-                      StoreQuery[graph] in=(p) out=(p, comp, friend, work)
+                      StoreQuery[graph] in=(p) out=(p, comp, friend, work) weighted
                         : Expand((friend)-[work:WORK_AT]->(comp:Organisation))
                         :   VarLengthExpand((p)-[_r0:KNOWS*1..3]-(friend:Person))
                         :     Argument(p)
@@ -2102,7 +2102,7 @@ Coord Projection[other.id, other.firstName, other.lastName, m.id, coalesce(m.con
             :       Filter((m.creationDate < 2011-06-16 00:00:00 +0000 UTC))
             :         GetProperty(m.creationDate) [node:Message]
             :           Argument(m)
-            StoreQuery[graph] in=(p) out=(p, m, other)
+            StoreQuery[graph] in=(p) out=(p, m, other) weighted
               : Expand((other)<-[_r1:HAS_CREATOR]-(m:Message))
               :   VarLengthExpand((p)-[_r0:KNOWS*1..2]-(other:Person))
               :     Argument(p)
@@ -2128,7 +2128,7 @@ Coord Projection[other.id, other.firstName, other.lastName, m.id, coalesce(m.con
             :       Filter((m.creationDate < 2011-06-16 00:00:00 +0000 UTC))
             :         GetProperty(m.creationDate) [node:Message]
             :           Argument(m)
-            StoreQuery[graph] in=(p) out=(p, m, other)
+            StoreQuery[graph] in=(p) out=(p, m, other) weighted
               : Expand((other)<-[_r1:HAS_CREATOR]-(m:Message))
               :   VarLengthExpand((p)-[_r0:KNOWS*1..2]-(other:Person))
               :     Argument(p)
@@ -2154,7 +2154,7 @@ Coord Projection[other.id, other.firstName, other.lastName, m.id, coalesce(m.con
             :       Filter((m.creationDate < 2011-06-16 00:00:00 +0000 UTC))
             :         GetProperty(m.creationDate) [node:Message]
             :           Argument(m)
-            StoreQuery[graph] in=(p) out=(p, m, other)
+            StoreQuery[graph] in=(p) out=(p, m, other) weighted
               : Expand((other)<-[_r1:HAS_CREATOR]-(m:Message))
               :   VarLengthExpand((p)-[_r0:KNOWS*1..2]-(other:Person))
               :     Argument(p)
@@ -2180,7 +2180,7 @@ Coord Projection[other.id, other.firstName, other.lastName, m.id, coalesce(m.con
             :       Filter((m.creationDate < 2011-06-16 00:00:00 +0000 UTC))
             :         GetProperty(m.creationDate) [node:Message]
             :           Argument(m)
-            StoreQuery[graph] in=(p) out=(p, m, other)
+            StoreQuery[graph] in=(p) out=(p, m, other) weighted
               : Expand((other)<-[_r1:HAS_CREATOR]-(m:Message))
               :   VarLengthExpand((p)-[_r0:KNOWS*1..2]-(other:Person))
               :     Argument(p)

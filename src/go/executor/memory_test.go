@@ -129,13 +129,24 @@ func (b *memBackend) RunLogical(q *physical.StoreQuery, in []Key) ([]Row, error)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]Row, len(rows))
-	for i, r := range rows {
+	out := make([]Row, 0, len(rows))
+	index := map[string]int{}
+	for _, r := range rows {
 		nr := Row{}
-		for _, c := range q.Outputs {
+		vals := make([]any, len(q.Outputs))
+		for i, c := range q.Outputs {
 			nr[c] = r[c]
+			vals[i] = r[c]
 		}
-		out[i] = nr
+		if q.Weighted { // 同じ出力の組を 1 行にまとめ、件数を重みにする（Cypher の count(*) と同じ）
+			k := keyString(vals...)
+			if i, ok := index[k]; ok {
+				out[i][weightCol] = weightOf(out[i]) + 1
+				continue
+			}
+			index[k] = len(out)
+		}
+		out = append(out, nr)
 	}
 	return out, nil
 }

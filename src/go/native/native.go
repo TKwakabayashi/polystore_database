@@ -122,6 +122,10 @@ func Lower(q *physical.StoreQuery, types TypeFn) (*Query, error) {
 	ot := outTypes(q.Ops, own, types)
 	out.ColTypes = make([]string, len(out.Columns))
 	for i, c := range out.Columns {
+		if c == physical.WeightCol {
+			out.ColTypes[i] = "long"
+			continue
+		}
 		if t, ok := ot[c]; ok {
 			out.ColTypes[i] = t
 		} else {

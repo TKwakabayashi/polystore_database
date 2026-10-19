@@ -316,6 +316,7 @@ func (e *Executor) storeQuery(q *physical.StoreQuery, in []Row) ([]Row, error) {
 			for k, v := range m {
 				nr[k] = v
 			}
+			setWeight(nr, weightOf(r)*weightOf(m)) // 入力の重み × 結果の重み
 			out = append(out, nr)
 		}
 	}
@@ -607,13 +608,16 @@ func RunModel(ctx context.Context, be Backend, md *schema.MappingDictionary, cyp
 // OutputRows は最終行を出力列だけの map にする（識別子は文字列、区間・パスは uuid 文字列のリスト）。
 func OutputRows(p physical.Node, rows []Row) []map[string]any {
 	cols := outputColumns(p)
-	out := make([]map[string]any, len(rows))
-	for i, r := range rows {
+	out := make([]map[string]any, 0, len(rows))
+	for _, r := range rows {
 		m := make(map[string]any, len(cols))
 		for _, c := range cols {
 			m[c] = external(r[c])
 		}
-		out[i] = m
+		// 重み付きの行は、ここで初めて元の行数へ展開する。
+		for w := weightOf(r); w > 0; w-- {
+			out = append(out, m)
+		}
 	}
 	return out
 }

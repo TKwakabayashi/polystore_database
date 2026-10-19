@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"polystore_database/src/go/id"
+	"polystore_database/src/go/physical"
 )
 
 // Row は 1 行。列キーは logical の規約（識別列 "a" は id.UUID、値列 "a.p"、区間・パス列は *ListVal、
@@ -211,4 +212,25 @@ func writeKey(b *strings.Builder, v any) {
 	default:
 		fmt.Fprintf(b, "?%v", x)
 	}
+}
+
+// ---- 重み（physical.StoreQuery.Weighted）----
+
+// weightCol は行の重み（その行が表す元の行の数）。無ければ 1。
+const weightCol = physical.WeightCol
+
+func weightOf(r Row) int64 {
+	if w, ok := r[weightCol].(int64); ok && w > 0 {
+		return w
+	}
+	return 1
+}
+
+// setWeight は重みを付け直す（1 なら列を消す）。
+func setWeight(r Row, w int64) {
+	if w == 1 {
+		delete(r, weightCol)
+		return
+	}
+	r[weightCol] = w
 }

@@ -240,18 +240,35 @@ func limitOf(n physical.Node) *limitState {
 }
 
 // take は Limit の状態を進め、このバッチから残す行を返す（done は以降の入力が不要か）。
+// 重み付きの行は重みの分だけ数え、境目の行は重みを削って残す。
 func (l *limitState) take(rows []Row) (out []Row, done bool) {
+	full := func() bool { return l.count >= 0 && l.seen >= l.skip+l.count }
 	for _, r := range rows {
-		l.seen++
-		if l.seen <= l.skip {
+		if full() {
+			return out, true
+		}
+		w := weightOf(r)
+		lo, hi := l.seen, l.seen+int(w) // この行が占める位置 [lo, hi)
+		l.seen = hi
+		from, to := lo, hi
+		if from < l.skip {
+			from = l.skip
+		}
+		if l.count >= 0 && to > l.skip+l.count {
+			to = l.skip + l.count
+			l.seen = to
+		}
+		if to <= from {
 			continue
 		}
-		if l.count >= 0 && l.seen > l.skip+l.count {
-			return out, true
+		if keep := int64(to - from); keep != w {
+			nr := r.clone()
+			setWeight(nr, keep)
+			r = nr
 		}
 		out = append(out, r)
 	}
-	return out, l.count >= 0 && l.seen >= l.skip+l.count
+	return out, full()
 }
 
 func (it *mapIter) next() (*Batch, error) {

@@ -494,3 +494,102 @@ func TestModelErrorPropagation(t *testing.T) {
 		}
 	}
 }
+
+// ---- 重み付きの行 ----
+
+func w(r Row, n int64) Row { setWeight(r, n); return r }
+
+func TestWeightedCoordinator(t *testing.T) {
+	rows := []Row{
+		w(Row{"k": "a", "v": int64(2)}, 3),
+		w(Row{"k": "a", "v": nil}, 2),
+		Row{"k": "b", "v": int64(5)},
+	}
+	agg := &logical.Aggregation{
+		Keys: []logical.ProjItem{{Name: "k", Expr: col("k")}},
+		Aggs: []logical.AggItem{
+			{Name: "all", Fn: "count"},
+			{Name: "cnt", Fn: "count", Arg: col("v")},
+			{Name: "dc", Fn: "count", Arg: col("v"), Distinct: true},
+			{Name: "sum", Fn: "sum", Arg: col("v")},
+			{Name: "avg", Fn: "avg", Arg: col("v")},
+			{Name: "col", Fn: "collect", Arg: col("v")},
+		},
+	}
+	out, err := runCoord(agg, [][]Row{rows})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range out {
+		if r["k"] != "a" {
+			continue
+		}
+		if r["all"] != int64(5) || r["cnt"] != int64(3) || r["dc"] != int64(1) || r["sum"] != int64(6) || r["avg"] != 2.0 || len(r["col"].([]any)) != 3 {
+			t.Errorf("weighted aggregation: %v", r)
+		}
+	}
+
+	// Limit は重みを数え、境目の行は重みを削る: [a×3, b×2] の skip 1 limit 3 → a×2, b×1
+	lim, _ := runCoord(&logical.Limit{Skip: 1, Count: 3}, [][]Row{{w(Row{"x": "a"}, 3), w(Row{"x": "b"}, 2)}})
+	if len(lim) != 2 || weightOf(lim[0]) != 2 || weightOf(lim[1]) != 1 {
+		t.Errorf("weighted limit: %v", lim)
+	}
+	// 入力の重みは変えない（Limit が複製してから削る）
+	src := []Row{w(Row{"x": "a"}, 3)}
+	runCoord(&logical.Limit{Count: 1}, [][]Row{src})
+	if weightOf(src[0]) != 3 {
+		t.Error("limit mutated its input")
+	}
+
+	// Distinct は重みを無視して 1 行にする
+	d, _ := runCoord(&logical.Distinct{}, [][]Row{{w(Row{"x": "a"}, 3), Row{"x": "a"}}})
+	if len(d) != 1 || weightOf(d[0]) != 1 {
+		t.Errorf("weighted distinct: %v", d)
+	}
+	// 結合は重みを掛ける
+	j := hashJoin([]Row{w(Row{"a": id.UUID("1")}, 2)}, []Row{w(Row{"a": id.UUID("1"), "b": "x"}, 3)}, []string{"a"})
+	if len(j) != 1 || weightOf(j[0]) != 6 {
+		t.Errorf("weighted join: %v", j)
+	}
+	// 最後に展開する
+	p := &physical.Coord{Op: &logical.Projection{Items: []logical.ProjItem{{Name: "x", Expr: col("x")}}}}
+	if got := OutputRows(p, []Row{w(Row{"x": "a"}, 3)}); len(got) != 3 {
+		t.Errorf("output expansion: %d rows", len(got))
+	}
+}
+
+// 可変長を含む graph のクエリが重み付きになる配置で、重み無し（settings.WeightedRows=false）と結果が同じ。
+func TestWeightedRowsEquivalence(t *testing.T) {
+	g := socialGraph()
+	pls := placementsFor(t)
+	weighted := 0
+	for _, c := range equivalenceQueries {
+		for pname, md := range pls {
+			run := func(on bool) []string {
+				prev := settings.WeightedRows
+				settings.WeightedRows = on
+				defer func() { settings.WeightedRows = prev }()
+				p, cat, err := Plan(c.q, map[string]string{"x": "1"}, md)
+				if err != nil {
+					t.Fatalf("Plan: %v", err)
+				}
+				if on && strings.Contains(physical.Dump(p), "weighted") {
+					weighted++
+				}
+				rows, err := New(context.Background(), &memBackend{g: g}, cat.TypeOf).ExecuteModel(p, settings.EngineVecStream)
+				if err != nil {
+					t.Fatalf("%s/%s: %v", c.name, pname, err)
+				}
+				return canon(OutputRows(p, rows))
+			}
+			off, on := run(false), run(true)
+			if strings.Join(on, "\n") != strings.Join(off, "\n") {
+				t.Errorf("%s/%s: weighted differs\n--- off ---\n%s\n--- on ---\n%s", c.name, pname, strings.Join(off, "\n"), strings.Join(on, "\n"))
+			}
+		}
+	}
+	if weighted == 0 {
+		t.Error("no plan used weighted rows; the test does not exercise them")
+	}
+	t.Logf("%d plans used weighted rows", weighted)
+}

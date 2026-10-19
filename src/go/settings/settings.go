@@ -70,6 +70,10 @@ var UniqueKeyProps = []string{"id"}
 // 同時発行数（刷新版の executor）。1 なら直列。
 var StoreFetchParallelism = 4
 
+// WeightedRows は、可変長の展開を含む graph のクエリの結果を、同じ出力の組ごとに件数（重み）付きの
+// 1 行へまとめて返させるか（刷新版）。経路ごとの重複で中間行が爆発する形（Q11 など）を抑える。結果は不変。
+var WeightedRows = true
+
 // GraphFetchParallelism は graph（Neo4j）へのチャンクの同時発行数。graph のチャンクは 5 万件の起点から
 // 可変長トラバーサルを走らせることがあり、並列にすると Neo4j がメモリ不足で落ちる（ldbc_sf1 の BI9 で
 // heap 4G / pagecache 1G の構成が OOM-kill された）ので既定は直列。
