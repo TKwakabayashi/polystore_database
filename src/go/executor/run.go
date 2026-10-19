@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"polystore_database/src/go/ast"
@@ -36,13 +38,26 @@ type logicalBackend interface {
 	ListValues(f *physical.ListFetch, ids []id.UUID) (map[id.UUID]any, error)
 }
 
-// Executor は物理計画を全件実体化で評価する（bulk）。
+// Executor は物理計画を評価する。反復モデル（bulk / volcano / vectorized / stream / vecstream）は
+// ExecuteModel で選ぶ。ストアへの発行・入力行との結合・値の取得・コーディネータの演算子の意味は
+// すべてのモデルで共通（storeQuery / listFetch / runCoord）で、違うのは反復の仕方だけ。
 type Executor struct {
 	ctx        context.Context
 	be         Backend
 	types      native.TypeFn
-	steps      []core.StepMetric
-	roundTrips int64
+	roundTrips atomic.Int64
+
+	mu      sync.Mutex
+	acc     map[physical.Node]*stepAcc
+	order   []physical.Node // 計測の並び（葉 → 根）
+	lowered map[*physical.StoreQuery]*native.Query
+	lists   map[*physical.ListFetch][]*native.Query
+}
+
+type stepAcc struct {
+	op      string
+	dur     time.Duration
+	in, out int
 }
 
 // New は Executor を作る。types は native.Lower に渡すプロパティ型の引き当て。
@@ -50,51 +65,131 @@ func New(ctx context.Context, be Backend, types native.TypeFn) *Executor {
 	return &Executor{ctx: ctx, be: be, types: types}
 }
 
-// Steps は直前の実行の演算子ごとの計測（葉 → 根）。
-func (e *Executor) Steps() []core.StepMetric { return e.steps }
-
-// RoundTrips は直前の実行でストアへ投げたクエリの数。
-func (e *Executor) RoundTrips() int64 { return e.roundTrips }
-
-// Execute は物理計画を評価して行を返す。
-func (e *Executor) Execute(n physical.Node) ([]Row, error) {
-	e.steps, e.roundTrips = nil, 0
-	return e.exec(n)
+// Steps は直前の実行の演算子ごとの計測（葉 → 根。並列モデルではバッチごとの時間の合計）。
+func (e *Executor) Steps() []core.StepMetric {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	var out []core.StepMetric
+	for _, n := range e.order {
+		if a, ok := e.acc[n]; ok {
+			out = append(out, core.StepMetric{Step: len(out) + 1, Op: a.op, Duration: a.dur, InRows: a.in, OutRows: a.out})
+		}
+	}
+	return out
 }
 
-func (e *Executor) exec(n physical.Node) ([]Row, error) {
-	var inputs [][]Row
-	inRows := 0
-	for _, c := range n.Children() {
-		rows, err := e.exec(c)
-		if err != nil {
-			return nil, err
+// RoundTrips は直前の実行でストアへ投げたクエリの数。
+func (e *Executor) RoundTrips() int64 { return e.roundTrips.Load() }
+
+// reset は実行前に計測と変換の控えを初期化する。
+func (e *Executor) reset(root physical.Node) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.roundTrips.Store(0)
+	e.acc = map[physical.Node]*stepAcc{}
+	e.lowered = map[*physical.StoreQuery]*native.Query{}
+	e.lists = map[*physical.ListFetch][]*native.Query{}
+	e.order = nil
+	var walk func(physical.Node)
+	walk = func(n physical.Node) {
+		for _, c := range n.Children() {
+			walk(c)
 		}
-		inputs = append(inputs, rows)
-		inRows += len(rows)
+		e.order = append(e.order, n)
 	}
+	walk(root)
+}
+
+// record は演算子 n の 1 回分（バッチ 1 つ、bulk なら全件）の計測を足し込む。
+func (e *Executor) record(n physical.Node, dur time.Duration, in, out int) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	a, ok := e.acc[n]
+	if !ok {
+		a = &stepAcc{op: opName(n)}
+		e.acc[n] = a
+	}
+	a.dur += dur
+	a.in += in
+	a.out += out
+}
+
+func opName(n physical.Node) string {
+	switch x := n.(type) {
+	case *physical.StoreQuery:
+		if x.IsFetch() {
+			return "Fetch[" + x.Store.String() + "]"
+		}
+		return "StoreQuery[" + x.Store.String() + "]"
+	case *physical.ListFetch:
+		return "ListFetch[" + x.Store.String() + "]"
+	case *physical.Coord:
+		return fmt.Sprintf("%T", x.Op)[len("*logical."):]
+	}
+	return fmt.Sprintf("%T", n)
+}
+
+// lower は StoreQuery のネイティブクエリ（実行ごとに 1 回だけ変換する）。
+func (e *Executor) lower(q *physical.StoreQuery) (*native.Query, error) {
+	e.mu.Lock()
+	nq, ok := e.lowered[q]
+	e.mu.Unlock()
+	if ok {
+		return nq, nil
+	}
+	nq, err := native.Lower(q, e.types)
+	if err != nil {
+		return nil, err
+	}
+	e.mu.Lock()
+	e.lowered[q] = nq
+	e.mu.Unlock()
+	return nq, nil
+}
+
+func (e *Executor) lowerList(f *physical.ListFetch) ([]*native.Query, error) {
+	e.mu.Lock()
+	qs, ok := e.lists[f]
+	e.mu.Unlock()
+	if ok {
+		return qs, nil
+	}
+	qs, err := native.LowerList(f, e.types)
+	if err != nil {
+		return nil, err
+	}
+	e.mu.Lock()
+	e.lists[f] = qs
+	e.mu.Unlock()
+	return qs, nil
+}
+
+// Execute は bulk（全件実体化）で評価する。
+func (e *Executor) Execute(n physical.Node) ([]Row, error) {
+	return e.ExecuteModel(n, settings.EngineBulk)
+}
+
+// step は物理演算子 1 個を入力行に適用する（全モデル共通の意味）。inputs は子ごとの入力。
+func (e *Executor) step(n physical.Node, inputs [][]Row) ([]Row, error) {
 	start := time.Now()
+	in := 0
+	for _, rs := range inputs {
+		in += len(rs)
+	}
 	var (
 		out []Row
 		err error
-		op  string
 	)
 	switch x := n.(type) {
 	case *physical.StoreQuery:
-		op = "StoreQuery[" + x.Store.String() + "]"
-		if x.IsFetch() {
-			op = "Fetch[" + x.Store.String() + "]"
-		}
-		var in []Row
+		var rows []Row
 		if len(inputs) > 0 {
-			in = inputs[0]
+			rows = inputs[0]
 		}
-		out, err = e.storeQuery(x, in)
+		out, err = e.storeQuery(x, rows)
 	case *physical.ListFetch:
-		op = "ListFetch[" + x.Store.String() + "]"
 		out, err = e.listFetch(x, inputs[0])
 	case *physical.Coord:
-		op = fmt.Sprintf("%T", x.Op)[len("*logical."):]
 		out, err = runCoord(x.Op, inputs)
 	default:
 		err = fmt.Errorf("executor: physical node %T", n)
@@ -102,8 +197,21 @@ func (e *Executor) exec(n physical.Node) ([]Row, error) {
 	if err != nil {
 		return nil, err
 	}
-	e.steps = append(e.steps, core.StepMetric{Step: len(e.steps) + 1, Op: op, Duration: time.Since(start), InRows: inRows, OutRows: len(out)})
+	e.record(n, time.Since(start), in, len(out))
 	return out, nil
+}
+
+// bulk は葉から全件を実体化して評価する。
+func (e *Executor) bulk(n physical.Node) ([]Row, error) {
+	var inputs [][]Row
+	for _, c := range n.Children() {
+		rows, err := e.bulk(c)
+		if err != nil {
+			return nil, err
+		}
+		inputs = append(inputs, rows)
+	}
+	return e.step(n, inputs)
 }
 
 // chunkSize は 1 クエリに載せる識別子の数（0 = 分割しない）。min(希望値, 物理上限)。
@@ -126,10 +234,10 @@ func chunkSize(k store.Kind) int {
 func (e *Executor) storeQuery(q *physical.StoreQuery, in []Row) ([]Row, error) {
 	issue := func(keys []Key) ([]Row, error) {
 		if lb, ok := e.be.(logicalBackend); ok {
-			e.roundTrips++
+			e.roundTrips.Add(1)
 			return lb.RunLogical(q, keys)
 		}
-		nq, err := native.Lower(q, e.types)
+		nq, err := e.lower(q)
 		if err != nil {
 			return nil, err
 		}
@@ -214,7 +322,7 @@ func (e *Executor) storeQuery(q *physical.StoreQuery, in []Row) ([]Row, error) {
 func (e *Executor) run(q *native.Query, keys []Key) ([][]any, error) {
 	size := chunkSize(q.Store)
 	if keys == nil || size <= 0 || len(keys) <= size {
-		e.roundTrips++
+		e.roundTrips.Add(1)
 		return e.be.Run(e.ctx, q, keys)
 	}
 	var out [][]any
@@ -223,7 +331,7 @@ func (e *Executor) run(q *native.Query, keys []Key) ([][]any, error) {
 		if j > len(keys) {
 			j = len(keys)
 		}
-		e.roundTrips++
+		e.roundTrips.Add(1)
 		part, err := e.be.Run(e.ctx, q, keys[i:j])
 		if err != nil {
 			return nil, err
@@ -347,14 +455,14 @@ func (e *Executor) listFetch(f *physical.ListFetch, in []Row) ([]Row, error) {
 		for i, k := range keys {
 			ids[i] = k[0]
 		}
-		e.roundTrips++
+		e.roundTrips.Add(1)
 		vs, err := lb.ListValues(f, ids)
 		if err != nil {
 			return nil, err
 		}
 		values = vs
 	} else if len(keys) > 0 {
-		qs, err := native.LowerList(f, e.types)
+		qs, err := e.lowerList(f)
 		if err != nil {
 			return nil, err
 		}
@@ -433,8 +541,13 @@ func checkLowerable(n physical.Node, cat *physical.Catalog) error {
 	return nil
 }
 
-// Run は Cypher を計画・実行して結果を返す。構造化できないクエリは graph への原文委譲（verbatim）。
+// Run は Cypher を bulk で計画・実行して結果を返す。構造化できないクエリは graph への原文委譲（verbatim）。
 func Run(ctx context.Context, be Backend, md *schema.MappingDictionary, cypher string, params map[string]string) (core.Result, error) {
+	return RunModel(ctx, be, md, cypher, params, settings.EngineBulk)
+}
+
+// RunModel は反復モデルを指定して Cypher を計画・実行する。
+func RunModel(ctx context.Context, be Backend, md *schema.MappingDictionary, cypher string, params map[string]string, model settings.EngineKind) (core.Result, error) {
 	t0 := time.Now()
 	p, cat, err := Plan(cypher, params, md)
 	planT := time.Since(t0)
@@ -444,19 +557,23 @@ func Run(ctx context.Context, be Backend, md *schema.MappingDictionary, cypher s
 		if verr != nil {
 			return core.Result{}, verr
 		}
-		return core.Result{Rows: rows, PlanTime: planT, ExecTime: time.Since(start), Engine: "redesign(verbatim)", RoundTrips: 1}, nil
+		return core.Result{Rows: rows, PlanTime: planT, ExecTime: time.Since(start), Engine: "redesign-" + string(model) + "(verbatim)", RoundTrips: 1}, nil
 	}
 	if err != nil {
 		return core.Result{}, err
 	}
 	ex := New(ctx, be, cat.TypeOf)
 	start := time.Now()
-	rows, err := ex.Execute(p)
+	rows, err := ex.ExecuteModel(p, model)
 	if err != nil {
 		return core.Result{}, err
 	}
-	return core.Result{Rows: OutputRows(p, rows), PlanTime: planT, ExecTime: time.Since(start),
-		Steps: ex.Steps(), RoundTrips: ex.RoundTrips(), Engine: "redesign"}, nil
+	res := core.Result{Rows: OutputRows(p, rows), PlanTime: planT, ExecTime: time.Since(start),
+		Steps: ex.Steps(), RoundTrips: ex.RoundTrips(), Engine: "redesign-" + string(model)}
+	if model == settings.EngineVectorized || model == settings.EngineVecStream || model == settings.EngineStream {
+		res.VectorWidth = vectorWidth()
+	}
+	return res, nil
 }
 
 // OutputRows は最終行を出力列だけの map にする（識別子は文字列、区間・パスは uuid 文字列のリスト）。

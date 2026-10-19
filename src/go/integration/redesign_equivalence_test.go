@@ -31,6 +31,7 @@ import (
 	"polystore_database/src/go/migrator"
 	"polystore_database/src/go/plan"
 	"polystore_database/src/go/schema"
+	"polystore_database/src/go/settings"
 	"polystore_database/src/go/storage"
 	"polystore_database/src/go/workload"
 )
@@ -349,4 +350,98 @@ func kvsPopulated(ctx context.Context, reg *storage.Registry, kind plan.ObjectTy
 		}
 	}
 	return false
+}
+
+// TestRedesignModels は反復モデルを変えても結果が同じことを、実データの各配置で確かめる。
+// 基準は同じ配置の bulk（オラクルとの一致は TestRedesignEquivalence / TestRedesignPlacements が担う）。
+//
+//	go test -tags integration ./integration/ -run RedesignModels -v
+func TestRedesignModels(t *testing.T) {
+	cfgPath := os.Getenv("POLYSTORE_CONFIG")
+	if cfgPath == "" {
+		cfgPath = "../../config/config.json"
+	}
+	cfg, err := storage.LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("config load (%s): %v", cfgPath, err)
+	}
+	base, err := schema.LoadMappingDictionary(cfg.MappingPath)
+	if err != nil {
+		t.Fatalf("mapping load: %v", err)
+	}
+	ctx := context.Background()
+	reg, err := storage.NewRegistry(ctx, cfg)
+	if err != nil {
+		t.Fatalf("registry: %v", err)
+	}
+	defer reg.Close(ctx)
+	be := executor.NewStoreBackend(reg)
+
+	placements := []struct {
+		name   string
+		target string
+		mode   migrator.MigrationMode
+	}{
+		{"graph", "", migrator.ModeGraphToRdb},
+		{"relational", "relational", migrator.ModeGraphToRdb},
+		{"document", "document", migrator.ModeGraphToDoc},
+		{"columnar", "columnar", migrator.ModeGraphToCol},
+		{"kvs", "kvs", migrator.ModeGraphToKvs},
+	}
+	models := []settings.EngineKind{settings.EngineVolcano, settings.EngineVectorized, settings.EngineStream, settings.EngineVecStream}
+	var names []string
+	for n := range workload.Registry {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	for _, pc := range placements {
+		for _, name := range names {
+			pc, name := pc, name
+			t.Run(pc.name+"/"+name, func(t *testing.T) {
+				cypher, params, migs := workload.Registry[name](pc.mode, pc.target != "")
+				md := base
+				if pc.target != "" {
+					var moved int
+					md, moved = placeMapping(t, base, pc.target, migs, func(kind plan.ObjectType, label, prop string) bool {
+						return populated(ctx, reg, pc.target, kind, label, prop)
+					})
+					if moved == 0 {
+						t.Skip("移行済みの列が無い")
+					}
+				}
+				if _, _, err := executor.Plan(cypher, params, md); err != nil {
+					t.Skipf("構造化できない（verbatim）: %v", err)
+				}
+				run := func(m settings.EngineKind) (string, []string, bool) {
+					qctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+					defer cancel()
+					r, err := executor.RunModel(qctx, be, md, cypher, params, m)
+					if err != nil && qctx.Err() != nil {
+						return "", nil, false
+					}
+					if err != nil {
+						t.Fatalf("[%s] 実行に失敗: %v", m, err)
+					}
+					return fmt.Sprintf("rt=%d exec=%v", r.RoundTrips, r.ExecTime.Round(time.Millisecond)), canonRedesign(r.Rows), true
+				}
+				refInfo, ref, ok := run(settings.EngineBulk)
+				if !ok {
+					t.Skip("bulk が 60 秒で終わらない")
+				}
+				t.Logf("[bulk] rows=%d %s", len(ref), refInfo)
+				for _, m := range models {
+					info, got, ok := run(m)
+					if !ok {
+						t.Logf("[%s] 60 秒で打ち切り", m)
+						continue
+					}
+					if strings.Join(got, "\n") != strings.Join(ref, "\n") {
+						t.Errorf("[%s] bulk と不一致（bulk=%d, %s=%d）\n%s", m, len(ref), m, len(got), firstRedesignDiff(ref, got))
+						continue
+					}
+					t.Logf("[%s] 一致 %s", m, info)
+				}
+			})
+		}
+	}
 }

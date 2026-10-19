@@ -6,12 +6,15 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"polystore_database/src/go/id"
 	"polystore_database/src/go/logical"
+	"polystore_database/src/go/physical"
 	"polystore_database/src/go/schema"
+	"polystore_database/src/go/settings"
 )
 
 // ================================
@@ -378,6 +381,116 @@ func TestHandCheckedResults(t *testing.T) {
 		sort.Strings(c.want)
 		if strings.Join(got, "|") != strings.Join(c.want, "|") {
 			t.Errorf("%s\n got: %v\nwant: %v", c.q, got, c.want)
+		}
+	}
+}
+
+// 反復モデルを変えても結果は同じ（全クエリ × 全配置 × 5 モデル）。並列モデルの競合は -race で検出する。
+func TestModelEquivalence(t *testing.T) {
+	g := socialGraph()
+	pls := placementsFor(t)
+	models := []settings.EngineKind{settings.EngineVolcano, settings.EngineVectorized, settings.EngineStream, settings.EngineVecStream}
+	prev := settings.VectorSize
+	settings.VectorSize = 2 // バッチ境界をまたぐ経路を通すため小さくする
+	defer func() { settings.VectorSize = prev }()
+	for _, c := range equivalenceQueries {
+		for pname, md := range pls {
+			p, cat, err := Plan(c.q, map[string]string{"x": "1"}, md)
+			if err != nil {
+				t.Fatalf("Plan(%q): %v", c.q, err)
+			}
+			ex := New(context.Background(), &memBackend{g: g}, cat.TypeOf)
+			ref, err := ex.Execute(p)
+			if err != nil {
+				t.Fatalf("bulk %s/%s: %v", c.name, pname, err)
+			}
+			want := canon(OutputRows(p, ref))
+			for _, m := range models {
+				rows, err := ex.ExecuteModel(p, m)
+				if err != nil {
+					t.Fatalf("%s %s/%s: %v", m, c.name, pname, err)
+				}
+				got := canon(OutputRows(p, rows))
+				if strings.Join(got, "\n") != strings.Join(want, "\n") {
+					t.Errorf("%s %s/%s differs from bulk\n--- bulk ---\n%s\n--- %s ---\n%s",
+						m, c.name, pname, strings.Join(want, "\n"), m, strings.Join(got, "\n"))
+				}
+			}
+		}
+	}
+}
+
+// Sort の後の Limit は、並列モデルでも並べ替えた順の先頭を返す。
+func TestModelOrderAfterSort(t *testing.T) {
+	g := socialGraph()
+	md := loadMapping(t)
+	q := "MATCH (p:Person) RETURN p.id ORDER BY p.id DESC LIMIT 3"
+	p, cat, err := Plan(q, nil, md)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prev := settings.VectorSize
+	settings.VectorSize = 1
+	defer func() { settings.VectorSize = prev }()
+	for _, m := range []settings.EngineKind{settings.EngineBulk, settings.EngineVolcano, settings.EngineVectorized, settings.EngineStream, settings.EngineVecStream} {
+		rows, err := New(context.Background(), &memBackend{g: g}, cat.TypeOf).ExecuteModel(p, m)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var ids []string
+		for _, r := range OutputRows(p, rows) {
+			ids = append(ids, fmt.Sprint(r["p.id"]))
+		}
+		if strings.Join(ids, ",") != "6,5,4" {
+			t.Errorf("%s: %v", m, ids)
+		}
+	}
+}
+
+// failingBackend は n 回目以降のストアへの発行を失敗させる。
+type failingBackend struct {
+	memBackend
+	mu    sync.Mutex
+	calls int
+	after int
+}
+
+func (b *failingBackend) RunLogical(q *physical.StoreQuery, in []Key) ([]Row, error) {
+	b.mu.Lock()
+	b.calls++
+	fail := b.calls > b.after
+	b.mu.Unlock()
+	if fail {
+		return nil, fmt.Errorf("injected store failure")
+	}
+	return b.memBackend.RunLogical(q, in)
+}
+
+// ストアの失敗はどのモデルでもエラーとして返る（並列モデルが固まったり、途中の結果を返したりしない）。
+func TestModelErrorPropagation(t *testing.T) {
+	g := socialGraph()
+	pls := placementsFor(t)
+	q := "MATCH (p:Person {id: $x})-[:KNOWS]-(f:Person) WHERE f.gender = 'male' RETURN f.firstName, f.id"
+	p, cat, err := Plan(q, map[string]string{"x": "1"}, pls["mixed"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	prev := settings.VectorSize
+	settings.VectorSize = 1
+	defer func() { settings.VectorSize = prev }()
+	for _, m := range []settings.EngineKind{settings.EngineBulk, settings.EngineVolcano, settings.EngineVectorized, settings.EngineStream, settings.EngineVecStream} {
+		done := make(chan error, 1)
+		go func() {
+			_, err := New(context.Background(), &failingBackend{memBackend: memBackend{g: g}, after: 1}, cat.TypeOf).ExecuteModel(p, m)
+			done <- err
+		}()
+		select {
+		case err := <-done:
+			if err == nil || !strings.Contains(err.Error(), "injected") {
+				t.Errorf("%s: want injected error, got %v", m, err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("%s: did not return after a store failure", m)
 		}
 	}
 }
