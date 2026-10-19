@@ -23,10 +23,63 @@ func NewCatalog(md *schema.MappingDictionary) *Catalog {
 	return &Catalog{md: md, chosen: map[string]store.Kind{}}
 }
 
+// EntityOf はノードのラベルを、それを含む entity 名にする（Post → Message のように、entity の
+// labels に列挙されたサブラベルを解決する）。どの entity にも無ければ空。
+func (c *Catalog) EntityOf(label string) string {
+	if c.md == nil {
+		return ""
+	}
+	if _, ok := c.md.Entities[label]; ok {
+		return label
+	}
+	for _, name := range sortedEntities(c.md) {
+		for _, l := range c.md.Entities[name].Labels {
+			if l == label {
+				return name
+			}
+		}
+	}
+	return ""
+}
+
+// Entities はラベルの並びを entity 名の並び（重複なし・解決できないものは元のまま）にする。
+func (c *Catalog) Entities(labels []string) []string {
+	var out []string
+	for _, l := range labels {
+		e := c.EntityOf(l)
+		if e == "" {
+			e = l
+		}
+		dup := false
+		for _, x := range out {
+			if x == e {
+				dup = true
+			}
+		}
+		if !dup {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// IsEntity はラベルがそれ自体 entity（非 graph ストアの表・コレクションの単位）か。
+// サブラベル（Post など）は entity の表に区別が無いので、非 graph ストアでは走査できない。
+func (c *Catalog) IsEntity(label string) bool {
+	if c.md == nil {
+		return false
+	}
+	_, ok := c.md.Entities[label]
+	return ok
+}
+
 // databases は持ち主（ラベル/関係タイプの候補）とプロパティから、置かれているストア名の一覧を返す。
 func (c *Catalog) databases(kind logical.ObjKind, labels []string, prop string) []string {
 	if c.md == nil {
 		return nil
+	}
+	if kind == logical.NodeObj {
+		labels = c.Entities(labels)
 	}
 	for _, l := range labels {
 		if kind == logical.RelObj {
@@ -236,6 +289,9 @@ func CanAbsorb(k store.Kind, op logical.Node) bool {
 func (c *Catalog) TypeOf(kind logical.ObjKind, labels []string, prop string) string {
 	if c.md == nil {
 		return ""
+	}
+	if kind == logical.NodeObj {
+		labels = c.Entities(labels)
 	}
 	for _, l := range labels {
 		if kind == logical.RelObj {

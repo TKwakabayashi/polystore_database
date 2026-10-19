@@ -348,7 +348,15 @@ func (b *StoreBackend) runKVS(_ context.Context, q *native.Query, in []Key) ([][
 			case err != nil:
 				return nil, err
 			default:
-				r[k.Alias+"."+p] = normalize(codec.DecodeValue(raw, k.Types[p]))
+				// キーがあって値が空なのは空文字列（DecodeValue は空を nil にするので先に扱う）。
+				// 値は宣言型へ戻してからフィルタを評価する（日時を文字列のまま比べないため）。
+				var v any
+				if len(raw) == 0 && isStringType(k.Types[p]) {
+					v = ""
+				} else {
+					v = codec.DecodeValue(raw, k.Types[p])
+				}
+				r[k.Alias+"."+p] = decode(v, native.KindValue, k.Types[p])
 			}
 		}
 		keep := true
@@ -376,6 +384,14 @@ func (b *StoreBackend) runKVS(_ context.Context, q *native.Query, in []Key) ([][
 		out = append(out, vals)
 	}
 	return out, nil
+}
+
+func isStringType(t string) bool {
+	switch strings.ToLower(t) {
+	case "", "string", "text":
+		return true
+	}
+	return false
 }
 
 // scanKVS はラベルの uuid を集める（等値条件があれば逆引きインデックスの前方一致）。
