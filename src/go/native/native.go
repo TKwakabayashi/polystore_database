@@ -119,9 +119,14 @@ func Lower(q *physical.StoreQuery, types TypeFn) (*Query, error) {
 		return nil, err
 	}
 	own := owners(q.Ops)
+	ot := outTypes(q.Ops, own, types)
 	out.ColTypes = make([]string, len(out.Columns))
 	for i, c := range out.Columns {
-		out.ColTypes[i] = colType(c, own, types)
+		if t, ok := ot[c]; ok {
+			out.ColTypes[i] = t
+		} else {
+			out.ColTypes[i] = colType(c, own, types)
+		}
 	}
 	if len(out.ColKinds) != len(out.Columns) {
 		return nil, unsupported("column kinds not set for %s query", q.Store)
@@ -222,6 +227,60 @@ func colType(key string, own map[string]owner, types TypeFn) string {
 		return ""
 	}
 	return types(o.kind, o.labels, key[i+1:])
+}
+
+// outTypes は委譲する部分木が作る列の型名（集約の結果を含む）。結果の値の復元に使う
+// （MySQL は集約結果を文字列で返すなど、ドライバだけでは型が分からないため）。
+func outTypes(n logical.Node, own map[string]owner, types TypeFn) map[string]string {
+	out := map[string]string{}
+	var walk func(logical.Node)
+	walk = func(n logical.Node) {
+		if n == nil {
+			return
+		}
+		for _, c := range n.Children() {
+			walk(c)
+		}
+		typeOf := func(e logical.Expr) string {
+			if c, ok := e.(*logical.Column); ok {
+				if t, ok := out[c.Key]; ok {
+					return t
+				}
+				return colType(c.Key, own, types)
+			}
+			return ""
+		}
+		switch x := n.(type) {
+		case *logical.GetProperty:
+			out[x.Key()] = colType(x.Key(), own, types)
+		case *logical.Projection:
+			for _, it := range x.Items {
+				if t := typeOf(it.Expr); t != "" {
+					out[it.Name] = t
+				}
+			}
+		case *logical.Aggregation:
+			for _, it := range x.Keys {
+				if t := typeOf(it.Expr); t != "" {
+					out[it.Name] = t
+				}
+			}
+			for _, a := range x.Aggs {
+				switch a.Fn {
+				case "count":
+					out[a.Name] = "long"
+				case "avg":
+					out[a.Name] = "double"
+				case "sum", "min", "max":
+					if t := typeOf(a.Arg); t != "" {
+						out[a.Name] = t
+					}
+				}
+			}
+		}
+	}
+	walk(n)
+	return out
 }
 
 // typed はリテラルを列の型へ変換する（失敗・型不明ならそのまま）。

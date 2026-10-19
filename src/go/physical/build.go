@@ -3,6 +3,9 @@ package physical
 import (
 	"fmt"
 	"sort"
+	"strings"
+
+	"polystore_database/src/go/codec"
 
 	"polystore_database/src/go/ast"
 	"polystore_database/src/go/logical"
@@ -21,7 +24,8 @@ import (
 func Build(root logical.Node, cat *Catalog) (Node, error) {
 	pl := &planner{cat: cat, parent: map[logical.Node]logical.Node{},
 		nodeLabels: map[string][]string{}, relTypes: map[string][]string{},
-		segTypes: map[string][]string{}, pathElems: map[string][]logical.PathElem{}}
+		segTypes: map[string][]string{}, pathElems: map[string][]logical.PathElem{},
+		owners: map[string]owner{}}
 	pl.index(root, nil)
 	st, err := pl.build(root)
 	if err != nil {
@@ -41,6 +45,12 @@ type planner struct {
 	relTypes   map[string][]string
 	segTypes   map[string][]string
 	pathElems  map[string][]logical.PathElem
+	owners     map[string]owner // alias → プロパティの持ち主（リテラルの型付け用）
+}
+
+type owner struct {
+	kind   logical.ObjKind
+	labels []string
 }
 
 func (pl *planner) index(n, parent logical.Node) {
@@ -69,6 +79,9 @@ func (pl *planner) index(n, parent logical.Node) {
 		if x.Kind == logical.NodeObj && len(x.Labels) > 0 && len(pl.nodeLabels[x.Alias]) == 0 {
 			pl.nodeLabels[x.Alias] = x.Labels
 		}
+		if _, ok := pl.owners[x.Alias]; !ok {
+			pl.owners[x.Alias] = owner{kind: x.Kind, labels: x.Labels}
+		}
 	}
 	for _, c := range n.Children() {
 		pl.index(c, n)
@@ -82,14 +95,15 @@ type state struct {
 }
 
 type openQ struct {
-	store  store.Kind
-	ops    logical.Node
-	input  Node
-	keys   []string
-	leaf   bool
-	avail  map[string]bool // クエリの行にある列
-	idents map[string]bool // そのうち識別列
-	single string          // 非 graph のクエリが扱う唯一の alias
+	store   store.Kind
+	ops     logical.Node
+	input   Node
+	keys    []string
+	leaf    bool
+	avail   map[string]bool // クエリの行にある列
+	idents  map[string]bool // そのうち識別列
+	single  string          // 非 graph のクエリが扱う唯一の alias
+	grouped bool            // 集約を吸収済み（以降の Filter は HAVING 相当）
 }
 
 func newOpen(k store.Kind, ops logical.Node, input Node, keys []string, single string) *openQ {
@@ -190,6 +204,14 @@ func unsupported(format string, args ...any) error {
 //   - Filter が無ければ、連なりの最初の GetProperty のストア（必要な列がそこにあるので吸収できる）、
 //   - どちらも無ければ graph。
 func (pl *planner) scanStore(s *logical.EntityScan) (store.Kind, string) {
+	for _, l := range s.Labels {
+		if !pl.cat.IsEntity(l) {
+			return store.Graph, "" // サブラベルの走査は graph でしかできない
+		}
+	}
+	if len(s.Labels) == 0 {
+		return store.Graph, ""
+	}
 	props := map[string]*logical.GetProperty{}
 	var first *logical.GetProperty
 	pick := func(g *logical.GetProperty) (store.Kind, string) {
@@ -228,6 +250,10 @@ walk:
 }
 
 func (pl *planner) add(st *state, op logical.Node) error {
+	pl.typeLiterals(op)
+	if g, ok := op.(*logical.GetProperty); ok && g.Kind == logical.NodeObj {
+		g.Labels = pl.cat.Entities(g.Labels) // 表・コレクションは entity 単位（Post → Message）
+	}
 	o := st.open
 	switch x := op.(type) {
 	case *logical.GetProperty:
@@ -244,7 +270,8 @@ func (pl *planner) add(st *state, op logical.Node) error {
 		return nil
 
 	case *logical.Filter:
-		if o != nil && availAll(o, filterRefs(x)) && CanExpress(o.store, x.Pred) {
+		having := o != nil && o.grouped && (o.store == store.Columnar || o.store == store.Kvs)
+		if o != nil && !having && availAll(o, filterRefs(x)) && CanExpress(o.store, x.Pred) {
 			pl.extend(st, op)
 			return nil
 		}
@@ -280,6 +307,9 @@ func (pl *planner) add(st *state, op logical.Node) error {
 			return nil
 		}
 		pl.close(st)
+		if x.Part == logical.SegNodes {
+			labels = pl.cat.Entities(labels)
+		}
 		st.phys = &ListFetch{Input: st.phys, Store: k, Source: x.Source, Part: x.Part, Prop: x.Prop, Labels: labels}
 		return nil
 
@@ -475,6 +505,7 @@ func produce(o *openQ, op logical.Node) {
 	case *logical.Projection:
 		resetTo(o, x.Items)
 	case *logical.Aggregation:
+		o.grouped = true
 		items := append([]logical.ProjItem{}, x.Keys...)
 		for _, a := range x.Aggs {
 			items = append(items, logical.ProjItem{Name: a.Name})
@@ -640,4 +671,124 @@ func contains(xs []string, s string) bool {
 		}
 	}
 	return false
+}
+
+// ================================
+// リテラルの型付け
+// ================================
+
+// typeLiterals は比較・IN の相手が型の分かる列（mapping の type）なら、リテラルをその型へ変換する。
+// ストアに委譲する式もコーディネータで評価する式も、同じ型付き値で比べられるように計画の段階で行う。
+func (pl *planner) typeLiterals(op logical.Node) {
+	switch x := op.(type) {
+	case *logical.Filter:
+		x.Pred = pl.typeExpr(x.Pred, nil)
+	case *logical.Projection:
+		for i := range x.Items {
+			x.Items[i].Expr = pl.typeExpr(x.Items[i].Expr, nil)
+		}
+	case *logical.VarLengthExpand:
+		for i, sp := range x.SegPreds {
+			el := map[string]owner{sp.Var: pl.segElemOwner(x.Types, sp.Part)}
+			x.SegPreds[i].Pred = pl.typeExpr(sp.Pred, el)
+		}
+	}
+}
+
+func (pl *planner) segElemOwner(types []string, part logical.SegPart) owner {
+	if part == logical.SegRels {
+		return owner{kind: logical.RelObj, labels: types}
+	}
+	return owner{kind: logical.NodeObj, labels: pl.cat.ElemLabels(types, part)}
+}
+
+// exprType は列・要素参照の型名（不明なら空）。
+func (pl *planner) exprType(e logical.Expr, elems map[string]owner) string {
+	switch x := e.(type) {
+	case *logical.Column:
+		i := strings.LastIndex(x.Key, ".")
+		if i < 0 {
+			return ""
+		}
+		o, ok := pl.owners[x.Key[:i]]
+		if !ok {
+			return ""
+		}
+		return pl.cat.TypeOf(o.kind, o.labels, x.Key[i+1:])
+	case *logical.ElemProp:
+		o, ok := elems[x.Var]
+		if !ok {
+			return ""
+		}
+		return pl.cat.TypeOf(o.kind, o.labels, x.Prop)
+	}
+	return ""
+}
+
+func (pl *planner) typeExpr(e logical.Expr, elems map[string]owner) logical.Expr {
+	conv := func(v logical.Expr, typ string) logical.Expr {
+		switch l := v.(type) {
+		case *logical.Lit:
+			if typ == "" || l.Val == nil {
+				return l
+			}
+			if t, err := codec.ConvertToNativeType(l.Val, typ); err == nil {
+				return &logical.Lit{Val: t}
+			}
+		case *logical.List:
+			out := &logical.List{}
+			for _, el := range l.Elems {
+				if lit, ok := el.(*logical.Lit); ok && typ != "" && lit.Val != nil {
+					if t, err := codec.ConvertToNativeType(lit.Val, typ); err == nil {
+						out.Elems = append(out.Elems, &logical.Lit{Val: t})
+						continue
+					}
+				}
+				out.Elems = append(out.Elems, el)
+			}
+			return out
+		}
+		return v
+	}
+	switch x := e.(type) {
+	case *logical.Bin:
+		switch x.Op {
+		case "=", "<>", "<", ">", "<=", ">=", "IN":
+			l, r := x.L, x.R
+			if t := pl.exprType(x.L, elems); t != "" {
+				r = conv(r, t)
+			}
+			if t := pl.exprType(x.R, elems); t != "" && x.Op != "IN" {
+				l = conv(l, t)
+			}
+			return &logical.Bin{Op: x.Op, L: l, R: r}
+		}
+		return &logical.Bin{Op: x.Op, L: pl.typeExpr(x.L, elems), R: pl.typeExpr(x.R, elems)}
+	case *logical.Un:
+		return &logical.Un{Op: x.Op, X: pl.typeExpr(x.X, elems)}
+	case *logical.Case:
+		c := &logical.Case{}
+		for _, w := range x.Whens {
+			c.Whens = append(c.Whens, logical.CaseWhen{When: pl.typeExpr(w.When, elems), Then: w.Then})
+		}
+		c.Else = x.Else
+		return c
+	case *logical.Quant:
+		inner := map[string]owner{}
+		for k, v := range elems {
+			inner[k] = v
+		}
+		if call, ok := x.List.(*logical.Call); ok && len(call.Args) == 1 {
+			if src, ok := call.Args[0].(*logical.Column); ok {
+				part := logical.SegNodes
+				kind := logical.NodeObj
+				if call.Fn == "relationships" {
+					part, kind = logical.SegRels, logical.RelObj
+				}
+				inner[x.Var] = owner{kind: kind, labels: pl.listLabels(src.Key, part)}
+			}
+		}
+		return &logical.Quant{Kind: x.Kind, Var: x.Var, List: x.List, Pred: pl.typeExpr(x.Pred, inner)}
+	}
+	return e
 }

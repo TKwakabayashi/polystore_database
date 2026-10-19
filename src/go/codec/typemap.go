@@ -15,8 +15,8 @@ func MapToSQLType(t string) string {
 	case "long":
 		return "BIGINT"
 	case "datetime":
-		// ISO 8601（時刻あり）に対応
-		return "DATETIME"
+		// ISO 8601（時刻あり）。小数秒を落とさないようマイクロ秒精度で持つ（DATETIME は秒精度）。
+		return "DATETIME(6)"
 	case "date":
 		// 時刻なしの日付のみに対応
 		return "DATE"

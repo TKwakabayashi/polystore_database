@@ -612,7 +612,7 @@ StoreQuery[graph] out=(person.id, person.firstName, person.lastName, threadCount
   :   Sort[messageCount DESC, person.id ASC]
   :     Aggregation[keys: person.id, person.firstName, person.lastName | count(DISTINCT post.id) AS threadCount, count(DISTINCT reply.id) AS messageCount]
   :       GetProperty(reply.id) [node:Message]
-  :         GetProperty(post.id) [node:Post]
+  :         GetProperty(post.id) [node:Message]
   :           GetProperty(person.lastName) [node:Person]
   :             GetProperty(person.firstName) [node:Person]
   :               GetProperty(person.id) [node:Person]
@@ -621,9 +621,9 @@ StoreQuery[graph] out=(person.id, person.firstName, person.lastName, threadCount
   :                     GetProperty(reply.creationDate) [node:Message]
   :                       VarLengthExpand((post)<-[_r1:REPLY_OF*0..]-(reply:Message))
   :                         Expand((post)-[_r0:HAS_CREATOR]->(person:Person))
-  :                           Filter((post.creationDate <= "2013-01-01T00:00:00.000Z"))
-  :                             Filter((post.creationDate >= "2010-01-01T00:00:00.000Z"))
-  :                               GetProperty(post.creationDate) [node:Post]
+  :                           Filter((post.creationDate <= 2013-01-01 00:00:00 +0000 UTC))
+  :                             Filter((post.creationDate >= 2010-01-01 00:00:00 +0000 UTC))
+  :                               GetProperty(post.creationDate) [node:Message]
   :                                 EntityScan(post:Post)
 
 ### BI9 @relational
@@ -633,8 +633,8 @@ Coord Limit[100]
       Fetch[relational] in=(reply) out=(reply, reply.id)
         : GetProperty(reply.id) [node:Message]
         :   Argument(reply)
-        Fetch[graph] in=(post) out=(post, post.id)
-          : GetProperty(post.id) [node:Post]
+        Fetch[relational] in=(post) out=(post, post.id)
+          : GetProperty(post.id) [node:Message]
           :   Argument(post)
           Fetch[relational] in=(person) out=(person, person.firstName, person.id, person.lastName)
             : GetProperty(person.lastName) [node:Person]
@@ -646,13 +646,17 @@ Coord Limit[100]
               :   Filter((reply.creationDate >= 2010-01-01 00:00:00 +0000 UTC))
               :     GetProperty(reply.creationDate) [node:Message]
               :       Argument(reply)
-              StoreQuery[graph] out=(person, post, reply)
+              StoreQuery[graph] in=(post) out=(post, person, reply)
                 : VarLengthExpand((post)<-[_r1:REPLY_OF*0..]-(reply:Message))
                 :   Expand((post)-[_r0:HAS_CREATOR]->(person:Person))
-                :     Filter((post.creationDate <= "2013-01-01T00:00:00.000Z"))
-                :       Filter((post.creationDate >= "2010-01-01T00:00:00.000Z"))
-                :         GetProperty(post.creationDate) [node:Post]
-                :           EntityScan(post:Post)
+                :     Argument(post)
+                StoreQuery[relational] in=(post) out=(post)
+                  : Filter((post.creationDate <= 2013-01-01 00:00:00 +0000 UTC))
+                  :   Filter((post.creationDate >= 2010-01-01 00:00:00 +0000 UTC))
+                  :     GetProperty(post.creationDate) [node:Message]
+                  :       Argument(post)
+                  StoreQuery[graph] out=(post)
+                    : EntityScan(post:Post)
 
 ### BI9 @document
 Coord Limit[100]
@@ -661,8 +665,8 @@ Coord Limit[100]
       Fetch[document] in=(reply) out=(reply, reply.id)
         : GetProperty(reply.id) [node:Message]
         :   Argument(reply)
-        Fetch[graph] in=(post) out=(post, post.id)
-          : GetProperty(post.id) [node:Post]
+        Fetch[document] in=(post) out=(post, post.id)
+          : GetProperty(post.id) [node:Message]
           :   Argument(post)
           Fetch[document] in=(person) out=(person, person.firstName, person.id, person.lastName)
             : GetProperty(person.lastName) [node:Person]
@@ -674,13 +678,17 @@ Coord Limit[100]
               :   Filter((reply.creationDate >= 2010-01-01 00:00:00 +0000 UTC))
               :     GetProperty(reply.creationDate) [node:Message]
               :       Argument(reply)
-              StoreQuery[graph] out=(person, post, reply)
+              StoreQuery[graph] in=(post) out=(post, person, reply)
                 : VarLengthExpand((post)<-[_r1:REPLY_OF*0..]-(reply:Message))
                 :   Expand((post)-[_r0:HAS_CREATOR]->(person:Person))
-                :     Filter((post.creationDate <= "2013-01-01T00:00:00.000Z"))
-                :       Filter((post.creationDate >= "2010-01-01T00:00:00.000Z"))
-                :         GetProperty(post.creationDate) [node:Post]
-                :           EntityScan(post:Post)
+                :     Argument(post)
+                StoreQuery[document] in=(post) out=(post)
+                  : Filter((post.creationDate <= 2013-01-01 00:00:00 +0000 UTC))
+                  :   Filter((post.creationDate >= 2010-01-01 00:00:00 +0000 UTC))
+                  :     GetProperty(post.creationDate) [node:Message]
+                  :       Argument(post)
+                  StoreQuery[graph] out=(post)
+                    : EntityScan(post:Post)
 
 ### BI9 @columnar
 Coord Limit[100]
@@ -689,8 +697,8 @@ Coord Limit[100]
       Fetch[columnar] in=(reply) out=(reply, reply.id)
         : GetProperty(reply.id) [node:Message]
         :   Argument(reply)
-        Fetch[graph] in=(post) out=(post, post.id)
-          : GetProperty(post.id) [node:Post]
+        Fetch[columnar] in=(post) out=(post, post.id)
+          : GetProperty(post.id) [node:Message]
           :   Argument(post)
           Fetch[columnar] in=(person) out=(person, person.firstName, person.id, person.lastName)
             : GetProperty(person.lastName) [node:Person]
@@ -702,13 +710,17 @@ Coord Limit[100]
               :   Filter((reply.creationDate >= 2010-01-01 00:00:00 +0000 UTC))
               :     GetProperty(reply.creationDate) [node:Message]
               :       Argument(reply)
-              StoreQuery[graph] out=(person, post, reply)
+              StoreQuery[graph] in=(post) out=(post, person, reply)
                 : VarLengthExpand((post)<-[_r1:REPLY_OF*0..]-(reply:Message))
                 :   Expand((post)-[_r0:HAS_CREATOR]->(person:Person))
-                :     Filter((post.creationDate <= "2013-01-01T00:00:00.000Z"))
-                :       Filter((post.creationDate >= "2010-01-01T00:00:00.000Z"))
-                :         GetProperty(post.creationDate) [node:Post]
-                :           EntityScan(post:Post)
+                :     Argument(post)
+                StoreQuery[columnar] in=(post) out=(post)
+                  : Filter((post.creationDate <= 2013-01-01 00:00:00 +0000 UTC))
+                  :   Filter((post.creationDate >= 2010-01-01 00:00:00 +0000 UTC))
+                  :     GetProperty(post.creationDate) [node:Message]
+                  :       Argument(post)
+                  StoreQuery[graph] out=(post)
+                    : EntityScan(post:Post)
 
 ### BI9 @kvs
 Coord Limit[100]
@@ -717,8 +729,8 @@ Coord Limit[100]
       Fetch[kvs] in=(reply) out=(reply, reply.id)
         : GetProperty(reply.id) [node:Message]
         :   Argument(reply)
-        Fetch[graph] in=(post) out=(post, post.id)
-          : GetProperty(post.id) [node:Post]
+        Fetch[kvs] in=(post) out=(post, post.id)
+          : GetProperty(post.id) [node:Message]
           :   Argument(post)
           Fetch[kvs] in=(person) out=(person, person.firstName, person.id, person.lastName)
             : GetProperty(person.lastName) [node:Person]
@@ -730,13 +742,17 @@ Coord Limit[100]
               :   Filter((reply.creationDate >= 2010-01-01 00:00:00 +0000 UTC))
               :     GetProperty(reply.creationDate) [node:Message]
               :       Argument(reply)
-              StoreQuery[graph] out=(person, post, reply)
+              StoreQuery[graph] in=(post) out=(post, person, reply)
                 : VarLengthExpand((post)<-[_r1:REPLY_OF*0..]-(reply:Message))
                 :   Expand((post)-[_r0:HAS_CREATOR]->(person:Person))
-                :     Filter((post.creationDate <= "2013-01-01T00:00:00.000Z"))
-                :       Filter((post.creationDate >= "2010-01-01T00:00:00.000Z"))
-                :         GetProperty(post.creationDate) [node:Post]
-                :           EntityScan(post:Post)
+                :     Argument(post)
+                StoreQuery[kvs] in=(post) out=(post)
+                  : Filter((post.creationDate <= 2013-01-01 00:00:00 +0000 UTC))
+                  :   Filter((post.creationDate >= 2010-01-01 00:00:00 +0000 UTC))
+                  :     GetProperty(post.creationDate) [node:Message]
+                  :       Argument(post)
+                  StoreQuery[graph] out=(post)
+                    : EntityScan(post:Post)
 
 ### IC1
 UNSUPPORTED: ast: unsupported syntax: 12 syntax error(s)
@@ -1944,15 +1960,15 @@ Coord Projection[friend.id, friend.firstName, friend.lastName, m.id, coalesce(m.
 ### Q8 @graph
 StoreQuery[graph] out=(author.id, author.firstName, author.lastName, comment.creationDate, comment.id, comment.content)
   : Projection[author.id, author.firstName, author.lastName, comment.creationDate, comment.id, comment.content]
-  :   GetProperty(comment.content) [node:Comment]
+  :   GetProperty(comment.content) [node:Message]
   :     GetProperty(author.lastName) [node:Person]
   :       GetProperty(author.firstName) [node:Person]
   :         GetProperty(author.id) [node:Person]
   :           Limit[20]
   :             Sort[comment.creationDate DESC, comment.id ASC]
   :               Projection[comment.creationDate, comment.id, comment, author]
-  :                 GetProperty(comment.id) [node:Comment]
-  :                   GetProperty(comment.creationDate) [node:Comment]
+  :                 GetProperty(comment.id) [node:Message]
+  :                   GetProperty(comment.creationDate) [node:Message]
   :                     RelUniqueFilter[_r0, _r2]
   :                       Expand((comment)-[_r2:HAS_CREATOR]->(author:Person))
   :                         Expand((m)<-[_r1:REPLY_OF]-(comment:Comment))
@@ -1964,7 +1980,7 @@ StoreQuery[graph] out=(author.id, author.firstName, author.lastName, comment.cre
 ### Q8 @relational
 Coord Projection[author.id, author.firstName, author.lastName, comment.creationDate, comment.id, comment.content]
   Fetch[graph] in=(comment) out=(comment, comment.content)
-    : GetProperty(comment.content) [node:Comment]
+    : GetProperty(comment.content) [node:Message]
     :   Argument(comment)
     Fetch[relational] in=(author) out=(author, author.firstName, author.id, author.lastName)
       : GetProperty(author.lastName) [node:Person]
@@ -1975,8 +1991,8 @@ Coord Projection[author.id, author.firstName, author.lastName, comment.creationD
         Coord Sort[comment.creationDate DESC, comment.id ASC]
           Coord Projection[comment.creationDate, comment.id, comment, author]
             StoreQuery[graph] in=(p) out=(p, author, comment, comment.creationDate, comment.id)
-              : GetProperty(comment.id) [node:Comment]
-              :   GetProperty(comment.creationDate) [node:Comment]
+              : GetProperty(comment.id) [node:Message]
+              :   GetProperty(comment.creationDate) [node:Message]
               :     RelUniqueFilter[_r0, _r2]
               :       Expand((comment)-[_r2:HAS_CREATOR]->(author:Person))
               :         Expand((m)<-[_r1:REPLY_OF]-(comment:Comment))
@@ -1990,7 +2006,7 @@ Coord Projection[author.id, author.firstName, author.lastName, comment.creationD
 ### Q8 @document
 Coord Projection[author.id, author.firstName, author.lastName, comment.creationDate, comment.id, comment.content]
   Fetch[graph] in=(comment) out=(comment, comment.content)
-    : GetProperty(comment.content) [node:Comment]
+    : GetProperty(comment.content) [node:Message]
     :   Argument(comment)
     Fetch[document] in=(author) out=(author, author.firstName, author.id, author.lastName)
       : GetProperty(author.lastName) [node:Person]
@@ -2001,8 +2017,8 @@ Coord Projection[author.id, author.firstName, author.lastName, comment.creationD
         Coord Sort[comment.creationDate DESC, comment.id ASC]
           Coord Projection[comment.creationDate, comment.id, comment, author]
             StoreQuery[graph] in=(p) out=(p, author, comment, comment.creationDate, comment.id)
-              : GetProperty(comment.id) [node:Comment]
-              :   GetProperty(comment.creationDate) [node:Comment]
+              : GetProperty(comment.id) [node:Message]
+              :   GetProperty(comment.creationDate) [node:Message]
               :     RelUniqueFilter[_r0, _r2]
               :       Expand((comment)-[_r2:HAS_CREATOR]->(author:Person))
               :         Expand((m)<-[_r1:REPLY_OF]-(comment:Comment))
@@ -2016,7 +2032,7 @@ Coord Projection[author.id, author.firstName, author.lastName, comment.creationD
 ### Q8 @columnar
 Coord Projection[author.id, author.firstName, author.lastName, comment.creationDate, comment.id, comment.content]
   Fetch[graph] in=(comment) out=(comment, comment.content)
-    : GetProperty(comment.content) [node:Comment]
+    : GetProperty(comment.content) [node:Message]
     :   Argument(comment)
     Fetch[columnar] in=(author) out=(author, author.firstName, author.id, author.lastName)
       : GetProperty(author.lastName) [node:Person]
@@ -2027,8 +2043,8 @@ Coord Projection[author.id, author.firstName, author.lastName, comment.creationD
         Coord Sort[comment.creationDate DESC, comment.id ASC]
           Coord Projection[comment.creationDate, comment.id, comment, author]
             StoreQuery[graph] in=(p) out=(p, author, comment, comment.creationDate, comment.id)
-              : GetProperty(comment.id) [node:Comment]
-              :   GetProperty(comment.creationDate) [node:Comment]
+              : GetProperty(comment.id) [node:Message]
+              :   GetProperty(comment.creationDate) [node:Message]
               :     RelUniqueFilter[_r0, _r2]
               :       Expand((comment)-[_r2:HAS_CREATOR]->(author:Person))
               :         Expand((m)<-[_r1:REPLY_OF]-(comment:Comment))
@@ -2042,7 +2058,7 @@ Coord Projection[author.id, author.firstName, author.lastName, comment.creationD
 ### Q8 @kvs
 Coord Projection[author.id, author.firstName, author.lastName, comment.creationDate, comment.id, comment.content]
   Fetch[graph] in=(comment) out=(comment, comment.content)
-    : GetProperty(comment.content) [node:Comment]
+    : GetProperty(comment.content) [node:Message]
     :   Argument(comment)
     Fetch[kvs] in=(author) out=(author, author.firstName, author.id, author.lastName)
       : GetProperty(author.lastName) [node:Person]
@@ -2053,8 +2069,8 @@ Coord Projection[author.id, author.firstName, author.lastName, comment.creationD
         Coord Sort[comment.creationDate DESC, comment.id ASC]
           Coord Projection[comment.creationDate, comment.id, comment, author]
             StoreQuery[graph] in=(p) out=(p, author, comment, comment.creationDate, comment.id)
-              : GetProperty(comment.id) [node:Comment]
-              :   GetProperty(comment.creationDate) [node:Comment]
+              : GetProperty(comment.id) [node:Message]
+              :   GetProperty(comment.creationDate) [node:Message]
               :     RelUniqueFilter[_r0, _r2]
               :       Expand((comment)-[_r2:HAS_CREATOR]->(author:Person))
               :         Expand((m)<-[_r1:REPLY_OF]-(comment:Comment))

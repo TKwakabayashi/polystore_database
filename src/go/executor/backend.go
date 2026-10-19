@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -210,15 +211,35 @@ func (b *StoreBackend) runCQL(ctx context.Context, q *native.Query, in []Key) ([
 		args[q.InArg] = uuidStrings(in)
 	}
 	iter := sess.Query(q.Text, args...).WithContext(ctx).Iter()
+	// MapScan は null をゼロ値で返すので使わない。列ごとに **T へ読み、null は nil のまま残す。
+	cols := iter.Columns()
+	pos := make([]int, len(q.Columns))
+	for i := range q.Columns {
+		pos[i] = -1
+		for j, c := range cols {
+			if c.Name == fmt.Sprintf("c%d", i) {
+				pos[i] = j
+			}
+		}
+	}
 	var out [][]any
 	for {
-		m := map[string]any{}
-		if !iter.MapScan(m) {
+		dest := make([]any, len(cols))
+		for j, c := range cols {
+			dest[j] = reflect.New(reflect.TypeOf(c.TypeInfo.New())).Interface()
+		}
+		if !iter.Scan(dest...) {
 			break
 		}
 		vals := make([]any, len(q.Columns))
-		for i := range q.Columns {
-			vals[i] = m[fmt.Sprintf("c%d", i)]
+		for i, j := range pos {
+			if j < 0 {
+				continue
+			}
+			pp := reflect.ValueOf(dest[j]).Elem() // *T
+			if !pp.IsNil() {
+				vals[i] = pp.Elem().Interface()
+			}
 		}
 		out = append(out, vals)
 	}

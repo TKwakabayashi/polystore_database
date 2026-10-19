@@ -271,12 +271,36 @@ func decode(v any, kind native.ColKind, typ string) any {
 		return lv
 	}
 	v = normalize(v)
-	if typ != "" {
-		if s, ok := v.(string); ok {
-			if t, err := codec.ConvertToNativeType(s, typ); err == nil {
-				return normalize(t)
+	s, ok := v.(string)
+	if typ == "" || !ok {
+		return v
+	}
+	if typ == "date" || typ == "datetime" {
+		// MySQL は DATETIME を "2006-01-02 15:04:05[.ffffff]" で返す（RFC3339 ではない）。
+		for _, layout := range []string{time.RFC3339Nano, "2006-01-02 15:04:05.999999999", "2006-01-02"} {
+			if t, err := time.Parse(layout, s); err == nil {
+				return t.UTC()
 			}
 		}
+		return v
+	}
+	switch typ {
+	case "double", "float":
+		if f, err := strconv.ParseFloat(s, 64); err == nil {
+			return f
+		}
+		return v
+	case "int", "integer", "long":
+		if n, err := strconv.ParseInt(s, 10, 64); err == nil {
+			return n
+		}
+		if f, err := strconv.ParseFloat(s, 64); err == nil {
+			return int64(f)
+		}
+		return v
+	}
+	if t, err := codec.ConvertToNativeType(s, typ); err == nil {
+		return normalize(t)
 	}
 	return v
 }

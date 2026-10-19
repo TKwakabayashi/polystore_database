@@ -394,20 +394,25 @@
 ### BI9 @graph
 [graph] columns=(person.id, person.firstName, person.lastName, threadCount, messageCount)
   MATCH (post:Post) WHERE (post.creationDate >= $p0) AND (post.creationDate <= $p1) MATCH (post)-[_r0:HAS_CREATOR]->(person:Person) MATCH _sp_r1 = (post)<-[:REPLY_OF*0..]-(reply:Message) WHERE (reply.creationDate >= $p2) AND (reply.creationDate <= $p3) WITH person.id AS v0, person.firstName AS v1, person.lastName AS v2, count(DISTINCT post.id) AS v3, count(DISTINCT reply.id) AS v4 RETURN v0 AS c0, v1 AS c1, v2 AS c2, v3 AS c3, v4 AS c4 ORDER BY v4 DESC, v0 LIMIT 100
-  params: p0="2010-01-01T00:00:00.000Z", p1="2013-01-01T00:00:00.000Z", p2=2010-01-01 00:00:00 +0000 UTC(time.Time), p3=2013-01-01 00:00:00 +0000 UTC(time.Time)
+  params: p0=2010-01-01 00:00:00 +0000 UTC(time.Time), p1=2013-01-01 00:00:00 +0000 UTC(time.Time), p2=2010-01-01 00:00:00 +0000 UTC(time.Time), p3=2013-01-01 00:00:00 +0000 UTC(time.Time)
 
 ### BI9 @relational
-[graph] columns=(person, post, reply)
-  MATCH (post:Post) WHERE (post.creationDate >= $p0) AND (post.creationDate <= $p1) MATCH (post)-[_r0:HAS_CREATOR]->(person:Person) MATCH _sp_r1 = (post)<-[:REPLY_OF*0..]-(reply:Message) RETURN person.uuid AS c0, post.uuid AS c1, reply.uuid AS c2
-  params: p0="2010-01-01T00:00:00.000Z", p1="2013-01-01T00:00:00.000Z"
+[graph] columns=(post)
+  MATCH (post:Post) RETURN post.uuid AS c0
+[relational] columns=(post) in=(post)
+  SELECT `uuid` AS c0 FROM `Message` WHERE `uuid` IN (?) AND (`creationDate` >= ?) AND (`creationDate` <= ?)
+  args: <in>, 2010-01-01 00:00:00 +0000 UTC(time.Time), 2013-01-01 00:00:00 +0000 UTC(time.Time)
+[graph] columns=(post, person, reply) in=(post)
+  MATCH (post:Entity) WHERE post.uuid IN $in MATCH (post)-[_r0:HAS_CREATOR]->(person:Person) MATCH _sp_r1 = (post)<-[:REPLY_OF*0..]-(reply:Message) RETURN post.uuid AS c0, person.uuid AS c1, reply.uuid AS c2
 [relational] columns=(reply) in=(reply)
   SELECT `uuid` AS c0 FROM `Message` WHERE `uuid` IN (?) AND (`creationDate` >= ?) AND (`creationDate` <= ?)
   args: <in>, 2010-01-01 00:00:00 +0000 UTC(time.Time), 2013-01-01 00:00:00 +0000 UTC(time.Time)
 [relational] columns=(person, person.firstName, person.id, person.lastName) in=(person)
   SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2, `lastName` AS c3 FROM `Person` WHERE `uuid` IN (?)
   args: <in>
-[graph] columns=(post, post.id) in=(post)
-  MATCH (post:Entity) WHERE post.uuid IN $in RETURN post.uuid AS c0, post.id AS c1
+[relational] columns=(post, post.id) in=(post)
+  SELECT `uuid` AS c0, `id` AS c1 FROM `Message` WHERE `uuid` IN (?)
+  args: <in>
 [relational] columns=(reply, reply.id) in=(reply)
   SELECT `uuid` AS c0, `id` AS c1 FROM `Message` WHERE `uuid` IN (?)
   args: <in>
@@ -416,9 +421,15 @@
 [coordinator] Limit[100]
 
 ### BI9 @document
-[graph] columns=(person, post, reply)
-  MATCH (post:Post) WHERE (post.creationDate >= $p0) AND (post.creationDate <= $p1) MATCH (post)-[_r0:HAS_CREATOR]->(person:Person) MATCH _sp_r1 = (post)<-[:REPLY_OF*0..]-(reply:Message) RETURN person.uuid AS c0, post.uuid AS c1, reply.uuid AS c2
-  params: p0="2010-01-01T00:00:00.000Z", p1="2013-01-01T00:00:00.000Z"
+[graph] columns=(post)
+  MATCH (post:Post) RETURN post.uuid AS c0
+[document] columns=(post) in=(post)
+  db.Message.aggregate([
+    {$match: {uuid: {$in: <in>}, creationDate: {$gte: 2010-01-01 00:00:00 +0000 UTC(time.Time)}, creationDate: {$lte: 2013-01-01 00:00:00 +0000 UTC(time.Time)}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[graph] columns=(post, person, reply) in=(post)
+  MATCH (post:Entity) WHERE post.uuid IN $in MATCH (post)-[_r0:HAS_CREATOR]->(person:Person) MATCH _sp_r1 = (post)<-[:REPLY_OF*0..]-(reply:Message) RETURN post.uuid AS c0, person.uuid AS c1, reply.uuid AS c2
 [document] columns=(reply) in=(reply)
   db.Message.aggregate([
     {$match: {uuid: {$in: <in>}, creationDate: {$gte: 2010-01-01 00:00:00 +0000 UTC(time.Time)}, creationDate: {$lte: 2013-01-01 00:00:00 +0000 UTC(time.Time)}}}
@@ -429,8 +440,11 @@
     {$match: {uuid: {$in: <in>}}}
     {$project: {_id: 0(int), c0: "$uuid", c1: "$firstName", c2: "$id", c3: "$lastName"}}
   ])
-[graph] columns=(post, post.id) in=(post)
-  MATCH (post:Entity) WHERE post.uuid IN $in RETURN post.uuid AS c0, post.id AS c1
+[document] columns=(post, post.id) in=(post)
+  db.Message.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$id"}}
+  ])
 [document] columns=(reply, reply.id) in=(reply)
   db.Message.aggregate([
     {$match: {uuid: {$in: <in>}}}
@@ -441,17 +455,22 @@
 [coordinator] Limit[100]
 
 ### BI9 @columnar
-[graph] columns=(person, post, reply)
-  MATCH (post:Post) WHERE (post.creationDate >= $p0) AND (post.creationDate <= $p1) MATCH (post)-[_r0:HAS_CREATOR]->(person:Person) MATCH _sp_r1 = (post)<-[:REPLY_OF*0..]-(reply:Message) RETURN person.uuid AS c0, post.uuid AS c1, reply.uuid AS c2
-  params: p0="2010-01-01T00:00:00.000Z", p1="2013-01-01T00:00:00.000Z"
+[graph] columns=(post)
+  MATCH (post:Post) RETURN post.uuid AS c0
+[columnar] columns=(post) in=(post)
+  SELECT "uuid" AS c0 FROM "Message" WHERE "uuid" IN ? AND ("creationDate" >= ?) AND ("creationDate" <= ?) ALLOW FILTERING
+  args: <in>, 2010-01-01 00:00:00 +0000 UTC(time.Time), 2013-01-01 00:00:00 +0000 UTC(time.Time)
+[graph] columns=(post, person, reply) in=(post)
+  MATCH (post:Entity) WHERE post.uuid IN $in MATCH (post)-[_r0:HAS_CREATOR]->(person:Person) MATCH _sp_r1 = (post)<-[:REPLY_OF*0..]-(reply:Message) RETURN post.uuid AS c0, person.uuid AS c1, reply.uuid AS c2
 [columnar] columns=(reply) in=(reply)
   SELECT "uuid" AS c0 FROM "Message" WHERE "uuid" IN ? AND ("creationDate" >= ?) AND ("creationDate" <= ?) ALLOW FILTERING
   args: <in>, 2010-01-01 00:00:00 +0000 UTC(time.Time), 2013-01-01 00:00:00 +0000 UTC(time.Time)
 [columnar] columns=(person, person.firstName, person.id, person.lastName) in=(person)
   SELECT "uuid" AS c0, "firstName" AS c1, "id" AS c2, "lastName" AS c3 FROM "Person" WHERE "uuid" IN ?
   args: <in>
-[graph] columns=(post, post.id) in=(post)
-  MATCH (post:Entity) WHERE post.uuid IN $in RETURN post.uuid AS c0, post.id AS c1
+[columnar] columns=(post, post.id) in=(post)
+  SELECT "uuid" AS c0, "id" AS c1 FROM "Message" WHERE "uuid" IN ?
+  args: <in>
 [columnar] columns=(reply, reply.id) in=(reply)
   SELECT "uuid" AS c0, "id" AS c1 FROM "Message" WHERE "uuid" IN ?
   args: <in>
@@ -460,15 +479,18 @@
 [coordinator] Limit[100]
 
 ### BI9 @kvs
-[graph] columns=(person, post, reply)
-  MATCH (post:Post) WHERE (post.creationDate >= $p0) AND (post.creationDate <= $p1) MATCH (post)-[_r0:HAS_CREATOR]->(person:Person) MATCH _sp_r1 = (post)<-[:REPLY_OF*0..]-(reply:Message) RETURN person.uuid AS c0, post.uuid AS c1, reply.uuid AS c2
-  params: p0="2010-01-01T00:00:00.000Z", p1="2013-01-01T00:00:00.000Z"
+[graph] columns=(post)
+  MATCH (post:Post) RETURN post.uuid AS c0
+[kvs] columns=(post) in=(post)
+  KVS Message ids get=(creationDate) filter (post.creationDate >= 2010-01-01 00:00:00 +0000 UTC) filter (post.creationDate <= 2013-01-01 00:00:00 +0000 UTC)
+[graph] columns=(post, person, reply) in=(post)
+  MATCH (post:Entity) WHERE post.uuid IN $in MATCH (post)-[_r0:HAS_CREATOR]->(person:Person) MATCH _sp_r1 = (post)<-[:REPLY_OF*0..]-(reply:Message) RETURN post.uuid AS c0, person.uuid AS c1, reply.uuid AS c2
 [kvs] columns=(reply) in=(reply)
   KVS Message ids get=(creationDate) filter (reply.creationDate >= 2010-01-01 00:00:00 +0000 UTC) filter (reply.creationDate <= 2013-01-01 00:00:00 +0000 UTC)
 [kvs] columns=(person, person.firstName, person.id, person.lastName) in=(person)
   KVS Person ids get=(id, firstName, lastName)
-[graph] columns=(post, post.id) in=(post)
-  MATCH (post:Entity) WHERE post.uuid IN $in RETURN post.uuid AS c0, post.id AS c1
+[kvs] columns=(post, post.id) in=(post)
+  KVS Message ids get=(id)
 [kvs] columns=(reply, reply.id) in=(reply)
   KVS Message ids get=(id)
 [coordinator] Aggregation[keys: person.id, person.firstName, person.lastName | count(DISTINCT post.id) AS threadCount, count(DISTINCT reply.id) AS messageCount]
