@@ -323,7 +323,7 @@ func fromBSON(v any) any {
 
 // ---- kvs ----
 
-func (b *StoreBackend) runKVS(_ context.Context, q *native.Query, in []Key) ([][]any, error) {
+func (b *StoreBackend) runKVS(ctx context.Context, q *native.Query, in []Key) ([][]any, error) {
 	ldb, ok := b.reg.LevelDB()
 	if !ok {
 		return nil, fmt.Errorf("executor: leveldb not connected")
@@ -331,14 +331,20 @@ func (b *StoreBackend) runKVS(_ context.Context, q *native.Query, in []Key) ([][
 	k := q.KVS
 	var ids []id.UUID
 	if k.Scan {
-		ids = scanKVS(ldb, k)
+		var err error
+		if ids, err = scanKVS(ctx, ldb, k); err != nil {
+			return nil, err
+		}
 	} else {
 		for _, key := range in {
 			ids = append(ids, key[0])
 		}
 	}
 	var out [][]any
-	for _, u := range ids {
+	for i, u := range ids {
+		if i%1024 == 0 && ctx.Err() != nil { // 打ち切り（context）を一定件数ごとに確かめる
+			return nil, ctx.Err()
+		}
 		r := Row{k.Alias: u}
 		for _, p := range k.Props {
 			raw, err := ldb.Get(codec.BuildEntityKey(k.Label, u, p), nil)
@@ -395,7 +401,7 @@ func isStringType(t string) bool {
 }
 
 // scanKVS はラベルの uuid を集める（等値条件があれば逆引きインデックスの前方一致）。
-func scanKVS(ldb *leveldb.DB, k *native.KVSQuery) []id.UUID {
+func scanKVS(ctx context.Context, ldb *leveldb.DB, k *native.KVSQuery) ([]id.UUID, error) {
 	var prefix []byte
 	index := false
 	if eq := k.PrimaryEq; eq != nil {
@@ -420,7 +426,11 @@ func scanKVS(ldb *leveldb.DB, k *native.KVSQuery) []id.UUID {
 	var out []id.UUID
 	iter := ldb.NewIterator(util.BytesPrefix(prefix), nil)
 	defer iter.Release()
+	n := 0
 	for iter.Next() {
+		if n++; n%4096 == 0 && ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		key := iter.Key()
 		var s string
 		if index {
@@ -435,5 +445,5 @@ func scanKVS(ldb *leveldb.DB, k *native.KVSQuery) []id.UUID {
 			out = append(out, id.FromAny(s))
 		}
 	}
-	return out
+	return out, iter.Error()
 }

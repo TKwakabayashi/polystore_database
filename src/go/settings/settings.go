@@ -62,6 +62,19 @@ var IntegrateRowThreshold = 1024
 // min(この値 or ストア既定, ストアの物理上限 store.LimitsOf(k).MaxInList) で clamp する。
 var MaterializeChunkSize = 0
 
+// UniqueKeyProps は「等値条件で 1 件に絞れる」とみなすプロパティ名（エンティティの一意キー）。
+// 刷新版の翻訳（logical.Translate）が、パターンの起点を選ぶときに統計の代わりに使う。
+var UniqueKeyProps = []string{"id"}
+
+// StoreFetchParallelism は、1 つの演算子が IN-list をチャンクに分けて同じストアへ投げるときの
+// 同時発行数（刷新版の executor）。1 なら直列。
+var StoreFetchParallelism = 4
+
+// GraphFetchParallelism は graph（Neo4j）へのチャンクの同時発行数。graph のチャンクは 5 万件の起点から
+// 可変長トラバーサルを走らせることがあり、並列にすると Neo4j がメモリ不足で落ちる（ldbc_sf1 の BI9 で
+// heap 4G / pagecache 1G の構成が OOM-kill された）ので既定は直列。
+var GraphFetchParallelism = 1
+
 // GeneralSegmentation は一般セグメンタ（record パイプラインを隣接同一ストアの最長ランへ分割して
 // 融合する）の有効化。ランの境界は下位ランの束縛 uuid を IN-list で上位ランへ渡す。
 // 現状 lowering があるのは graph ランのみ（非 graph ランは素の演算子のまま実行）。既定 false・実験。

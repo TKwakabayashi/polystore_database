@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"polystore_database/src/go/ast"
+	"polystore_database/src/go/settings"
 )
 
 // translate.go は段階 B: クエリ AST を論理計画へ翻訳する（docs/operator_plan.md §4.2〜§4.5）。
@@ -690,20 +691,52 @@ func (b *builder) chooseStart(comp []string, vertices map[string]*patVertex, bou
 			return v
 		}
 	}
-	best, bestN := comp[0], -1
+	// 統計を持たないので、述語が絞れる強さで順位を付ける（強い順に比べ、同じなら次の項目、最後は出現順）:
+	//   一意キーの等値（{id: $x}）> 等値・IN > その他の述語の数
+	type score struct{ unique, eq, n int }
+	better := func(a, c score) bool {
+		if a.unique != c.unique {
+			return a.unique > c.unique
+		}
+		if a.eq != c.eq {
+			return a.eq > c.eq
+		}
+		return a.n > c.n
+	}
+	best, bestS := comp[0], score{-1, -1, -1}
 	for _, v := range comp {
-		n := 0
+		var s score
 		for _, e := range pending {
 			d := b.deps(e)
-			if len(d) == 1 && d[0] == v {
-				n++
+			if len(d) != 1 || d[0] != v {
+				continue
+			}
+			s.n++
+			bin, ok := e.(*ast.Bin)
+			if !ok || (bin.Op != "=" && bin.Op != "IN") {
+				continue
+			}
+			s.eq++
+			if pr, ok := bin.L.(*ast.PropRef); ok && bin.Op == "=" && isUniqueKey(pr.Prop) {
+				if _, lit := bin.R.(*ast.Lit); lit {
+					s.unique++
+				}
 			}
 		}
-		if n > bestN {
-			best, bestN = v, n
+		if better(s, bestS) {
+			best, bestS = v, s
 		}
 	}
 	return best
+}
+
+func isUniqueKey(prop string) bool {
+	for _, k := range settings.UniqueKeyProps {
+		if k == prop {
+			return true
+		}
+	}
+	return false
 }
 
 // nextEdge は成分内で、片端以上が束縛済みの未処理の辺のうち出現順で最初のもの。

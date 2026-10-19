@@ -273,85 +273,77 @@ StoreQuery[graph] out=(m.id, m.length)
   :   Sort[m.length DESC, m.id ASC]
   :     Projection[m.id, m.length]
   :       GetProperty(m.id) [node:Message]
-  :         Filter((p.id = 15393162799448))
-  :           GetProperty(p.id) [node:Person]
-  :             Expand((m)-[_r0:HAS_CREATOR]->(p:Person))
-  :               Filter((m.length <= 200))
-  :                 Filter((m.length >= 50))
-  :                   GetProperty(m.length) [node:Message]
-  :                     EntityScan(m:Message)
+  :         Filter((m.length <= 200))
+  :           Filter((m.length >= 50))
+  :             GetProperty(m.length) [node:Message]
+  :               Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+  :                 Filter((p.id = 15393162799448))
+  :                   GetProperty(p.id) [node:Person]
+  :                     EntityScan(p:Person)
 
 ### AGG4 @relational
 Coord Limit[20]
   Coord Sort[m.length DESC, m.id ASC]
     Coord Projection[m.id, m.length]
-      Fetch[relational] in=(m) out=(m, m.id)
+      StoreQuery[relational] in=(m) out=(m, m.id, m.length)
         : GetProperty(m.id) [node:Message]
-        :   Argument(m)
-        StoreQuery[graph] in=(m) out=(m)
-          : Filter((p.id = 15393162799448))
-          :   GetProperty(p.id) [node:Person]
-          :     Expand((m)-[_r0:HAS_CREATOR]->(p:Person))
-          :       Argument(m)
-          StoreQuery[relational] out=(m, m.length)
-            : Filter((m.length <= 200))
-            :   Filter((m.length >= 50))
-            :     GetProperty(m.length) [node:Message]
-            :       EntityScan(m:Message)
+        :   Filter((m.length <= 200))
+        :     Filter((m.length >= 50))
+        :       GetProperty(m.length) [node:Message]
+        :         Argument(m)
+        StoreQuery[graph] out=(m)
+          : Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+          :   Filter((p.id = 15393162799448))
+          :     GetProperty(p.id) [node:Person]
+          :       EntityScan(p:Person)
 
 ### AGG4 @document
 Coord Limit[20]
   Coord Sort[m.length DESC, m.id ASC]
     Coord Projection[m.id, m.length]
-      Fetch[document] in=(m) out=(m, m.id)
+      StoreQuery[document] in=(m) out=(m, m.id, m.length)
         : GetProperty(m.id) [node:Message]
-        :   Argument(m)
-        StoreQuery[graph] in=(m) out=(m)
-          : Filter((p.id = 15393162799448))
-          :   GetProperty(p.id) [node:Person]
-          :     Expand((m)-[_r0:HAS_CREATOR]->(p:Person))
-          :       Argument(m)
-          StoreQuery[document] out=(m, m.length)
-            : Filter((m.length <= 200))
-            :   Filter((m.length >= 50))
-            :     GetProperty(m.length) [node:Message]
-            :       EntityScan(m:Message)
+        :   Filter((m.length <= 200))
+        :     Filter((m.length >= 50))
+        :       GetProperty(m.length) [node:Message]
+        :         Argument(m)
+        StoreQuery[graph] out=(m)
+          : Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+          :   Filter((p.id = 15393162799448))
+          :     GetProperty(p.id) [node:Person]
+          :       EntityScan(p:Person)
 
 ### AGG4 @columnar
 Coord Limit[20]
   Coord Sort[m.length DESC, m.id ASC]
     Coord Projection[m.id, m.length]
-      Fetch[columnar] in=(m) out=(m, m.id)
+      StoreQuery[columnar] in=(m) out=(m, m.id, m.length)
         : GetProperty(m.id) [node:Message]
-        :   Argument(m)
-        StoreQuery[graph] in=(m) out=(m)
-          : Filter((p.id = 15393162799448))
-          :   GetProperty(p.id) [node:Person]
-          :     Expand((m)-[_r0:HAS_CREATOR]->(p:Person))
-          :       Argument(m)
-          StoreQuery[columnar] out=(m, m.length)
-            : Filter((m.length <= 200))
-            :   Filter((m.length >= 50))
-            :     GetProperty(m.length) [node:Message]
-            :       EntityScan(m:Message)
+        :   Filter((m.length <= 200))
+        :     Filter((m.length >= 50))
+        :       GetProperty(m.length) [node:Message]
+        :         Argument(m)
+        StoreQuery[graph] out=(m)
+          : Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+          :   Filter((p.id = 15393162799448))
+          :     GetProperty(p.id) [node:Person]
+          :       EntityScan(p:Person)
 
 ### AGG4 @kvs
 Coord Limit[20]
   Coord Sort[m.length DESC, m.id ASC]
     Coord Projection[m.id, m.length]
-      Fetch[kvs] in=(m) out=(m, m.id)
+      StoreQuery[kvs] in=(m) out=(m, m.id, m.length)
         : GetProperty(m.id) [node:Message]
-        :   Argument(m)
-        StoreQuery[graph] in=(m) out=(m)
-          : Filter((p.id = 15393162799448))
-          :   GetProperty(p.id) [node:Person]
-          :     Expand((m)-[_r0:HAS_CREATOR]->(p:Person))
-          :       Argument(m)
-          StoreQuery[kvs] out=(m, m.length)
-            : Filter((m.length <= 200))
-            :   Filter((m.length >= 50))
-            :     GetProperty(m.length) [node:Message]
-            :       EntityScan(m:Message)
+        :   Filter((m.length <= 200))
+        :     Filter((m.length >= 50))
+        :       GetProperty(m.length) [node:Message]
+        :         Argument(m)
+        StoreQuery[graph] out=(m)
+          : Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+          :   Filter((p.id = 15393162799448))
+          :     GetProperty(p.id) [node:Person]
+          :       EntityScan(p:Person)
 
 ### AGG5 @graph
 StoreQuery[graph] out=(cnt, mn, mx, sm, av)
@@ -1646,20 +1638,20 @@ StoreQuery[graph] out=(friend.id, friend.firstName, friend.lastName, comp.name, 
   :           Projection[friend.id, comp.name, work.workFrom, friend]
   :             GetProperty(comp.name) [node:Organisation]
   :               GetProperty(friend.id) [node:Person]
-  :                 Filter((p.id = 15393162799448))
-  :                   GetProperty(p.id) [node:Person]
-  :                     VarLengthExpand((friend)-[_r0:KNOWS*1..3]-(p:Person))
-  :                       Filter((work.workFrom < 2008))
-  :                         GetProperty(work.workFrom) [rel:WORK_AT]
-  :                           Expand((comp)<-[work:WORK_AT]-(friend:Person))
-  :                             Filter((comp.type = "Company"))
-  :                               GetProperty(comp.type) [node:Organisation]
-  :                                 Expand((_n0)<-[_r1:IS_LOCATED_IN]-(comp:Organisation))
-  :                                   Filter((_n0.name = "Germany"))
-  :                                     GetProperty(_n0.name) [node:Place]
-  :                                       Filter((_n0.type = "Country"))
-  :                                         GetProperty(_n0.type) [node:Place]
-  :                                           EntityScan(_n0:Place)
+  :                 Filter((_n0.name = "Germany"))
+  :                   GetProperty(_n0.name) [node:Place]
+  :                     Filter((_n0.type = "Country"))
+  :                       GetProperty(_n0.type) [node:Place]
+  :                         Expand((comp)-[_r1:IS_LOCATED_IN]->(_n0:Place))
+  :                           Filter((comp.type = "Company"))
+  :                             GetProperty(comp.type) [node:Organisation]
+  :                               Filter((work.workFrom < 2008))
+  :                                 GetProperty(work.workFrom) [rel:WORK_AT]
+  :                                   Expand((friend)-[work:WORK_AT]->(comp:Organisation))
+  :                                     VarLengthExpand((p)-[_r0:KNOWS*1..3]-(friend:Person))
+  :                                       Filter((p.id = 15393162799448))
+  :                                         GetProperty(p.id) [node:Person]
+  :                                           EntityScan(p:Person)
 
 ### Q11 @relational
 Coord Projection[friend.id, friend.firstName, friend.lastName, comp.name, work.workFrom]
@@ -1676,33 +1668,31 @@ Coord Projection[friend.id, friend.firstName, friend.lastName, comp.name, work.w
             Fetch[relational] in=(friend) out=(friend, friend.id)
               : GetProperty(friend.id) [node:Person]
               :   Argument(friend)
-              StoreQuery[relational] in=(p) out=(p)
-                : Filter((p.id = 15393162799448))
-                :   GetProperty(p.id) [node:Person]
-                :     Argument(p)
-                StoreQuery[graph] in=(friend) out=(friend, p)
-                  : VarLengthExpand((friend)-[_r0:KNOWS*1..3]-(p:Person))
-                  :   Argument(friend)
-                  StoreQuery[relational] in=(work) out=(work, work.workFrom)
-                    : Filter((work.workFrom < 2008))
-                    :   GetProperty(work.workFrom) [rel:WORK_AT]
-                    :     Argument(work)
-                    StoreQuery[graph] in=(comp) out=(comp, friend, work)
-                      : Expand((comp)<-[work:WORK_AT]-(friend:Person))
-                      :   Argument(comp)
-                      StoreQuery[relational] in=(comp) out=(comp)
-                        : Filter((comp.type = "Company"))
-                        :   GetProperty(comp.type) [node:Organisation]
-                        :     Argument(comp)
-                        StoreQuery[graph] in=(_n0) out=(_n0, comp)
-                          : Expand((_n0)<-[_r1:IS_LOCATED_IN]-(comp:Organisation))
-                          :   Argument(_n0)
-                          StoreQuery[relational] out=(_n0)
-                            : Filter((_n0.name = "Germany"))
-                            :   GetProperty(_n0.name) [node:Place]
-                            :     Filter((_n0.type = "Country"))
-                            :       GetProperty(_n0.type) [node:Place]
-                            :         EntityScan(_n0:Place)
+              StoreQuery[relational] in=(_n0) out=(_n0)
+                : Filter((_n0.name = "Germany"))
+                :   GetProperty(_n0.name) [node:Place]
+                :     Filter((_n0.type = "Country"))
+                :       GetProperty(_n0.type) [node:Place]
+                :         Argument(_n0)
+                StoreQuery[graph] in=(comp) out=(comp, _n0)
+                  : Expand((comp)-[_r1:IS_LOCATED_IN]->(_n0:Place))
+                  :   Argument(comp)
+                  StoreQuery[relational] in=(comp) out=(comp)
+                    : Filter((comp.type = "Company"))
+                    :   GetProperty(comp.type) [node:Organisation]
+                    :     Argument(comp)
+                    StoreQuery[relational] in=(work) out=(work, work.workFrom)
+                      : Filter((work.workFrom < 2008))
+                      :   GetProperty(work.workFrom) [rel:WORK_AT]
+                      :     Argument(work)
+                      StoreQuery[graph] in=(p) out=(p, comp, friend, work)
+                        : Expand((friend)-[work:WORK_AT]->(comp:Organisation))
+                        :   VarLengthExpand((p)-[_r0:KNOWS*1..3]-(friend:Person))
+                        :     Argument(p)
+                        StoreQuery[relational] out=(p)
+                          : Filter((p.id = 15393162799448))
+                          :   GetProperty(p.id) [node:Person]
+                          :     EntityScan(p:Person)
 
 ### Q11 @document
 Coord Projection[friend.id, friend.firstName, friend.lastName, comp.name, work.workFrom]
@@ -1719,33 +1709,31 @@ Coord Projection[friend.id, friend.firstName, friend.lastName, comp.name, work.w
             Fetch[document] in=(friend) out=(friend, friend.id)
               : GetProperty(friend.id) [node:Person]
               :   Argument(friend)
-              StoreQuery[document] in=(p) out=(p)
-                : Filter((p.id = 15393162799448))
-                :   GetProperty(p.id) [node:Person]
-                :     Argument(p)
-                StoreQuery[graph] in=(friend) out=(friend, p)
-                  : VarLengthExpand((friend)-[_r0:KNOWS*1..3]-(p:Person))
-                  :   Argument(friend)
-                  StoreQuery[document] in=(work) out=(work, work.workFrom)
-                    : Filter((work.workFrom < 2008))
-                    :   GetProperty(work.workFrom) [rel:WORK_AT]
-                    :     Argument(work)
-                    StoreQuery[graph] in=(comp) out=(comp, friend, work)
-                      : Expand((comp)<-[work:WORK_AT]-(friend:Person))
-                      :   Argument(comp)
-                      StoreQuery[document] in=(comp) out=(comp)
-                        : Filter((comp.type = "Company"))
-                        :   GetProperty(comp.type) [node:Organisation]
-                        :     Argument(comp)
-                        StoreQuery[graph] in=(_n0) out=(_n0, comp)
-                          : Expand((_n0)<-[_r1:IS_LOCATED_IN]-(comp:Organisation))
-                          :   Argument(_n0)
-                          StoreQuery[document] out=(_n0)
-                            : Filter((_n0.name = "Germany"))
-                            :   GetProperty(_n0.name) [node:Place]
-                            :     Filter((_n0.type = "Country"))
-                            :       GetProperty(_n0.type) [node:Place]
-                            :         EntityScan(_n0:Place)
+              StoreQuery[document] in=(_n0) out=(_n0)
+                : Filter((_n0.name = "Germany"))
+                :   GetProperty(_n0.name) [node:Place]
+                :     Filter((_n0.type = "Country"))
+                :       GetProperty(_n0.type) [node:Place]
+                :         Argument(_n0)
+                StoreQuery[graph] in=(comp) out=(comp, _n0)
+                  : Expand((comp)-[_r1:IS_LOCATED_IN]->(_n0:Place))
+                  :   Argument(comp)
+                  StoreQuery[document] in=(comp) out=(comp)
+                    : Filter((comp.type = "Company"))
+                    :   GetProperty(comp.type) [node:Organisation]
+                    :     Argument(comp)
+                    StoreQuery[document] in=(work) out=(work, work.workFrom)
+                      : Filter((work.workFrom < 2008))
+                      :   GetProperty(work.workFrom) [rel:WORK_AT]
+                      :     Argument(work)
+                      StoreQuery[graph] in=(p) out=(p, comp, friend, work)
+                        : Expand((friend)-[work:WORK_AT]->(comp:Organisation))
+                        :   VarLengthExpand((p)-[_r0:KNOWS*1..3]-(friend:Person))
+                        :     Argument(p)
+                        StoreQuery[document] out=(p)
+                          : Filter((p.id = 15393162799448))
+                          :   GetProperty(p.id) [node:Person]
+                          :     EntityScan(p:Person)
 
 ### Q11 @columnar
 Coord Projection[friend.id, friend.firstName, friend.lastName, comp.name, work.workFrom]
@@ -1762,33 +1750,31 @@ Coord Projection[friend.id, friend.firstName, friend.lastName, comp.name, work.w
             Fetch[columnar] in=(friend) out=(friend, friend.id)
               : GetProperty(friend.id) [node:Person]
               :   Argument(friend)
-              StoreQuery[columnar] in=(p) out=(p)
-                : Filter((p.id = 15393162799448))
-                :   GetProperty(p.id) [node:Person]
-                :     Argument(p)
-                StoreQuery[graph] in=(friend) out=(friend, p)
-                  : VarLengthExpand((friend)-[_r0:KNOWS*1..3]-(p:Person))
-                  :   Argument(friend)
-                  StoreQuery[columnar] in=(work) out=(work, work.workFrom)
-                    : Filter((work.workFrom < 2008))
-                    :   GetProperty(work.workFrom) [rel:WORK_AT]
-                    :     Argument(work)
-                    StoreQuery[graph] in=(comp) out=(comp, friend, work)
-                      : Expand((comp)<-[work:WORK_AT]-(friend:Person))
-                      :   Argument(comp)
-                      StoreQuery[columnar] in=(comp) out=(comp)
-                        : Filter((comp.type = "Company"))
-                        :   GetProperty(comp.type) [node:Organisation]
-                        :     Argument(comp)
-                        StoreQuery[graph] in=(_n0) out=(_n0, comp)
-                          : Expand((_n0)<-[_r1:IS_LOCATED_IN]-(comp:Organisation))
-                          :   Argument(_n0)
-                          StoreQuery[columnar] out=(_n0)
-                            : Filter((_n0.name = "Germany"))
-                            :   GetProperty(_n0.name) [node:Place]
-                            :     Filter((_n0.type = "Country"))
-                            :       GetProperty(_n0.type) [node:Place]
-                            :         EntityScan(_n0:Place)
+              StoreQuery[columnar] in=(_n0) out=(_n0)
+                : Filter((_n0.name = "Germany"))
+                :   GetProperty(_n0.name) [node:Place]
+                :     Filter((_n0.type = "Country"))
+                :       GetProperty(_n0.type) [node:Place]
+                :         Argument(_n0)
+                StoreQuery[graph] in=(comp) out=(comp, _n0)
+                  : Expand((comp)-[_r1:IS_LOCATED_IN]->(_n0:Place))
+                  :   Argument(comp)
+                  StoreQuery[columnar] in=(comp) out=(comp)
+                    : Filter((comp.type = "Company"))
+                    :   GetProperty(comp.type) [node:Organisation]
+                    :     Argument(comp)
+                    StoreQuery[columnar] in=(work) out=(work, work.workFrom)
+                      : Filter((work.workFrom < 2008))
+                      :   GetProperty(work.workFrom) [rel:WORK_AT]
+                      :     Argument(work)
+                      StoreQuery[graph] in=(p) out=(p, comp, friend, work)
+                        : Expand((friend)-[work:WORK_AT]->(comp:Organisation))
+                        :   VarLengthExpand((p)-[_r0:KNOWS*1..3]-(friend:Person))
+                        :     Argument(p)
+                        StoreQuery[columnar] out=(p)
+                          : Filter((p.id = 15393162799448))
+                          :   GetProperty(p.id) [node:Person]
+                          :     EntityScan(p:Person)
 
 ### Q11 @kvs
 Coord Projection[friend.id, friend.firstName, friend.lastName, comp.name, work.workFrom]
@@ -1805,33 +1791,31 @@ Coord Projection[friend.id, friend.firstName, friend.lastName, comp.name, work.w
             Fetch[kvs] in=(friend) out=(friend, friend.id)
               : GetProperty(friend.id) [node:Person]
               :   Argument(friend)
-              StoreQuery[kvs] in=(p) out=(p)
-                : Filter((p.id = 15393162799448))
-                :   GetProperty(p.id) [node:Person]
-                :     Argument(p)
-                StoreQuery[graph] in=(friend) out=(friend, p)
-                  : VarLengthExpand((friend)-[_r0:KNOWS*1..3]-(p:Person))
-                  :   Argument(friend)
-                  StoreQuery[kvs] in=(work) out=(work, work.workFrom)
-                    : Filter((work.workFrom < 2008))
-                    :   GetProperty(work.workFrom) [rel:WORK_AT]
-                    :     Argument(work)
-                    StoreQuery[graph] in=(comp) out=(comp, friend, work)
-                      : Expand((comp)<-[work:WORK_AT]-(friend:Person))
-                      :   Argument(comp)
-                      StoreQuery[kvs] in=(comp) out=(comp)
-                        : Filter((comp.type = "Company"))
-                        :   GetProperty(comp.type) [node:Organisation]
-                        :     Argument(comp)
-                        StoreQuery[graph] in=(_n0) out=(_n0, comp)
-                          : Expand((_n0)<-[_r1:IS_LOCATED_IN]-(comp:Organisation))
-                          :   Argument(_n0)
-                          StoreQuery[kvs] out=(_n0)
-                            : Filter((_n0.name = "Germany"))
-                            :   GetProperty(_n0.name) [node:Place]
-                            :     Filter((_n0.type = "Country"))
-                            :       GetProperty(_n0.type) [node:Place]
-                            :         EntityScan(_n0:Place)
+              StoreQuery[kvs] in=(_n0) out=(_n0)
+                : Filter((_n0.name = "Germany"))
+                :   GetProperty(_n0.name) [node:Place]
+                :     Filter((_n0.type = "Country"))
+                :       GetProperty(_n0.type) [node:Place]
+                :         Argument(_n0)
+                StoreQuery[graph] in=(comp) out=(comp, _n0)
+                  : Expand((comp)-[_r1:IS_LOCATED_IN]->(_n0:Place))
+                  :   Argument(comp)
+                  StoreQuery[kvs] in=(comp) out=(comp)
+                    : Filter((comp.type = "Company"))
+                    :   GetProperty(comp.type) [node:Organisation]
+                    :     Argument(comp)
+                    StoreQuery[kvs] in=(work) out=(work, work.workFrom)
+                      : Filter((work.workFrom < 2008))
+                      :   GetProperty(work.workFrom) [rel:WORK_AT]
+                      :     Argument(work)
+                      StoreQuery[graph] in=(p) out=(p, comp, friend, work)
+                        : Expand((friend)-[work:WORK_AT]->(comp:Organisation))
+                        :   VarLengthExpand((p)-[_r0:KNOWS*1..3]-(friend:Person))
+                        :     Argument(p)
+                        StoreQuery[kvs] out=(p)
+                          : Filter((p.id = 15393162799448))
+                          :   GetProperty(p.id) [node:Person]
+                          :     EntityScan(p:Person)
 
 ### Q2 @graph
 StoreQuery[graph] out=(friend.id, friend.firstName, friend.lastName, m.id, coalesce(m.content, m.imageFile), m.creationDate)

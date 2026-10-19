@@ -41,13 +41,13 @@ Limit[20]
   Sort[m.length DESC, m.id ASC]
     Projection[m.id, m.length]
       GetProperty(m.id) [node:Message]
-        Filter((p.id = 15393162799448))
-          GetProperty(p.id) [node:Person]
-            Expand((m)-[_r0:HAS_CREATOR]->(p:Person))
-              Filter((m.length <= 200))
-                Filter((m.length >= 50))
-                  GetProperty(m.length) [node:Message]
-                    EntityScan(m:Message)
+        Filter((m.length <= 200))
+          Filter((m.length >= 50))
+            GetProperty(m.length) [node:Message]
+              Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+                Filter((p.id = 15393162799448))
+                  GetProperty(p.id) [node:Person]
+                    EntityScan(p:Person)
 
 ### AGG5
 Aggregation[keys: ∅ | count(*) AS cnt, min(o.id) AS mn, max(o.id) AS mx, sum(o.id) AS sm, avg(o.id) AS av]
@@ -234,20 +234,20 @@ Limit[10]
         GetProperty(friend.lastName) [node:Person]
           GetProperty(friend.firstName) [node:Person]
             GetProperty(friend.id) [node:Person]
-              Filter((p.id = 15393162799448))
-                GetProperty(p.id) [node:Person]
-                  VarLengthExpand((friend)-[_r0:KNOWS*1..3]-(p:Person))
-                    Filter((work.workFrom < 2008))
-                      GetProperty(work.workFrom) [rel:WORK_AT]
-                        Expand((comp)<-[work:WORK_AT]-(friend:Person))
-                          Filter((comp.type = "Company"))
-                            GetProperty(comp.type) [node:Organisation]
-                              Expand((_n0)<-[_r1:IS_LOCATED_IN]-(comp:Organisation))
-                                Filter((_n0.name = "Germany"))
-                                  GetProperty(_n0.name) [node:Place]
-                                    Filter((_n0.type = "Country"))
-                                      GetProperty(_n0.type) [node:Place]
-                                        EntityScan(_n0:Place)
+              Filter((_n0.name = "Germany"))
+                GetProperty(_n0.name) [node:Place]
+                  Filter((_n0.type = "Country"))
+                    GetProperty(_n0.type) [node:Place]
+                      Expand((comp)-[_r1:IS_LOCATED_IN]->(_n0:Place))
+                        Filter((comp.type = "Company"))
+                          GetProperty(comp.type) [node:Organisation]
+                            Filter((work.workFrom < 2008))
+                              GetProperty(work.workFrom) [rel:WORK_AT]
+                                Expand((friend)-[work:WORK_AT]->(comp:Organisation))
+                                  VarLengthExpand((p)-[_r0:KNOWS*1..3]-(friend:Person))
+                                    Filter((p.id = 15393162799448))
+                                      GetProperty(p.id) [node:Person]
+                                        EntityScan(p:Person)
 
 ### Q2
 Limit[20]

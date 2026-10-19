@@ -195,63 +195,50 @@
 
 ### AGG4 @graph
 [graph] columns=(m.id, m.length)
-  MATCH (m:Message) WHERE (m.length >= $p0) AND (m.length <= $p1) MATCH (m)-[_r0:HAS_CREATOR]->(p:Person) WHERE (p.id = $p2) WITH m.id AS v0, m.length AS v1 RETURN v0 AS c0, v1 AS c1 ORDER BY v1 DESC, v0 LIMIT 20
-  params: p0=50(int64), p1=200(int64), p2=15393162799448(int64)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) WHERE (m.length >= $p1) AND (m.length <= $p2) WITH m.id AS v0, m.length AS v1 RETURN v0 AS c0, v1 AS c1 ORDER BY v1 DESC, v0 LIMIT 20
+  params: p0=15393162799448(int64), p1=50(int64), p2=200(int64)
 
 ### AGG4 @relational
-[relational] columns=(m, m.length)
-  SELECT `uuid` AS c0, `length` AS c1 FROM `Message` WHERE (`length` >= ?) AND (`length` <= ?)
-  args: 50(int64), 200(int64)
-[graph] columns=(m) in=(m)
-  MATCH (m:Entity) WHERE m.uuid IN $in MATCH (m)-[_r0:HAS_CREATOR]->(p:Person) WHERE (p.id = $p0) RETURN m.uuid AS c0
+[graph] columns=(m)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) RETURN m.uuid AS c0
   params: p0=15393162799448(int64)
-[relational] columns=(m, m.id) in=(m)
-  SELECT `uuid` AS c0, `id` AS c1 FROM `Message` WHERE `uuid` IN (?)
-  args: <in>
+[relational] columns=(m, m.id, m.length) in=(m)
+  SELECT `uuid` AS c0, `id` AS c1, `length` AS c2 FROM `Message` WHERE `uuid` IN (?) AND (`length` >= ?) AND (`length` <= ?)
+  args: <in>, 50(int64), 200(int64)
 [coordinator] Projection[m.id, m.length]
 [coordinator] Sort[m.length DESC, m.id ASC]
 [coordinator] Limit[20]
 
 ### AGG4 @document
-[document] columns=(m, m.length)
-  db.Message.aggregate([
-    {$match: {length: {$gte: 50(int64)}, length: {$lte: 200(int64)}}}
-    {$project: {_id: 0(int), c0: "$uuid", c1: "$length"}}
-  ])
-[graph] columns=(m) in=(m)
-  MATCH (m:Entity) WHERE m.uuid IN $in MATCH (m)-[_r0:HAS_CREATOR]->(p:Person) WHERE (p.id = $p0) RETURN m.uuid AS c0
+[graph] columns=(m)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) RETURN m.uuid AS c0
   params: p0=15393162799448(int64)
-[document] columns=(m, m.id) in=(m)
+[document] columns=(m, m.id, m.length) in=(m)
   db.Message.aggregate([
-    {$match: {uuid: {$in: <in>}}}
-    {$project: {_id: 0(int), c0: "$uuid", c1: "$id"}}
+    {$match: {uuid: {$in: <in>}, length: {$gte: 50(int64)}, length: {$lte: 200(int64)}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$id", c2: "$length"}}
   ])
 [coordinator] Projection[m.id, m.length]
 [coordinator] Sort[m.length DESC, m.id ASC]
 [coordinator] Limit[20]
 
 ### AGG4 @columnar
-[columnar] columns=(m, m.length)
-  SELECT "uuid" AS c0, "length" AS c1 FROM "Message" WHERE ("length" >= ?) AND ("length" <= ?) ALLOW FILTERING
-  args: 50(int64), 200(int64)
-[graph] columns=(m) in=(m)
-  MATCH (m:Entity) WHERE m.uuid IN $in MATCH (m)-[_r0:HAS_CREATOR]->(p:Person) WHERE (p.id = $p0) RETURN m.uuid AS c0
+[graph] columns=(m)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) RETURN m.uuid AS c0
   params: p0=15393162799448(int64)
-[columnar] columns=(m, m.id) in=(m)
-  SELECT "uuid" AS c0, "id" AS c1 FROM "Message" WHERE "uuid" IN ?
-  args: <in>
+[columnar] columns=(m, m.id, m.length) in=(m)
+  SELECT "uuid" AS c0, "id" AS c1, "length" AS c2 FROM "Message" WHERE "uuid" IN ? AND ("length" >= ?) AND ("length" <= ?) ALLOW FILTERING
+  args: <in>, 50(int64), 200(int64)
 [coordinator] Projection[m.id, m.length]
 [coordinator] Sort[m.length DESC, m.id ASC]
 [coordinator] Limit[20]
 
 ### AGG4 @kvs
-[kvs] columns=(m, m.length)
-  KVS Message scan get=(length) filter (m.length >= 50) filter (m.length <= 200)
-[graph] columns=(m) in=(m)
-  MATCH (m:Entity) WHERE m.uuid IN $in MATCH (m)-[_r0:HAS_CREATOR]->(p:Person) WHERE (p.id = $p0) RETURN m.uuid AS c0
+[graph] columns=(m)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) RETURN m.uuid AS c0
   params: p0=15393162799448(int64)
-[kvs] columns=(m, m.id) in=(m)
-  KVS Message ids get=(id)
+[kvs] columns=(m, m.id, m.length) in=(m)
+  KVS Message ids get=(length, id) filter (m.length >= 50) filter (m.length <= 200)
 [coordinator] Projection[m.id, m.length]
 [coordinator] Sort[m.length DESC, m.id ASC]
 [coordinator] Limit[20]
@@ -1141,28 +1128,26 @@
 
 ### Q11 @graph
 [graph] columns=(friend.id, friend.firstName, friend.lastName, comp.name, work.workFrom)
-  MATCH (_n0:Place) WHERE (_n0.type = $p0) AND (_n0.name = $p1) MATCH (_n0)<-[_r1:IS_LOCATED_IN]-(comp:Organisation) WHERE (comp.type = $p2) MATCH (comp)<-[work:WORK_AT]-(friend:Person) WHERE (work.workFrom < $p3) MATCH _sp_r0 = (friend)-[:KNOWS*1..3]-(p:Person) WHERE (p.id = $p4) WITH friend.id AS v0, comp.name AS v1, work.workFrom AS v2, friend AS friend WITH * ORDER BY v2, v0, v1 DESC LIMIT 10 WITH v0 AS v4, friend.firstName AS v5, friend.lastName AS v6, v1 AS v7, v2 AS v8 RETURN v4 AS c0, v5 AS c1, v6 AS c2, v7 AS c3, v8 AS c4
-  params: p0="Country", p1="Germany", p2="Company", p3=2008(int64), p4=15393162799448(int64)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH _sp_r0 = (p)-[:KNOWS*1..3]-(friend:Person) MATCH (friend)-[work:WORK_AT]->(comp:Organisation) WHERE (work.workFrom < $p1) AND (comp.type = $p2) MATCH (comp)-[_r1:IS_LOCATED_IN]->(_n0:Place) WHERE (_n0.type = $p3) AND (_n0.name = $p4) WITH friend.id AS v0, comp.name AS v1, work.workFrom AS v2, friend AS friend WITH * ORDER BY v2, v0, v1 DESC LIMIT 10 WITH v0 AS v4, friend.firstName AS v5, friend.lastName AS v6, v1 AS v7, v2 AS v8 RETURN v4 AS c0, v5 AS c1, v6 AS c2, v7 AS c3, v8 AS c4
+  params: p0=15393162799448(int64), p1=2008(int64), p2="Company", p3="Country", p4="Germany"
 
 ### Q11 @relational
-[relational] columns=(_n0)
-  SELECT `uuid` AS c0 FROM `Place` WHERE (`type` = ?) AND (`name` = ?)
-  args: "Country", "Germany"
-[graph] columns=(_n0, comp) in=(_n0)
-  MATCH (_n0:Entity) WHERE _n0.uuid IN $in MATCH (_n0)<-[_r1:IS_LOCATED_IN]-(comp:Organisation) RETURN _n0.uuid AS c0, comp.uuid AS c1
-[relational] columns=(comp) in=(comp)
-  SELECT `uuid` AS c0 FROM `Organisation` WHERE `uuid` IN (?) AND (`type` = ?)
-  args: <in>, "Company"
-[graph] columns=(comp, friend, work) in=(comp)
-  MATCH (comp:Entity) WHERE comp.uuid IN $in MATCH (comp)<-[work:WORK_AT]-(friend:Person) RETURN comp.uuid AS c0, friend.uuid AS c1, work.uuid AS c2
+[relational] columns=(p)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = ?)
+  args: 15393162799448(int64)
+[graph] columns=(p, comp, friend, work) in=(p)
+  MATCH (p:Entity) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..3]-(friend:Person) MATCH (friend)-[work:WORK_AT]->(comp:Organisation) RETURN p.uuid AS c0, comp.uuid AS c1, friend.uuid AS c2, work.uuid AS c3
 [relational] columns=(work, work.workFrom) in=(work)
   SELECT `uuid` AS c0, `workFrom` AS c1 FROM `WORK_AT` WHERE `uuid` IN (?) AND (`workFrom` < ?)
   args: <in>, 2008(int64)
-[graph] columns=(friend, p) in=(friend)
-  MATCH (friend:Entity) WHERE friend.uuid IN $in MATCH _sp_r0 = (friend)-[:KNOWS*1..3]-(p:Person) RETURN friend.uuid AS c0, p.uuid AS c1
-[relational] columns=(p) in=(p)
-  SELECT `uuid` AS c0 FROM `Person` WHERE `uuid` IN (?) AND (`id` = ?)
-  args: <in>, 15393162799448(int64)
+[relational] columns=(comp) in=(comp)
+  SELECT `uuid` AS c0 FROM `Organisation` WHERE `uuid` IN (?) AND (`type` = ?)
+  args: <in>, "Company"
+[graph] columns=(comp, _n0) in=(comp)
+  MATCH (comp:Entity) WHERE comp.uuid IN $in MATCH (comp)-[_r1:IS_LOCATED_IN]->(_n0:Place) RETURN comp.uuid AS c0, _n0.uuid AS c1
+[relational] columns=(_n0) in=(_n0)
+  SELECT `uuid` AS c0 FROM `Place` WHERE `uuid` IN (?) AND (`type` = ?) AND (`name` = ?)
+  args: <in>, "Country", "Germany"
 [relational] columns=(friend, friend.id) in=(friend)
   SELECT `uuid` AS c0, `id` AS c1 FROM `Person` WHERE `uuid` IN (?)
   args: <in>
@@ -1178,30 +1163,28 @@
 [coordinator] Projection[friend.id, friend.firstName, friend.lastName, comp.name, work.workFrom]
 
 ### Q11 @document
-[document] columns=(_n0)
-  db.Place.aggregate([
-    {$match: {type: {$eq: "Country"}, name: {$eq: "Germany"}}}
+[document] columns=(p)
+  db.Person.aggregate([
+    {$match: {id: {$eq: 15393162799448(int64)}}}
     {$project: {_id: 0(int), c0: "$uuid"}}
   ])
-[graph] columns=(_n0, comp) in=(_n0)
-  MATCH (_n0:Entity) WHERE _n0.uuid IN $in MATCH (_n0)<-[_r1:IS_LOCATED_IN]-(comp:Organisation) RETURN _n0.uuid AS c0, comp.uuid AS c1
-[document] columns=(comp) in=(comp)
-  db.Organisation.aggregate([
-    {$match: {uuid: {$in: <in>}, type: {$eq: "Company"}}}
-    {$project: {_id: 0(int), c0: "$uuid"}}
-  ])
-[graph] columns=(comp, friend, work) in=(comp)
-  MATCH (comp:Entity) WHERE comp.uuid IN $in MATCH (comp)<-[work:WORK_AT]-(friend:Person) RETURN comp.uuid AS c0, friend.uuid AS c1, work.uuid AS c2
+[graph] columns=(p, comp, friend, work) in=(p)
+  MATCH (p:Entity) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..3]-(friend:Person) MATCH (friend)-[work:WORK_AT]->(comp:Organisation) RETURN p.uuid AS c0, comp.uuid AS c1, friend.uuid AS c2, work.uuid AS c3
 [document] columns=(work, work.workFrom) in=(work)
   db.WORK_AT.aggregate([
     {$match: {uuid: {$in: <in>}, workFrom: {$lt: 2008(int64)}}}
     {$project: {_id: 0(int), c0: "$uuid", c1: "$workFrom"}}
   ])
-[graph] columns=(friend, p) in=(friend)
-  MATCH (friend:Entity) WHERE friend.uuid IN $in MATCH _sp_r0 = (friend)-[:KNOWS*1..3]-(p:Person) RETURN friend.uuid AS c0, p.uuid AS c1
-[document] columns=(p) in=(p)
-  db.Person.aggregate([
-    {$match: {uuid: {$in: <in>}, id: {$eq: 15393162799448(int64)}}}
+[document] columns=(comp) in=(comp)
+  db.Organisation.aggregate([
+    {$match: {uuid: {$in: <in>}, type: {$eq: "Company"}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[graph] columns=(comp, _n0) in=(comp)
+  MATCH (comp:Entity) WHERE comp.uuid IN $in MATCH (comp)-[_r1:IS_LOCATED_IN]->(_n0:Place) RETURN comp.uuid AS c0, _n0.uuid AS c1
+[document] columns=(_n0) in=(_n0)
+  db.Place.aggregate([
+    {$match: {uuid: {$in: <in>}, type: {$eq: "Country"}, name: {$eq: "Germany"}}}
     {$project: {_id: 0(int), c0: "$uuid"}}
   ])
 [document] columns=(friend, friend.id) in=(friend)
@@ -1225,24 +1208,22 @@
 [coordinator] Projection[friend.id, friend.firstName, friend.lastName, comp.name, work.workFrom]
 
 ### Q11 @columnar
-[columnar] columns=(_n0)
-  SELECT "uuid" AS c0 FROM "Place" WHERE ("type" = ?) AND ("name" = ?) ALLOW FILTERING
-  args: "Country", "Germany"
-[graph] columns=(_n0, comp) in=(_n0)
-  MATCH (_n0:Entity) WHERE _n0.uuid IN $in MATCH (_n0)<-[_r1:IS_LOCATED_IN]-(comp:Organisation) RETURN _n0.uuid AS c0, comp.uuid AS c1
-[columnar] columns=(comp) in=(comp)
-  SELECT "uuid" AS c0 FROM "Organisation" WHERE "uuid" IN ? AND ("type" = ?) ALLOW FILTERING
-  args: <in>, "Company"
-[graph] columns=(comp, friend, work) in=(comp)
-  MATCH (comp:Entity) WHERE comp.uuid IN $in MATCH (comp)<-[work:WORK_AT]-(friend:Person) RETURN comp.uuid AS c0, friend.uuid AS c1, work.uuid AS c2
+[columnar] columns=(p)
+  SELECT "uuid" AS c0 FROM "Person" WHERE ("id" = ?) ALLOW FILTERING
+  args: 15393162799448(int64)
+[graph] columns=(p, comp, friend, work) in=(p)
+  MATCH (p:Entity) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..3]-(friend:Person) MATCH (friend)-[work:WORK_AT]->(comp:Organisation) RETURN p.uuid AS c0, comp.uuid AS c1, friend.uuid AS c2, work.uuid AS c3
 [columnar] columns=(work, work.workFrom) in=(work)
   SELECT "uuid" AS c0, "workFrom" AS c1 FROM "WORK_AT" WHERE "uuid" IN ? AND ("workFrom" < ?) ALLOW FILTERING
   args: <in>, 2008(int64)
-[graph] columns=(friend, p) in=(friend)
-  MATCH (friend:Entity) WHERE friend.uuid IN $in MATCH _sp_r0 = (friend)-[:KNOWS*1..3]-(p:Person) RETURN friend.uuid AS c0, p.uuid AS c1
-[columnar] columns=(p) in=(p)
-  SELECT "uuid" AS c0 FROM "Person" WHERE "uuid" IN ? AND ("id" = ?) ALLOW FILTERING
-  args: <in>, 15393162799448(int64)
+[columnar] columns=(comp) in=(comp)
+  SELECT "uuid" AS c0 FROM "Organisation" WHERE "uuid" IN ? AND ("type" = ?) ALLOW FILTERING
+  args: <in>, "Company"
+[graph] columns=(comp, _n0) in=(comp)
+  MATCH (comp:Entity) WHERE comp.uuid IN $in MATCH (comp)-[_r1:IS_LOCATED_IN]->(_n0:Place) RETURN comp.uuid AS c0, _n0.uuid AS c1
+[columnar] columns=(_n0) in=(_n0)
+  SELECT "uuid" AS c0 FROM "Place" WHERE "uuid" IN ? AND ("type" = ?) AND ("name" = ?) ALLOW FILTERING
+  args: <in>, "Country", "Germany"
 [columnar] columns=(friend, friend.id) in=(friend)
   SELECT "uuid" AS c0, "id" AS c1 FROM "Person" WHERE "uuid" IN ?
   args: <in>
@@ -1258,20 +1239,18 @@
 [coordinator] Projection[friend.id, friend.firstName, friend.lastName, comp.name, work.workFrom]
 
 ### Q11 @kvs
-[kvs] columns=(_n0)
-  KVS Place index type="Country" get=(type, name) filter (_n0.type = "Country") filter (_n0.name = "Germany")
-[graph] columns=(_n0, comp) in=(_n0)
-  MATCH (_n0:Entity) WHERE _n0.uuid IN $in MATCH (_n0)<-[_r1:IS_LOCATED_IN]-(comp:Organisation) RETURN _n0.uuid AS c0, comp.uuid AS c1
-[kvs] columns=(comp) in=(comp)
-  KVS Organisation ids get=(type) filter (comp.type = "Company")
-[graph] columns=(comp, friend, work) in=(comp)
-  MATCH (comp:Entity) WHERE comp.uuid IN $in MATCH (comp)<-[work:WORK_AT]-(friend:Person) RETURN comp.uuid AS c0, friend.uuid AS c1, work.uuid AS c2
+[kvs] columns=(p)
+  KVS Person index id=15393162799448(int64) get=(id) filter (p.id = 15393162799448)
+[graph] columns=(p, comp, friend, work) in=(p)
+  MATCH (p:Entity) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..3]-(friend:Person) MATCH (friend)-[work:WORK_AT]->(comp:Organisation) RETURN p.uuid AS c0, comp.uuid AS c1, friend.uuid AS c2, work.uuid AS c3
 [kvs] columns=(work, work.workFrom) in=(work)
   KVS WORK_AT ids get=(workFrom) filter (work.workFrom < 2008)
-[graph] columns=(friend, p) in=(friend)
-  MATCH (friend:Entity) WHERE friend.uuid IN $in MATCH _sp_r0 = (friend)-[:KNOWS*1..3]-(p:Person) RETURN friend.uuid AS c0, p.uuid AS c1
-[kvs] columns=(p) in=(p)
-  KVS Person ids get=(id) filter (p.id = 15393162799448)
+[kvs] columns=(comp) in=(comp)
+  KVS Organisation ids get=(type) filter (comp.type = "Company")
+[graph] columns=(comp, _n0) in=(comp)
+  MATCH (comp:Entity) WHERE comp.uuid IN $in MATCH (comp)-[_r1:IS_LOCATED_IN]->(_n0:Place) RETURN comp.uuid AS c0, _n0.uuid AS c1
+[kvs] columns=(_n0) in=(_n0)
+  KVS Place ids get=(type, name) filter (_n0.type = "Country") filter (_n0.name = "Germany")
 [kvs] columns=(friend, friend.id) in=(friend)
   KVS Person ids get=(id)
 [kvs] columns=(comp, comp.name) in=(comp)

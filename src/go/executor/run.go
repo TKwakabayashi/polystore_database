@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"polystore_database/src/go/ast"
 	"polystore_database/src/go/codec"
 	"polystore_database/src/go/engine/core"
@@ -97,7 +99,9 @@ func (e *Executor) reset(root physical.Node) {
 		}
 		e.order = append(e.order, n)
 	}
-	walk(root)
+	if root != nil {
+		walk(root)
+	}
 }
 
 // record は演算子 n の 1 回分（バッチ 1 つ、bulk なら全件）の計測を足し込む。
@@ -318,25 +322,47 @@ func (e *Executor) storeQuery(q *physical.StoreQuery, in []Row) ([]Row, error) {
 	return out, nil
 }
 
-// run は入力をチャンクに分けて発行する。
+// run は入力をチャンクに分けて発行する。チャンクは settings.StoreFetchParallelism 本まで同時に投げ、
+// 結果はチャンクの順に並べる（どのモデルでも出力が決定的になるように）。
 func (e *Executor) run(q *native.Query, keys []Key) ([][]any, error) {
 	size := chunkSize(q.Store)
 	if keys == nil || size <= 0 || len(keys) <= size {
 		e.roundTrips.Add(1)
 		return e.be.Run(e.ctx, q, keys)
 	}
-	var out [][]any
+	var parts [][]Key
 	for i := 0; i < len(keys); i += size {
 		j := i + size
 		if j > len(keys) {
 			j = len(keys)
 		}
-		e.roundTrips.Add(1)
-		part, err := e.be.Run(e.ctx, q, keys[i:j])
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, part...)
+		parts = append(parts, keys[i:j])
+	}
+	results := make([][][]any, len(parts))
+	g, ctx := errgroup.WithContext(e.ctx)
+	par := settings.StoreFetchParallelism
+	if q.Store == store.Graph {
+		par = settings.GraphFetchParallelism
+	}
+	if par < 1 {
+		par = 1
+	}
+	g.SetLimit(par)
+	for i, part := range parts {
+		i, part := i, part
+		g.Go(func() error {
+			e.roundTrips.Add(1)
+			rows, err := e.be.Run(ctx, q, part)
+			results[i] = rows
+			return err
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	var out [][]any
+	for _, r := range results {
+		out = append(out, r...)
 	}
 	return out, nil
 }
@@ -566,7 +592,9 @@ func RunModel(ctx context.Context, be Backend, md *schema.MappingDictionary, cyp
 	start := time.Now()
 	rows, err := ex.ExecuteModel(p, model)
 	if err != nil {
-		return core.Result{}, err
+		// 失敗・打ち切りでも、そこまでに終わった演算子の計測は返す（原因の切り分け用）。
+		return core.Result{PlanTime: planT, ExecTime: time.Since(start), Steps: ex.Steps(),
+			RoundTrips: ex.RoundTrips(), Engine: "redesign-" + string(model)}, err
 	}
 	res := core.Result{Rows: OutputRows(p, rows), PlanTime: planT, ExecTime: time.Since(start),
 		Steps: ex.Steps(), RoundTrips: ex.RoundTrips(), Engine: "redesign-" + string(model)}

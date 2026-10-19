@@ -231,7 +231,7 @@ func TestRedesignPlacements(t *testing.T) {
 				defer cancel()
 				got, err := executor.Run(qctx, be, md, cypher, params)
 				if err != nil && qctx.Err() != nil {
-					t.Skipf("90 秒で打ち切り（既知: 起点の選び方で中間結果が爆発する形）: %v", err)
+					t.Skipf("90 秒で打ち切り（既知: ストアをまたぐ中間結果が大きい形）: %v", err)
 				}
 				if err != nil {
 					t.Fatalf("redesign の実行に失敗: %v", err)
