@@ -333,6 +333,10 @@ var equivalenceQueries = []struct {
 	{"collect_values", "MATCH (p:Person)-[:IS_LOCATED_IN]->(c:Place) WITH c.name AS n, collect(p.id) AS ids RETURN n, size(ids) AS k", 2},
 	{"in_list_column", "MATCH (p:Person {id: $x})-[:KNOWS]-(f:Person) WITH collect(f.id) AS ids MATCH (q:Person) WHERE q.id IN ids RETURN q.id", 3},
 	{"pattern_prop_variable", "MATCH (a:Person {id: $x}) WITH a.lastName AS ln MATCH (b:Person {lastName: ln}) RETURN b.id", -1},
+	{"split_two_anchors", "MATCH (a:Person {id: 1})-[:KNOWS]-(x:Person)-[:KNOWS]-(b:Person {id: 4}) RETURN x.id", 2},
+	{"split_bound_and_anchor", "MATCH (a:Person {id: $x}) WITH a MATCH (a)-[:KNOWS]-(x:Person)-[:KNOWS]-(y:Person)-[:KNOWS]-(b:Person {id: 4}) RETURN x.id, y.id", 1},
+	{"split_cycle_three_anchors", "MATCH (a:Person {id: 1})-[:KNOWS]-(b:Person {id: 2})-[:KNOWS]-(c:Person {id: 3})-[:KNOWS]-(a) RETURN a.id", 1},
+	{"varlen_between_bound", "MATCH (a:Person {id: $x})-[:KNOWS]->(b:Person), (a)-[:KNOWS*1..2]-(b) RETURN b.id", 1},
 	{"order_by_output_expr", "MATCH (p:Person)-[:KNOWS]-(f:Person) RETURN p.id AS pid, count(f) AS n ORDER BY n DESC, toInteger(pid) ASC LIMIT 3", 3},
 }
 
@@ -408,6 +412,15 @@ func TestHandCheckedResults(t *testing.T) {
 		// （p1 へ戻るには同じ辺を 2 回使うので関係一意性で除かれる）
 		{"MATCH (p:Person {id: $x})-[:KNOWS*1..2]-(f:Person) WITH collect(DISTINCT f) AS fs UNWIND fs AS g RETURN count(g) AS n",
 			[]string{"n=5;"}},
+		// 両端の起点から展開して x で合流: 1-2-4 と 1-5-4
+		{"MATCH (a:Person {id: 1})-[:KNOWS]-(x:Person)-[:KNOWS]-(b:Person {id: 4}) RETURN x.id",
+			[]string{"x.id=2;", "x.id=5;"}},
+		// 束縛済みの a と起点 b の両側から: 1-3-2-4 だけ（1-?-5-4 は 1 と 5 の共通の隣が無い）
+		{"MATCH (a:Person {id: $x}) WITH a MATCH (a)-[:KNOWS]-(x:Person)-[:KNOWS]-(y:Person)-[:KNOWS]-(b:Person {id: 4}) RETURN x.id, y.id",
+			[]string{"x.id=3;y.id=2;"}},
+		// 両端束縛の可変長: a→b の辺は使用済みなので、b=2 は 1-3-2、b=5 は経路なし
+		{"MATCH (a:Person {id: $x})-[:KNOWS]->(b:Person), (a)-[:KNOWS*1..2]-(b) RETURN b.id",
+			[]string{"b.id=2;"}},
 		// 集約の後の ORDER BY / LIMIT（WITH の途中）
 		{"MATCH (p:Person)-[:KNOWS]-(f:Person) WITH p, count(f) AS deg ORDER BY deg DESC, p.id ASC LIMIT 2 RETURN p.id, deg",
 			[]string{"deg=3;p.id=1;", "deg=3;p.id=2;"}},
@@ -417,6 +430,25 @@ func TestHandCheckedResults(t *testing.T) {
 		sort.Strings(c.want)
 		if strings.Join(got, "|") != strings.Join(c.want, "|") {
 			t.Errorf("%s\n got: %v\nwant: %v", c.q, got, c.want)
+		}
+	}
+}
+
+// 起点ごとに分割して合流する計画（settings.SplitAnchoredPatterns）と、1 つの起点から伸ばす計画が同じ結果を返す。
+func TestSplitAnchoredEquivalence(t *testing.T) {
+	g := socialGraph()
+	pls := placementsFor(t)
+	prev := settings.SplitAnchoredPatterns
+	defer func() { settings.SplitAnchoredPatterns = prev }()
+	for _, c := range equivalenceQueries {
+		for pname, md := range pls {
+			settings.SplitAnchoredPatterns = false
+			off := canon(runMem(t, g, md, c.q))
+			settings.SplitAnchoredPatterns = true
+			on := canon(runMem(t, g, md, c.q))
+			if strings.Join(on, "\n") != strings.Join(off, "\n") {
+				t.Errorf("%s/%s: split differs\n--- off ---\n%s\n--- on ---\n%s", c.name, pname, strings.Join(off, "\n"), strings.Join(on, "\n"))
+			}
 		}
 	}
 }

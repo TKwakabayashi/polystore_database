@@ -90,6 +90,10 @@ func TestTranslateCases(t *testing.T) {
 		{"cycle", "MATCH (a:Person {id: $x})-[:KNOWS]->(b)-[:KNOWS]->(c)-[:KNOWS]->(a) RETURN b.id, c.id"},
 		{"reverse_connection", "MATCH (a:Person {id: $x}), (b:Person)-[:KNOWS]->(a) RETURN b.id"},
 		{"cartesian", "MATCH (a:Person {id: $x}), (t:Tag {name: 'x'}) RETURN a.id, t.id"},
+		{"varlen_between_bound", "MATCH (a:Person {id: $x})-[:KNOWS]->(b:Person), (a)-[:KNOWS*1..2]-(b) RETURN b.id"},
+		{"split_two_anchors", "MATCH (a:Person {id: 1})-[:KNOWS]-(x:Person)-[:KNOWS]-(b:Person {id: 2}) RETURN x.id"},
+		{"split_bound_and_anchor", "MATCH (a:Person {id: 1}) WITH a MATCH (a)-[:KNOWS]-(x)-[:KNOWS]-(y)-[:KNOWS]-(b:Person {id: 2}) RETURN x.id, y.id"},
+		{"split_cycle_three_anchors", "MATCH (a:Person {id: 1})-[:KNOWS]-(b:Person {id: 2})-[:KNOWS]-(c:Person {id: 3})-[:KNOWS]-(a) RETURN a.id"},
 		{"cross_alias_predicate", "MATCH (a:Person)-[:KNOWS]-(b:Person) WHERE a.id < b.id RETURN a.id, b.id"},
 		{"start_choice", "MATCH (a:Person)-[:KNOWS]->(b:Person {id: $x}) RETURN a.id"},
 		{"with_aggregate", "MATCH (p:Person)-[:KNOWS]->(f:Person) WITH p, count(f) AS deg WHERE deg > 10 MATCH (p)-[:IS_LOCATED_IN]->(c:Place) RETURN p.id, deg, c.name ORDER BY deg DESC LIMIT 3"},
@@ -113,7 +117,6 @@ func TestTranslateCases(t *testing.T) {
 
 func TestTranslateUnsupported(t *testing.T) {
 	for _, q := range []string{
-		"MATCH (a)-[:S]->(b), (a)-[:R*1..2]->(b) RETURN a",               // 両端束縛の可変長
 		"MATCH (a)-[r:R*1..2]->(b) RETURN r",                             // 区間変数を値として
 		"MATCH (a)-[:R]->(b) WITH a.x AS v RETURN v.y",                   // 値へのプロパティ参照
 		"MATCH (a) RETURN b",                                             // 未束縛変数

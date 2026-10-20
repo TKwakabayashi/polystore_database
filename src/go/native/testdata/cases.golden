@@ -42,6 +42,18 @@ MATCH (p:Person) WHERE p.gender = 'male' MATCH (p)-[:KNOWS]->(f:Person) RETURN f
   MATCH (p:Entity) WHERE p.uuid IN $in MATCH (p)-[_r0:KNOWS]->(f:Person) RETURN p.uuid AS c0, f.id AS c1
 [coordinator] Projection[f.id]
 
+### split_two_anchors_graph
+MATCH (a:Person {id: 1})-[:KNOWS]-(x:Person)-[:KNOWS]-(b:Person {id: 2}) RETURN x.firstName
+[graph] columns=(x.firstName)
+  MATCH (a:Person) WHERE (a.id = $p0) MATCH (a)-[_r0:KNOWS]-(x:Person) MATCH (b:Person) WHERE (b.id = $p1) MATCH (b)-[_r1:KNOWS]-(x:Person) WHERE _r0 <> _r1 WITH x.firstName AS v0 RETURN v0 AS c0
+  params: p0=1(int64), p1=2(int64)
+
+### varlen_between_bound_graph
+MATCH (a:Person {id: 1})-[:KNOWS]->(b:Person), (a)-[:KNOWS*1..2]-(b) RETURN b.id
+[graph] columns=(b.id)
+  MATCH (a:Person) WHERE (a.id = $p0) MATCH (a)-[_r0:KNOWS]->(b:Person) MATCH _sp_r1 = (a)-[:KNOWS*1..2]-(_vl__r1:Person) WHERE (_vl__r1 = b) AND NOT _r0 IN relationships(_sp_r1) WITH b.id AS v0 RETURN v0 AS c0
+  params: p0=1(int64)
+
 ### aggregate_single_store
 MATCH (p:Person) WHERE p.gender = 'male' RETURN p.gender, count(*) AS cnt
 [document] columns=(p.gender, cnt)

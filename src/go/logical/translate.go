@@ -552,63 +552,40 @@ func (b *builder) match(m *ast.MatchClause) error {
 		return err
 	}
 
-	// 3. 連結成分ごとに積む
+	// 3. 連結成分ごとに積む（起点が 2 つ以上あれば分割して両側から展開して合流する）
+	g := &growCtx{vertices: vertices, edges: edges, segRange: segRange, segPreds: segPreds}
 	comps := components(vorder, edges)
 	bound := prevBound
 	for _, comp := range comps {
-		start := b.chooseStart(comp, vertices, bound, pending)
-		var sub Node
-		fresh := !bound[start]
-		if fresh {
-			sub = &EntityScan{Alias: start, Labels: vertices[start].labels}
-		} else {
-			sub = b.plan
+		inComp := map[string]bool{}
+		for _, v := range comp {
+			inComp[v] = true
 		}
-		compBound := map[string]bool{}
-		for k := range bound {
-			compBound[k] = true
-		}
-		if fresh {
-			// 新しい成分は前の束縛と独立に組み、最後に直積で合流する。
-			compBound = map[string]bool{start: true}
-		}
-		compBound[start] = true
-		sub, pending, err = b.placeReady(sub, compBound, pending)
-		if err != nil {
-			return err
-		}
-
-		done := map[int]bool{}
-		for {
-			e := nextEdge(comp, edges, compBound, done)
-			if e == nil {
-				break
-			}
-			done[e.order] = true
-			from, to, dir := orient(e, compBound)
-			switch {
-			case compBound[to] && e.rel.Range != nil:
-				return unsupported("variable-length relationship %s between bound nodes", e.rel.Var)
-			case compBound[to]:
-				sub = &ExpandInto{Input: sub, From: from, Rel: e.rel.Var, To: to, Types: e.rel.Types, Dir: dir}
-				compBound[e.rel.Var] = true
-			case e.rel.Range != nil:
-				sub = &VarLengthExpand{Input: sub, From: from, Seg: e.rel.Var, To: to, Types: e.rel.Types,
-					Dir: dir, ToLabels: vertices[to].labels, Range: segRange[e.rel.Var], SegPreds: segPreds[e.rel.Var]}
-				compBound[e.rel.Var] = true
-				compBound[to] = true
-			default:
-				sub = &Expand{Input: sub, From: from, Rel: e.rel.Var, To: to, Types: e.rel.Types,
-					Dir: dir, ToLabels: vertices[to].labels}
-				compBound[e.rel.Var] = true
-				compBound[to] = true
-			}
-			sub, pending, err = b.placeReady(sub, compBound, pending)
+		if groups := b.anchorGroups(comp, vertices, bound, pending); settings.SplitAnchoredPatterns && len(groups) >= 2 {
+			pending, err = b.buildSplit(g, comp, groups, inComp, bound, pending)
 			if err != nil {
 				return err
 			}
+			continue
 		}
-
+		start := b.chooseStart(comp, vertices, bound, pending)
+		fresh := !bound[start]
+		var sub Node
+		compBound := map[string]bool{}
+		if fresh {
+			// 新しい成分は前の束縛と独立に組み、最後に直積で合流する。
+			sub = &EntityScan{Alias: start, Labels: vertices[start].labels}
+		} else {
+			sub = b.plan
+			for k := range bound {
+				compBound[k] = true
+			}
+		}
+		compBound[start] = true
+		sub, pending, err = b.grow(g, sub, compBound, pending, func(e *patEdge) bool { return inComp[e.left] })
+		if err != nil {
+			return err
+		}
 		if fresh && b.plan != nil {
 			b.plan = &NodeHashJoin{Left: b.plan, Right: sub}
 		} else {
@@ -634,6 +611,189 @@ func (b *builder) match(m *ast.MatchClause) error {
 		return unsupported("unplaceable predicate %s", pending[0])
 	}
 	return nil
+}
+
+// growCtx は 1 つの MATCH のパターン情報（成分・分割側の展開で共有する）。
+type growCtx struct {
+	vertices map[string]*patVertex
+	edges    []*patEdge
+	segRange map[string]HopRange
+	segPreds map[string][]SegPred
+}
+
+// grow は sub を、束縛済みの頂点から allowed の辺を出現順にたどって伸ばし、揃った述語を置く。
+// 両端が束縛済みの可変長は、仮の頂点へ展開してから端点の一致で絞る（Filter(tmp = to)）。
+func (b *builder) grow(g *growCtx, sub Node, compBound map[string]bool, pending []ast.Expr, allowed func(*patEdge) bool) (Node, []ast.Expr, error) {
+	var err error
+	sub, pending, err = b.placeReady(sub, compBound, pending)
+	if err != nil {
+		return nil, nil, err
+	}
+	done := map[int]bool{}
+	for {
+		e := nextEdge(g.edges, allowed, compBound, done)
+		if e == nil {
+			break
+		}
+		done[e.order] = true
+		from, to, dir := orient(e, compBound)
+		switch {
+		case compBound[to] && e.rel.Range != nil:
+			tmp := "_vl_" + e.rel.Var
+			b.scope[tmp] = varInfo{kind: VarNode, labels: g.vertices[to].labels}
+			sub = &VarLengthExpand{Input: sub, From: from, Seg: e.rel.Var, To: tmp, Types: e.rel.Types,
+				Dir: dir, ToLabels: g.vertices[to].labels, Range: g.segRange[e.rel.Var], SegPreds: g.segPreds[e.rel.Var]}
+			sub = &Filter{Input: sub, Pred: &Bin{Op: "=", L: &Column{Key: tmp}, R: &Column{Key: to}}}
+			compBound[e.rel.Var] = true
+		case compBound[to]:
+			sub = &ExpandInto{Input: sub, From: from, Rel: e.rel.Var, To: to, Types: e.rel.Types, Dir: dir}
+			compBound[e.rel.Var] = true
+		case e.rel.Range != nil:
+			sub = &VarLengthExpand{Input: sub, From: from, Seg: e.rel.Var, To: to, Types: e.rel.Types,
+				Dir: dir, ToLabels: g.vertices[to].labels, Range: g.segRange[e.rel.Var], SegPreds: g.segPreds[e.rel.Var]}
+			compBound[e.rel.Var] = true
+			compBound[to] = true
+		default:
+			sub = &Expand{Input: sub, From: from, Rel: e.rel.Var, To: to, Types: e.rel.Types,
+				Dir: dir, ToLabels: g.vertices[to].labels}
+			compBound[e.rel.Var] = true
+			compBound[to] = true
+		}
+		sub, pending, err = b.placeReady(sub, compBound, pending)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	return sub, pending, nil
+}
+
+// anchorGroups は成分の起点の組: 前の節で束縛済みの頂点（あれば 1 組にまとめて先頭）と、一意キーの等値で
+// 絞れる新しい頂点（1 つずつ、出現順）。2 組以上なら分割できる。
+func (b *builder) anchorGroups(comp []string, vertices map[string]*patVertex, bound map[string]bool, pending []ast.Expr) [][]string {
+	var groups [][]string
+	var boundGroup []string
+	for _, v := range comp {
+		if bound[v] {
+			boundGroup = append(boundGroup, v)
+		}
+	}
+	if len(boundGroup) > 0 {
+		groups = append(groups, boundGroup)
+	}
+	for _, v := range comp {
+		if !bound[v] && b.uniqueAnchor(v, pending) {
+			groups = append(groups, []string{v})
+		}
+	}
+	return groups
+}
+
+// uniqueAnchor は v だけで評価できる一意キーの等値述語（{id: $x}）があるか。
+func (b *builder) uniqueAnchor(v string, pending []ast.Expr) bool {
+	for _, e := range pending {
+		d := b.deps(e)
+		if len(d) != 1 || d[0] != v {
+			continue
+		}
+		if bin, ok := e.(*ast.Bin); ok && bin.Op == "=" {
+			if pr, ok := bin.L.(*ast.PropRef); ok && isUniqueKey(pr.Prop) {
+				if _, lit := bin.R.(*ast.Lit); lit {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// buildSplit は起点が複数ある成分を分割して組む。頂点を最寄りの起点の組へ（多始点の幅優先・同距離なら先の組）
+// 振り分け、辺は両端の組の大きい方の側が展開する。各側を起点から伸ばし、両側で束縛される頂点をキーに
+// NodeHashJoin で合流する（束縛済みの組の側は前の計画の上に伸ばす）。
+func (b *builder) buildSplit(g *growCtx, comp []string, groups [][]string, inComp map[string]bool, bound map[string]bool, pending []ast.Expr) ([]ast.Expr, error) {
+	region := map[string]int{}
+	var queue []string
+	for gi, grp := range groups {
+		for _, v := range grp {
+			region[v] = gi
+			queue = append(queue, v)
+		}
+	}
+	for len(queue) > 0 {
+		v := queue[0]
+		queue = queue[1:]
+		for _, e := range g.edges {
+			if !inComp[e.left] {
+				continue
+			}
+			var w string
+			switch v {
+			case e.left:
+				w = e.right
+			case e.right:
+				w = e.left
+			default:
+				continue
+			}
+			if _, ok := region[w]; !ok {
+				region[w] = region[v]
+				queue = append(queue, w)
+			}
+		}
+	}
+	// 組をまたぐ辺は後の組の側が展開する（同距離の頂点は先の組に入るので、後の組がそこまで伸びて中央で合流する）。
+	side := func(e *patEdge) int {
+		if region[e.left] > region[e.right] {
+			return region[e.left]
+		}
+		return region[e.right]
+	}
+
+	var acc Node
+	accBound := map[string]bool{}
+	hasBound := bound[groups[0][0]]
+	for gi, grp := range groups {
+		var sub Node
+		sb := map[string]bool{}
+		if gi == 0 && hasBound {
+			sub = b.plan
+			for k := range bound {
+				sb[k] = true
+			}
+		} else {
+			sub = &EntityScan{Alias: grp[0], Labels: g.vertices[grp[0]].labels}
+			sb[grp[0]] = true
+		}
+		gi := gi
+		var err error
+		sub, pending, err = b.grow(g, sub, sb, pending, func(e *patEdge) bool { return inComp[e.left] && side(e) == gi })
+		if err != nil {
+			return nil, err
+		}
+		if acc == nil {
+			acc = sub
+		} else {
+			var keys []string
+			for _, v := range comp {
+				if accBound[v] && sb[v] {
+					keys = append(keys, v)
+				}
+			}
+			acc = &NodeHashJoin{Left: acc, Right: sub, Keys: keys}
+		}
+		for k := range sb {
+			accBound[k] = true
+		}
+	}
+	if !hasBound && b.plan != nil {
+		acc = &NodeHashJoin{Left: b.plan, Right: acc}
+	}
+	b.plan = acc
+	for k := range accBound {
+		bound[k] = true
+	}
+	var err error
+	b.plan, pending, err = b.placeReady(b.plan, bound, pending)
+	return pending, err
 }
 
 // optionalMatch は OPTIONAL MATCH を左外部 apply（Optional）にする。パターンと WHERE は、外側の行が持つ
@@ -897,14 +1057,10 @@ func isUniqueKey(prop string) bool {
 	return false
 }
 
-// nextEdge は成分内で、片端以上が束縛済みの未処理の辺のうち出現順で最初のもの。
-func nextEdge(comp []string, edges []*patEdge, bound map[string]bool, done map[int]bool) *patEdge {
-	in := map[string]bool{}
-	for _, v := range comp {
-		in[v] = true
-	}
+// nextEdge は allowed の未処理の辺のうち、片端以上が束縛済みで出現順が最初のもの。
+func nextEdge(edges []*patEdge, allowed func(*patEdge) bool, bound map[string]bool, done map[int]bool) *patEdge {
 	for _, e := range edges {
-		if done[e.order] || !in[e.left] {
+		if done[e.order] || !allowed(e) {
 			continue
 		}
 		if bound[e.left] || bound[e.right] {

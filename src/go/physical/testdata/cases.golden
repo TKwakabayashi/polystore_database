@@ -129,6 +129,53 @@ StoreQuery[graph] out=(b.id, c.id)
   :                 GetProperty(a.id) [node:Person]
   :                   EntityScan(a:Person)
 
+### split_graph
+MATCH (a:Person {id: 1})-[:KNOWS]-(x:Person)-[:KNOWS]-(b:Person {id: 2}) RETURN x.firstName
+StoreQuery[graph] out=(x.firstName)
+  : Projection[x.firstName]
+  :   GetProperty(x.firstName) [node:Person]
+  :     RelUniqueFilter[_r0, _r1]
+  :       NodeHashJoin[x]
+  :         Expand((a)-[_r0:KNOWS]-(x:Person))
+  :           Filter((a.id = 1))
+  :             GetProperty(a.id) [node:Person]
+  :               EntityScan(a:Person)
+  :         Expand((b)-[_r1:KNOWS]-(x:Person))
+  :           Filter((b.id = 2))
+  :             GetProperty(b.id) [node:Person]
+  :               EntityScan(b:Person)
+
+### split_mixed
+MATCH (a:Person {id: 1})-[:KNOWS]-(x:Person)-[:KNOWS]-(b:Person {id: 2}) RETURN x.firstName
+Coord Projection[x.firstName]
+  Fetch[relational] in=(x) out=(x, x.firstName)
+    : GetProperty(x.firstName) [node:Person]
+    :   Argument(x)
+    StoreQuery[graph] out=(x)
+      : RelUniqueFilter[_r0, _r1]
+      :   NodeHashJoin[x]
+      :     Expand((a)-[_r0:KNOWS]-(x:Person))
+      :       Filter((a.id = 1))
+      :         GetProperty(a.id) [node:Person]
+      :           EntityScan(a:Person)
+      :     Expand((b)-[_r1:KNOWS]-(x:Person))
+      :       Filter((b.id = 2))
+      :         GetProperty(b.id) [node:Person]
+      :           EntityScan(b:Person)
+
+### varlen_between_bound_graph
+MATCH (a:Person {id: 1})-[:KNOWS]->(b:Person), (a)-[:KNOWS*1..2]-(b) RETURN b.id
+StoreQuery[graph] out=(b.id)
+  : Projection[b.id]
+  :   GetProperty(b.id) [node:Person]
+  :     RelUniqueFilter[_r0, _seg__r1]
+  :       Filter((_vl__r1 = b))
+  :         VarLengthExpand((a)-[_r1:KNOWS*1..2]-(_vl__r1:Person))
+  :           Expand((a)-[_r0:KNOWS]->(b:Person))
+  :             Filter((a.id = 1))
+  :               GetProperty(a.id) [node:Person]
+  :                 EntityScan(a:Person)
+
 ### cartesian_graph
 MATCH (a:Person {id: $x}), (t:Tag {name: 'x'}) RETURN a.id, t.id
 StoreQuery[graph] out=(a.id, t.id)

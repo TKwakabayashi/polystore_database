@@ -34,6 +34,11 @@ var MaterializeChunkSize = 0
 // 刷新版の翻訳（logical.Translate）が、パターンの起点を選ぶときに統計の代わりに使う。
 var UniqueKeyProps = []string{"id"}
 
+// SplitAnchoredPatterns は、連結したパターンに起点になれる頂点（前の節で束縛済み・一意キーの等値）が
+// 2 つ以上あるとき、頂点を最寄りの起点へ振り分けて起点ごとに展開し、共有する頂点で NodeHashJoin する
+// （両側から探索して中央で合流する）か（刷新版）。全 graph なら 1 本の Cypher に戻るので Neo4j の計画は変わらない。
+var SplitAnchoredPatterns = true
+
 // StoreFetchParallelism は、1 つの演算子が IN-list をチャンクに分けて同じストアへ投げるときの
 // 同時発行数（刷新版の executor）。1 なら直列。
 var StoreFetchParallelism = 4

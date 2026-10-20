@@ -44,6 +44,70 @@ Projection[a.id, t.id]
         GetProperty(t.name) [node:Tag]
           EntityScan(t:Tag)
 
+### varlen_between_bound
+MATCH (a:Person {id: $x})-[:KNOWS]->(b:Person), (a)-[:KNOWS*1..2]-(b) RETURN b.id
+Projection[b.id]
+  GetProperty(b.id) [node:Person]
+    RelUniqueFilter[_r0, _seg__r1]
+      Filter((_vl__r1 = b))
+        VarLengthExpand((a)-[_r1:KNOWS*1..2]-(_vl__r1:Person))
+          Expand((a)-[_r0:KNOWS]->(b:Person))
+            Filter((a.id = 1))
+              GetProperty(a.id) [node:Person]
+                EntityScan(a:Person)
+
+### split_two_anchors
+MATCH (a:Person {id: 1})-[:KNOWS]-(x:Person)-[:KNOWS]-(b:Person {id: 2}) RETURN x.id
+Projection[x.id]
+  GetProperty(x.id) [node:Person]
+    RelUniqueFilter[_r0, _r1]
+      NodeHashJoin[x]
+        Expand((a)-[_r0:KNOWS]-(x:Person))
+          Filter((a.id = 1))
+            GetProperty(a.id) [node:Person]
+              EntityScan(a:Person)
+        Expand((b)-[_r1:KNOWS]-(x:Person))
+          Filter((b.id = 2))
+            GetProperty(b.id) [node:Person]
+              EntityScan(b:Person)
+
+### split_bound_and_anchor
+MATCH (a:Person {id: 1}) WITH a MATCH (a)-[:KNOWS]-(x)-[:KNOWS]-(y)-[:KNOWS]-(b:Person {id: 2}) RETURN x.id, y.id
+Projection[x.id, y.id]
+  GetProperty(y.id) [node]
+    GetProperty(x.id) [node]
+      RelUniqueFilter[_r0, _r1, _r2]
+        NodeHashJoin[x]
+          Expand((a)-[_r0:KNOWS]-(x))
+            Projection[a]
+              Filter((a.id = 1))
+                GetProperty(a.id) [node:Person]
+                  EntityScan(a:Person)
+          Expand((y)-[_r1:KNOWS]-(x))
+            Expand((b)-[_r2:KNOWS]-(y))
+              Filter((b.id = 2))
+                GetProperty(b.id) [node:Person]
+                  EntityScan(b:Person)
+
+### split_cycle_three_anchors
+MATCH (a:Person {id: 1})-[:KNOWS]-(b:Person {id: 2})-[:KNOWS]-(c:Person {id: 3})-[:KNOWS]-(a) RETURN a.id
+Projection[a.id]
+  RelUniqueFilter[_r0, _r1, _r2]
+    NodeHashJoin[a, b]
+      NodeHashJoin[a]
+        Filter((a.id = 1))
+          GetProperty(a.id) [node:Person]
+            EntityScan(a:Person)
+        Expand((b)-[_r0:KNOWS]-(a:Person))
+          Filter((b.id = 2))
+            GetProperty(b.id) [node:Person]
+              EntityScan(b:Person)
+      Expand((c)-[_r2:KNOWS]-(a:Person))
+        Expand((c)-[_r1:KNOWS]-(b:Person))
+          Filter((c.id = 3))
+            GetProperty(c.id) [node:Person]
+              EntityScan(c:Person)
+
 ### cross_alias_predicate
 MATCH (a:Person)-[:KNOWS]-(b:Person) WHERE a.id < b.id RETURN a.id, b.id
 Projection[a.id, b.id]
