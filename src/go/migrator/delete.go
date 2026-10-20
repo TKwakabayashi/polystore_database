@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"polystore_database/src/go/codec"
+	"polystore_database/src/go/id"
 	"polystore_database/src/go/storage"
 	"strings"
 
@@ -81,9 +82,9 @@ func deleteGraph(ctx context.Context, cfg MigrationConfig, reg *storage.Registry
 	session := drv.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite})
 	defer session.Close(ctx)
 
-	uuids := make([]string, len(rows))
+	uuids := make([]interface{}, len(rows))
 	for i, r := range rows {
-		uuids[i] = r.UUID.String()
+		uuids[i] = id.Stored(r.UUID)
 	}
 
 	var query string
@@ -154,12 +155,12 @@ func deleteDoc(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, 
 	for _, r := range rows {
 		// プロパティの削除
 		models = append(models, mongo.NewUpdateOneModel().
-			SetFilter(bson.M{"uuid": r.UUID.String()}).
+			SetFilter(bson.M{"uuid": id.Stored(r.UUID)}).
 			SetUpdate(bson.M{"$unset": unsetMap}))
 
 		// uuidと_id以外にフィールドがなければドキュメントごと削除
 		deleteFilter := bson.M{
-			"uuid":  r.UUID.String(),
+			"uuid":  id.Stored(r.UUID),
 			"$expr": bson.M{"$lte": bson.A{bson.M{"$size": bson.M{"$objectToArray": "$$ROOT"}}, 2}},
 		}
 		models = append(models, mongo.NewDeleteOneModel().SetFilter(deleteFilter))
@@ -190,7 +191,7 @@ func deleteCol(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, 
 	for _, r := range rows {
 		r := r
 		eg.Go(func() error {
-			return session.Query(deleteQuery, r.UUID.String()).WithContext(gctx).Exec()
+			return session.Query(deleteQuery, id.Stored(r.UUID)).WithContext(gctx).Exec()
 		})
 	}
 	if err := eg.Wait(); err != nil {
@@ -236,7 +237,7 @@ func deleteRdb(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, 
 	uuids := make([]interface{}, len(rows))
 	placeholders := make([]string, len(rows))
 	for i, r := range rows {
-		uuids[i] = r.UUID.String()
+		uuids[i] = id.Stored(r.UUID)
 		placeholders[i] = "?"
 	}
 	inList := strings.Join(placeholders, ", ")

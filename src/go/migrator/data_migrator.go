@@ -2,7 +2,10 @@ package migrator
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"github.com/gocql/gocql"
+	"polystore_database/src/go/id"
 	"strings"
 
 	"polystore_database/src/go/codec"
@@ -16,11 +19,73 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// uuidSQLType / uuidCQLType は uuid 列の型（保存形式 settings.UUIDStorage に従う）。
+func uuidSQLType() string {
+	if id.Binary() {
+		return "BINARY(17)"
+	}
+	return "VARCHAR(255)"
+}
+
+func uuidCQLType() string {
+	if id.Binary() {
+		return "blob"
+	}
+	return "text"
+}
+
+// alignSQLUUID は既存の表の uuid 列の型を保存形式に合わせる。空の表だけ変更し（setup は TRUNCATE で表の定義を
+// 残すため）、行がある表で型が違えばエラーにする（形式の違う値を混ぜない）。
+func alignSQLUUID(ctx context.Context, db *sql.DB, table string) error {
+	var typ string
+	err := db.QueryRowContext(ctx, "SELECT DATA_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = 'uuid'", table).Scan(&typ)
+	if err != nil {
+		return fmt.Errorf("uuid column of %s: %w", table, err)
+	}
+	if (strings.EqualFold(typ, "binary")) == id.Binary() {
+		return nil
+	}
+	var n int
+	if err := db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM `%s`", table)).Scan(&n); err != nil {
+		return err
+	}
+	if n > 0 {
+		return fmt.Errorf("表 %s の uuid 列（%s）が保存形式と違い、行が %d 件ある。setup で空にしてから移行し直すこと", table, typ, n)
+	}
+	_, err = db.ExecContext(ctx, fmt.Sprintf("ALTER TABLE `%s` MODIFY uuid %s", table, uuidSQLType()))
+	return err
+}
+
+// alignCQLUUID は既存の表の uuid 列（主キー）の型が保存形式と違えば、空の表なら作り直す（主キーの型は変更できない）。
+// 表が無ければ何もしない。行がある表で型が違えばエラー。
+func alignCQLUUID(ctx context.Context, sess *gocql.Session, table string) error {
+	iter := sess.Query(fmt.Sprintf(`SELECT uuid FROM "%s" LIMIT 1`, table)).WithContext(ctx).Iter()
+	cols := iter.Columns()
+	var raw []byte
+	hasRow := iter.Scan(&raw)
+	if err := iter.Close(); err != nil {
+		if strings.Contains(err.Error(), "unconfigured table") {
+			return nil
+		}
+		return err
+	}
+	if len(cols) == 0 || (cols[0].TypeInfo.Type() == gocql.TypeBlob) == id.Binary() {
+		return nil
+	}
+	if hasRow {
+		return fmt.Errorf("表 %s の uuid 列が保存形式と違い、行がある。setup で空にしてから移行し直すこと", table)
+	}
+	return sess.Query(fmt.Sprintf(`DROP TABLE "%s"`, table)).WithContext(ctx).Exec()
+}
+
 func prepareDestSchema(ctx context.Context, cfg MigrationConfig, destKind storage.StoreKind, reg *storage.Registry, typeMap map[string]string) error {
 	switch destKind {
 	case storage.Relational:
 		db, _ := reg.MySQL()
-		if _, err := db.ExecContext(ctx, fmt.Sprintf("CREATE TABLE IF NOT EXISTS `%s` (uuid VARCHAR(255) PRIMARY KEY)", cfg.Entity)); err != nil {
+		if _, err := db.ExecContext(ctx, fmt.Sprintf("CREATE TABLE IF NOT EXISTS `%s` (uuid %s PRIMARY KEY)", cfg.Entity, uuidSQLType())); err != nil {
+			return err
+		}
+		if err := alignSQLUUID(ctx, db, cfg.Entity); err != nil {
 			return err
 		}
 		for _, p := range cfg.Properties {
@@ -31,7 +96,10 @@ func prepareDestSchema(ctx context.Context, cfg MigrationConfig, destKind storag
 		}
 	case storage.Columnar:
 		sess, _ := reg.Cassandra()
-		if err := sess.Query(fmt.Sprintf(`CREATE TABLE IF NOT EXISTS "%s" (uuid text PRIMARY KEY)`, cfg.Entity)).WithContext(ctx).Exec(); err != nil {
+		if err := alignCQLUUID(ctx, sess, cfg.Entity); err != nil {
+			return err
+		}
+		if err := sess.Query(fmt.Sprintf(`CREATE TABLE IF NOT EXISTS "%s" (uuid %s PRIMARY KEY)`, cfg.Entity, uuidCQLType())).WithContext(ctx).Exec(); err != nil {
 			return err
 		}
 		for _, p := range cfg.Properties {

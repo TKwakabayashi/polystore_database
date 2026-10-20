@@ -63,9 +63,9 @@ func TestEvalNullSemantics(t *testing.T) {
 
 func TestEvalQuantifiers(t *testing.T) {
 	r := Row{
-		"p":         &ListVal{Nodes: []id.UUID{"n1", "n2", "n3"}},
+		"p":         &ListVal{Nodes: []id.UUID{tid(id.KindNode, "n1"), tid(id.KindNode, "n2"), tid(id.KindNode, "n3")}},
 		"p.nodes.g": []any{"m", nil, "f"},
-		"q":         &ListVal{Nodes: []id.UUID{"n1", "n3"}},
+		"q":         &ListVal{Nodes: []id.UUID{tid(id.KindNode, "n1"), tid(id.KindNode, "n3")}},
 		"q.nodes.g": []any{"m", "f"},
 	}
 	q := func(kind, src string) logical.Expr {
@@ -162,8 +162,8 @@ func TestSortLimitDistinct(t *testing.T) {
 }
 
 func TestHashJoinAndRelUnique(t *testing.T) {
-	l := []Row{{"a": id.UUID("1")}, {"a": id.UUID("2")}}
-	r := []Row{{"a": id.UUID("1"), "b": id.UUID("x")}, {"a": id.UUID("1"), "b": id.UUID("y")}}
+	l := []Row{{"a": tid(id.KindNode, "1")}, {"a": tid(id.KindNode, "2")}}
+	r := []Row{{"a": tid(id.KindNode, "1"), "b": tid(id.KindEdge, "x")}, {"a": tid(id.KindNode, "1"), "b": tid(id.KindEdge, "y")}}
 	if got := hashJoin(l, r, []string{"a"}); len(got) != 2 {
 		t.Errorf("keyed join: %d rows", len(got))
 	}
@@ -171,9 +171,9 @@ func TestHashJoinAndRelUnique(t *testing.T) {
 		t.Errorf("cartesian: %d rows", len(got))
 	}
 	rows := []Row{
-		{"r1": id.UUID("e1"), "r2": id.UUID("e2"), "_seg_s": &ListVal{Rels: []id.UUID{"e3"}}},
-		{"r1": id.UUID("e1"), "r2": id.UUID("e2"), "_seg_s": &ListVal{Rels: []id.UUID{"e1"}}},
-		{"r1": id.UUID("e1"), "r2": id.UUID("e1"), "_seg_s": &ListVal{}},
+		{"r1": tid(id.KindEdge, "e1"), "r2": tid(id.KindEdge, "e2"), "_seg_s": &ListVal{Rels: []id.UUID{tid(id.KindEdge, "e3")}}},
+		{"r1": tid(id.KindEdge, "e1"), "r2": tid(id.KindEdge, "e2"), "_seg_s": &ListVal{Rels: []id.UUID{tid(id.KindEdge, "e1")}}},
+		{"r1": tid(id.KindEdge, "e1"), "r2": tid(id.KindEdge, "e1"), "_seg_s": &ListVal{}},
 	}
 	got, _ := runCoord(&logical.RelUniqueFilter{Rels: []string{"r1", "r2"}, Segs: []string{"s"}}, [][]Row{rows})
 	if len(got) != 1 {
@@ -638,7 +638,7 @@ func TestWeightedCoordinator(t *testing.T) {
 		t.Errorf("weighted distinct: %v", d)
 	}
 	// 結合は重みを掛ける
-	j := hashJoin([]Row{w(Row{"a": id.UUID("1")}, 2)}, []Row{w(Row{"a": id.UUID("1"), "b": "x"}, 3)}, []string{"a"})
+	j := hashJoin([]Row{w(Row{"a": tid(id.KindNode, "1")}, 2)}, []Row{w(Row{"a": tid(id.KindNode, "1"), "b": "x"}, 3)}, []string{"a"})
 	if len(j) != 1 || weightOf(j[0]) != 6 {
 		t.Errorf("weighted join: %v", j)
 	}

@@ -22,7 +22,7 @@ import (
 // パッケージ（編集→再ビルド）で切り替える。
 func main() {
 	var (
-		mode       = flag.String("mode", "run", "実行モード: setup | migrate | run | workflow | bench | bench-models | verify | stats")
+		mode       = flag.String("mode", "run", "実行モード: setup | migrate | run | workflow | bench | bench-models | verify | stats | uuid-format")
 		workload   = flag.String("workload", "Q11", "ワークロード名（bench はカンマ区切り複数 or all）")
 		configPath = flag.String("config", "../../config/config.json", "設定ファイル(JSON)")
 		migMode    = flag.String("migmode", "graph_to_rdb", "移行モード（a_to_b）: migrate / workflow で使用")
@@ -53,6 +53,12 @@ func main() {
 			log.Fatalf("統計の保存に失敗: %v", err)
 		}
 		log.Printf("統計を保存: %s（ノード %d、ラベル %d、関係タイプ %d）", path, st.Nodes, len(st.Labels), len(st.RelTypes))
+	case "uuid-format":
+		// Neo4j の全 uuid を settings.UUIDStorage の形式（文字列 / 17 バイト）へ書き換える。
+		// 非 graph ストアは書き換えないので、この後 setup で空にして移行し直す。
+		if err := setup.ConvertUUIDFormat(ctx, cfg); err != nil {
+			log.Fatalf("uuid の保存形式の書き換えに失敗: %v", err)
+		}
 	case "setup":
 		// Neo4j 整備＋他4ストア初期化（最初に1回）
 		if err := setup.Run(ctx, cfg); err != nil {

@@ -41,7 +41,7 @@ func TestRunChunksInParallelAndInOrder(t *testing.T) {
 
 	var keys []Key
 	for i := 0; i < 10; i++ {
-		keys = append(keys, Key{id.UUID(fmt.Sprintf("u%02d", i))})
+		keys = append(keys, Key{tid(id.KindNode, fmt.Sprintf("u%02d", i))})
 	}
 	q := &native.Query{Store: store.Columnar, Columns: []string{"a"}}
 	e := New(context.Background(), &echoBackend{delay: 50 * time.Millisecond}, nil)
@@ -58,12 +58,12 @@ func TestRunChunksInParallelAndInOrder(t *testing.T) {
 		t.Errorf("round trips = %d, want 4", e.RoundTrips())
 	}
 	for i, r := range rows {
-		if r[0] != fmt.Sprintf("u%02d", i) {
+		if r[0] != tid(id.KindNode, fmt.Sprintf("u%02d", i)).String() {
 			t.Fatalf("row %d = %v (order lost)", i, r[0])
 		}
 	}
 
-	e = New(context.Background(), &echoBackend{fail: "u07"}, nil)
+	e = New(context.Background(), &echoBackend{fail: tid(id.KindNode, "u07")}, nil)
 	e.reset(nil)
 	if _, err := e.run(q, keys); err == nil {
 		t.Error("a failing chunk must fail the whole fetch")

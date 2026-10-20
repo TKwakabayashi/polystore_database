@@ -34,6 +34,22 @@ var MaterializeChunkSize = 0
 // 刷新版の翻訳（logical.Translate）が、パターンの起点を選ぶときに統計の代わりに使う。
 var UniqueKeyProps = []string{"id"}
 
+// UUIDFormat は uuid を各ストアへ保存する形式。
+type UUIDFormat int
+
+const (
+	// UUIDText は文字列 "N-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"（38 文字）で保存する。
+	UUIDText UUIDFormat = iota
+	// UUIDBinary は 17 バイト（種別 1 バイト＋UUID 16 バイト）で保存する
+	// （Neo4j byte[] / MySQL BINARY(17) / Cassandra blob / Mongo BinData / LevelDB キーの生バイト）。
+	UUIDBinary
+)
+
+// UUIDStorage は全ストア共通の uuid の保存形式。既存データの形式と一致させること
+// （切り替えたら `-mode uuid-format` で Neo4j の uuid を書き換え、非 graph への移行を作り直す）。
+// 読み取り側（id.FromAny）はどちらの形式も受け付ける。
+var UUIDStorage = UUIDText
+
 // CostBasedPlanning は、統計（mapping.json の隣の stats.json。`-mode stats` で収集）があるとき、
 // 翻訳が成分の起点・分割するか・辺をたどる順序を推定コスト（中間行数の和）で決めるか（刷新版）。
 // 統計が無い・false なら規則（一意キーの等値 > 等値・IN > 述語の数、出現順）で決める。

@@ -2,6 +2,7 @@ package executor
 
 import (
 	"context"
+	"crypto/md5"
 	"fmt"
 
 	"polystore_database/src/go/id"
@@ -36,8 +37,11 @@ func newMemGraph() *memGraph {
 	return &memGraph{nodes: map[id.UUID]*memNode{}, rels: map[id.UUID]*memRel{}}
 }
 
+// tid はテスト用の決定的な識別子（名前の md5 を UUID の 16 バイトに使う）。
+func tid(k id.Kind, name string) id.UUID { return id.Make(k, md5.Sum([]byte(name))) }
+
 func (g *memGraph) node(uuid string, label string, props map[string]any) id.UUID {
-	u := id.FromAny(uuid)
+	u := tid(id.KindNode, uuid)
 	for k, v := range props {
 		props[k] = normalize(v)
 	}
@@ -47,7 +51,7 @@ func (g *memGraph) node(uuid string, label string, props map[string]any) id.UUID
 }
 
 func (g *memGraph) rel(uuid, typ string, src, dst id.UUID, props map[string]any) {
-	u := id.FromAny(uuid)
+	u := tid(id.KindEdge, uuid)
 	if props == nil {
 		props = map[string]any{}
 	}

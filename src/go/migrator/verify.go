@@ -6,7 +6,6 @@ import (
 	"polystore_database/src/go/codec"
 	"polystore_database/src/go/id"
 	"polystore_database/src/go/storage"
-	"strings"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -102,11 +101,10 @@ func countKvs(ctx context.Context, cfg MigrationConfig, reg *storage.Registry) (
 	var lastUUID id.UUID
 	first := true
 	for iter.Next() {
-		parts := strings.Split(string(iter.Key()), codec.Sep)
-		if len(parts) < 3 {
+		_, u, _, ok := codec.ParseEntityKey(iter.Key())
+		if !ok {
 			continue
 		}
-		u := id.UUID(parts[1])
 		if first || u != lastUUID {
 			count++
 			lastUUID = u

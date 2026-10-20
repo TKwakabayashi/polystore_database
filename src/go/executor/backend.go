@@ -1,7 +1,6 @@
 package executor
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
@@ -49,10 +48,20 @@ func (b *StoreBackend) Run(ctx context.Context, q *native.Query, in []Key) ([][]
 	return nil, fmt.Errorf("executor: no backend for %s", q.Store)
 }
 
-func uuidStrings(in []Key) []string {
-	out := make([]string, len(in))
+// storedIDs は入力の先頭の識別列を、保存形式（id.StoredSlice）の型付きのスライスにする。
+func storedIDs(in []Key) any {
+	us := make([]id.UUID, len(in))
 	for i, k := range in {
-		out[i] = k[0].String()
+		us[i] = k[0]
+	}
+	return id.StoredSlice(us)
+}
+
+// storedList は入力の先頭の識別列の保存値を 1 つずつ（SQL の可変長プレースホルダ用）。
+func storedList(in []Key) []any {
+	out := make([]any, len(in))
+	for i, k := range in {
+		out[i] = id.Stored(k[0])
 	}
 	return out
 }
@@ -77,13 +86,13 @@ func (b *StoreBackend) runGraph(ctx context.Context, q *native.Query, in []Key) 
 		params[k] = v
 	}
 	if len(q.InKeys) == 1 {
-		params[native.InParam] = uuidStrings(in)
+		params[native.InParam] = storedIDs(in)
 	} else if len(q.InKeys) > 1 {
 		rows := make([]map[string]any, len(in))
 		for i, k := range in {
 			m := make(map[string]any, len(q.InKeys))
 			for j, name := range q.InKeys {
-				m[name] = k[j].String()
+				m[name] = id.Stored(k[j])
 			}
 			rows[i] = m
 		}
@@ -134,7 +143,7 @@ func (b *StoreBackend) Verbatim(ctx context.Context, cypher string, params map[s
 // ---- relational ----
 
 // expandIn は InArg 番目の `?` を入力件数分の `?, ?, …` に広げ、引数にも uuid を展開する。
-func expandIn(text string, args []any, inArg int, ids []string) (string, []any) {
+func expandIn(text string, args []any, inArg int, ids []any) (string, []any) {
 	if inArg < 0 {
 		return text, args
 	}
@@ -169,7 +178,7 @@ func (b *StoreBackend) runSQL(ctx context.Context, q *native.Query, in []Key) ([
 	if !ok {
 		return nil, fmt.Errorf("executor: mysql not connected")
 	}
-	text, args := expandIn(q.Text, q.Args, q.InArg, uuidStrings(in))
+	text, args := expandIn(q.Text, q.Args, q.InArg, storedList(in))
 	rows, err := db.QueryContext(ctx, text, args...)
 	if err != nil {
 		return nil, fmt.Errorf("sql %q: %w", text, err)
@@ -208,7 +217,7 @@ func (b *StoreBackend) runCQL(ctx context.Context, q *native.Query, in []Key) ([
 	}
 	args := append([]any{}, q.Args...)
 	if q.InArg >= 0 {
-		args[q.InArg] = uuidStrings(in)
+		args[q.InArg] = storedIDs(in)
 	}
 	iter := sess.Query(q.Text, args...).WithContext(ctx).Iter()
 	// MapScan は null をゼロ値で返すので使わない。列ごとに **T へ読み、null は nil のまま残す。
@@ -252,7 +261,7 @@ func (b *StoreBackend) runCQL(ctx context.Context, q *native.Query, in []Key) ([
 // ---- document ----
 
 // toBSON は native.Doc を bson.D に、入力 uuid の目印を ids に置き換えて変換する。
-func toBSON(v any, ids []string) any {
+func toBSON(v any, ids any) any {
 	switch x := v.(type) {
 	case native.Doc:
 		d := bson.D{}
@@ -278,7 +287,7 @@ func (b *StoreBackend) runMongo(ctx context.Context, q *native.Query, in []Key) 
 	if !ok {
 		return nil, fmt.Errorf("executor: mongo not connected")
 	}
-	ids := uuidStrings(in)
+	ids := storedIDs(in)
 	pipeline := mongo.Pipeline{}
 	for _, s := range q.Pipeline {
 		body := toBSON(s.Body, ids)
@@ -311,6 +320,8 @@ func fromBSON(v any) any {
 	switch x := v.(type) {
 	case primitive.DateTime:
 		return x.Time().UTC()
+	case primitive.Binary: // バイナリ保存の uuid（BinData）
+		return x.Data
 	case bson.A:
 		out := make([]any, len(x))
 		for i, e := range x {
@@ -422,7 +433,7 @@ func scanKVS(ctx context.Context, ldb *leveldb.DB, k *native.KVSQuery) ([]id.UUI
 	if !index {
 		prefix = []byte(k.Label + codec.Sep)
 	}
-	seen := map[string]bool{}
+	seen := map[id.UUID]bool{}
 	var out []id.UUID
 	iter := ldb.NewIterator(util.BytesPrefix(prefix), nil)
 	defer iter.Release()
@@ -431,18 +442,15 @@ func scanKVS(ctx context.Context, ldb *leveldb.DB, k *native.KVSQuery) ([]id.UUI
 		if n++; n%4096 == 0 && ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		key := iter.Key()
-		var s string
+		var u id.UUID
 		if index {
-			if i := bytes.LastIndex(key, []byte(codec.Sep)); i >= 0 {
-				s = string(key[i+1:])
-			}
-		} else if parts := bytes.Split(key, []byte(codec.Sep)); len(parts) >= 2 {
-			s = string(parts[1])
+			u = codec.IndexKeyUUID(iter.Key())
+		} else if _, ku, _, ok := codec.ParseEntityKey(iter.Key()); ok {
+			u = ku
 		}
-		if s != "" && !seen[s] {
-			seen[s] = true
-			out = append(out, id.FromAny(s))
+		if !u.Empty() && !seen[u] {
+			seen[u] = true
+			out = append(out, u)
 		}
 	}
 	return out, iter.Error()

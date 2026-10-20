@@ -3,6 +3,7 @@ package migrator
 import (
 	"context"
 	"fmt"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"polystore_database/src/go/codec"
 	"polystore_database/src/go/id"
 	"polystore_database/src/go/storage"
@@ -111,12 +112,12 @@ func fetchKvs(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, t
 	// 1つの uuid のキー群は同じ uuid 接頭辞を共有するため、シャード境界で分断されない。
 	base := []byte(cfg.Entity + codec.Sep)
 	rng := util.BytesPrefix(base)
-	if lo, hi := id.ShardBounds(shardIdx, shardTotal); !lo.Empty() || !hi.Empty() {
-		if !lo.Empty() {
-			rng.Start = append(append([]byte{}, base...), lo.Bytes()...)
+	if lo, hi := id.ShardBounds(shardIdx, shardTotal); lo != nil || hi != nil {
+		if lo != nil {
+			rng.Start = append(append([]byte{}, base...), lo...)
 		}
-		if !hi.Empty() {
-			rng.Limit = append(append([]byte{}, base...), hi.Bytes()...)
+		if hi != nil {
+			rng.Limit = append(append([]byte{}, base...), hi...)
 		}
 	}
 	iter := db.NewIterator(rng, nil)
@@ -138,12 +139,10 @@ func fetchKvs(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, t
 	}
 
 	for iter.Next() {
-		parts := strings.Split(string(iter.Key()), codec.Sep)
-		if len(parts) < 3 {
+		_, uuid, propName, ok := codec.ParseEntityKey(iter.Key())
+		if !ok {
 			continue
 		}
-		uuid, _ := id.Parse(parts[1])
-		propName := parts[2]
 
 		targetType, ok := typeMap[propName]
 		if !ok {
@@ -176,13 +175,13 @@ func fetchDoc(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, t
 	}
 	// BSON の文字列比較はバイト順なので、uuid 範囲でシャードを絞れる（uuid インデックス利用可）。
 	filter := bson.M{}
-	if lo, hi := id.ShardBounds(shardIdx, shardTotal); !lo.Empty() || !hi.Empty() {
+	if lo, hi := id.ShardBounds(shardIdx, shardTotal); lo != nil || hi != nil {
 		cond := bson.M{}
-		if !lo.Empty() {
-			cond["$gte"] = lo.String()
+		if lo != nil {
+			cond["$gte"] = id.StoredBound(lo)
 		}
-		if !hi.Empty() {
-			cond["$lt"] = hi.String()
+		if hi != nil {
+			cond["$lt"] = id.StoredBound(hi)
 		}
 		filter["uuid"] = cond
 	}
@@ -197,7 +196,7 @@ func fetchDoc(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, t
 		if err := cur.Decode(&doc); err != nil {
 			return err
 		}
-		uuid := id.FromAny(doc["uuid"])
+		uuid := id.FromAny(bsonValue(doc["uuid"]))
 		if uuid.Empty() {
 			continue
 		}
@@ -338,4 +337,12 @@ func fetchRdb(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, t
 		}
 	}
 	return nil
+}
+
+// bsonValue は bson のバイナリ（バイナリ保存の uuid）を []byte にする。
+func bsonValue(v interface{}) interface{} {
+	if b, ok := v.(primitive.Binary); ok {
+		return b.Data
+	}
+	return v
 }
