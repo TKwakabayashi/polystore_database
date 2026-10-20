@@ -10,6 +10,7 @@ import (
 
 	bench "polystore_database/src/go/bench"
 	"polystore_database/src/go/migrator"
+	"polystore_database/src/go/opbench"
 	"polystore_database/src/go/settings"
 	"polystore_database/src/go/setup"
 	"polystore_database/src/go/stats"
@@ -22,11 +23,12 @@ import (
 // パッケージ（編集→再ビルド）で切り替える。
 func main() {
 	var (
-		mode       = flag.String("mode", "run", "実行モード: setup | migrate | run | workflow | bench | bench-models | verify | stats | uuid-format")
+		mode       = flag.String("mode", "run", "実行モード: setup | migrate | run | workflow | bench | bench-models | verify | stats | uuid-format | opbench")
 		workload   = flag.String("workload", "Q11", "ワークロード名（bench はカンマ区切り複数 or all）")
 		configPath = flag.String("config", "../../config/config.json", "設定ファイル(JSON)")
 		migMode    = flag.String("migmode", "graph_to_rdb", "移行モード（a_to_b）: migrate / workflow で使用")
 		outPath    = flag.String("out", "../../results/bench/bench_results.csv", "bench: 結果CSVの出力先（追記）")
+		specPath   = flag.String("spec", "", "opbench: 実験の定義ファイル（JSON。例は opbench/specs/）")
 	)
 	flag.Parse()
 
@@ -53,6 +55,20 @@ func main() {
 			log.Fatalf("統計の保存に失敗: %v", err)
 		}
 		log.Printf("統計を保存: %s（ノード %d、ラベル %d、関係タイプ %d）", path, st.Nodes, len(st.Labels), len(st.RelTypes))
+	case "opbench":
+		// 論理演算子を 1 つずつ条件を振って測る（ldbc_sf1 を読むだけ）。-out を省くと results/opbench/<name>.csv
+		if *specPath == "" {
+			log.Fatal("-spec に実験の定義ファイルを指定してください")
+		}
+		out := ""
+		flag.Visit(func(f *flag.Flag) {
+			if f.Name == "out" {
+				out = *outPath
+			}
+		})
+		if err := opbench.Run(ctx, cfg, *specPath, out); err != nil {
+			log.Fatalf("opbench に失敗: %v", err)
+		}
 	case "uuid-format":
 		// Neo4j の全 uuid を settings.UUIDStorage の形式（文字列 / 17 バイト）へ書き換える。
 		// 非 graph ストアは書き換えないので、この後 setup で空にして移行し直す。

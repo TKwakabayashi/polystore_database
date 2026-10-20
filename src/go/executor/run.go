@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -133,7 +134,7 @@ func opName(n physical.Node) string {
 	case *physical.Coord:
 		return fmt.Sprintf("%T", x.Op)[len("*logical."):]
 	}
-	return fmt.Sprintf("%T", n)
+	return strings.TrimPrefix(fmt.Sprintf("%T", n), "*physical.") // ArgRows / OptionalApply
 }
 
 // lower は StoreQuery のネイティブクエリ（実行ごとに 1 回だけ変換する）。
@@ -692,6 +693,11 @@ func RunModel(ctx context.Context, be Backend, md *schema.MappingDictionary, cyp
 		rows, verr := be.Verbatim(ctx, cypher, typedParams(params))
 		if verr != nil {
 			return result.Result{}, verr
+		}
+		for _, row := range rows { // 構造化した経路と同じ値の型にそろえる（Neo4j の Date → time.Time など）
+			for k, v := range row {
+				row[k] = normalize(v)
+			}
 		}
 		return result.Result{Rows: rows, PlanTime: planT, ExecTime: time.Since(start), Engine: "redesign-" + string(model) + "(verbatim)", RoundTrips: 1}, nil
 	}

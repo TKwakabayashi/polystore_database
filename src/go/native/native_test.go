@@ -203,6 +203,8 @@ func TestNativeCases(t *testing.T) {
 		{"three_stores_chain", mixed, "MATCH (p:Person {id: $x})-[:KNOWS]->(f:Person) WHERE f.gender = 'male' RETURN f.firstName, f.id"},
 		{"sort_limit_then_fetch", mixed, "MATCH (p:Person {id: $x})-[:KNOWS]->(f:Person) RETURN f.firstName ORDER BY f.id ASC LIMIT 10"},
 		{"scan_in_document", mixed, "MATCH (p:Person) WHERE p.gender = 'male' MATCH (p)-[:KNOWS]->(f:Person) RETURN f.id"},
+		{"date_literal_graph", base, "MATCH (p:Person) WHERE p.birthday >= '1985-01-01' RETURN p.id"},
+		{"date_literal_relational", mixed, "MATCH (p:Person) WHERE p.birthday >= '1985-01-01' RETURN p.id"},
 		{"split_two_anchors_graph", base, "MATCH (a:Person {id: 1})-[:KNOWS]-(x:Person)-[:KNOWS]-(b:Person {id: 2}) RETURN x.firstName"},
 		{"varlen_between_bound_graph", base, "MATCH (a:Person {id: 1})-[:KNOWS]->(b:Person), (a)-[:KNOWS*1..2]-(b) RETURN b.id"},
 		{"aggregate_single_store", mixed, "MATCH (p:Person) WHERE p.gender = 'male' RETURN p.gender, count(*) AS cnt"},

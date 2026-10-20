@@ -15,6 +15,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/neo4j/neo4j-go-driver/v5/neo4j/dbtype"
 	"os"
 	"sort"
 	"strconv"
@@ -138,6 +139,10 @@ func canonValue(v interface{}) string {
 		return strconv.FormatFloat(x, 'g', 10, 64)
 	case time.Time:
 		return x.UTC().Format(time.RFC3339Nano)
+	case dbtype.Date: // オラクル（Neo4j 原文）の DATE。実行器は time.Time（UTC の 0 時）にそろえて返す
+		return time.Time(x).UTC().Format(time.RFC3339Nano)
+	case dbtype.LocalDateTime:
+		return time.Time(x).UTC().Format(time.RFC3339Nano)
 	case []interface{}:
 		// collect の要素順は Cypher でも定まらないので、リストは多重集合として比べる。
 		parts := make([]string, len(x))

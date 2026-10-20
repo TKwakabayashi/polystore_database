@@ -42,6 +42,21 @@ MATCH (p:Person) WHERE p.gender = 'male' MATCH (p)-[:KNOWS]->(f:Person) RETURN f
   MATCH (p:Entity) WHERE p.uuid IN $in MATCH (p)-[_r0:KNOWS]->(f:Person) RETURN p.uuid AS c0, f.id AS c1
 [coordinator] Projection[f.id]
 
+### date_literal_graph
+MATCH (p:Person) WHERE p.birthday >= '1985-01-01' RETURN p.id
+[graph] columns=(p.id)
+  MATCH (p:Person) WHERE (p.birthday >= $p0) WITH p.id AS v0 RETURN v0 AS c0
+  params: p0=1985-01-01(dbtype.Date)
+
+### date_literal_relational
+MATCH (p:Person) WHERE p.birthday >= '1985-01-01' RETURN p.id
+[columnar] columns=(p)
+  SELECT "uuid" AS c0 FROM "Person" WHERE ("birthday" >= ?) ALLOW FILTERING
+  args: 1985-01-01 00:00:00 +0000 UTC(time.Time)
+[graph] columns=(p, p.id) in=(p)
+  MATCH (p:Entity) WHERE p.uuid IN $in RETURN p.uuid AS c0, p.id AS c1
+[coordinator] Projection[p.id]
+
 ### split_two_anchors_graph
 MATCH (a:Person {id: 1})-[:KNOWS]-(x:Person)-[:KNOWS]-(b:Person {id: 2}) RETURN x.firstName
 [graph] columns=(x.firstName)

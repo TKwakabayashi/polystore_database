@@ -2,8 +2,10 @@ package native
 
 import (
 	"fmt"
+	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"regexp"
 	"strings"
+	"time"
 
 	"polystore_database/src/go/logical"
 	"polystore_database/src/go/physical"
@@ -577,7 +579,7 @@ func (b *cyBuilder) exprT(e logical.Expr, typ string) (string, error) {
 		if x.Val == nil {
 			return "null", nil
 		}
-		return b.param(typed(x.Val, typ)), nil
+		return b.param(cypherValue(typed(x.Val, typ), typ)), nil
 	case *logical.Bin:
 		lt := litType(x.R, b.own, b.types)
 		rt := litType(x.L, b.own, b.types)
@@ -696,4 +698,13 @@ func cypherFn(fn string) string {
 		return "toUpper"
 	}
 	return fn
+}
+
+// cypherValue は Neo4j へ渡すパラメータの型を列の型に合わせる。date 列は Date で渡す（time.Time は DateTime になり、
+// Cypher では Date と DateTime の比較が null になって一致しない）。
+func cypherValue(v any, typ string) any {
+	if t, ok := v.(time.Time); ok && typ == "date" {
+		return neo4j.DateOf(t)
+	}
+	return v
 }

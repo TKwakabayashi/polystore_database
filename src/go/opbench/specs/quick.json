@@ -1,0 +1,23 @@
+{
+  "name": "quick",
+  "warmup": 1,
+  "repeat": 3,
+  "timeout": "60s",
+  "experiments": [
+    {
+      "name": "fetch Person.firstName",
+      "op": "GetProperty", "label": "Person", "prop": "firstName",
+      "sweep": { "placement": ["graph", "relational", "columnar", "document", "kvs"], "rows": [100, 1000] }
+    },
+    {
+      "name": "KNOWS 1 hop",
+      "op": "Expand", "label": "Person", "rel": "KNOWS", "dir": "both", "to": "Person",
+      "sweep": { "rows": [100, 1000] }
+    },
+    {
+      "name": "gender = female: store vs coordinator",
+      "op": "Filter", "label": "Person", "prop": "gender", "cmp": "=", "value": "female",
+      "sweep": { "placement": ["graph", "relational", "document"], "at": ["store", "coordinator"], "rows": [1000] }
+    }
+  ]
+}

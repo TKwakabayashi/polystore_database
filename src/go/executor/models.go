@@ -26,7 +26,18 @@ import (
 
 // ExecuteModel は物理計画を指定の反復モデルで評価する。
 func (e *Executor) ExecuteModel(n physical.Node, model settings.EngineKind) ([]Row, error) {
+	return e.ExecuteWithArgs(n, model, nil)
+}
+
+// ExecuteWithArgs は、計画の葉 ArgRows に外から行を与えて実行する（演算子を単体で測る実験基盤 opbench 用。
+// 通常の計画では ArgRows は OPTIONAL の内側にしか現れず、外側の行で埋まる）。
+func (e *Executor) ExecuteWithArgs(n physical.Node, model settings.EngineKind, args map[*physical.ArgRows][]Row) ([]Row, error) {
 	e.reset(n)
+	e.mu.Lock()
+	for a, rows := range args {
+		e.args[a] = rows
+	}
+	e.mu.Unlock()
 	switch model {
 	case settings.EngineBulk, "":
 		return e.bulk(n)

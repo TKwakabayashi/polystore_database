@@ -9,6 +9,7 @@ package executor
 
 import (
 	"fmt"
+	"github.com/neo4j/neo4j-go-driver/v5/neo4j/dbtype"
 	"math"
 	"strings"
 	"time"
@@ -63,6 +64,10 @@ func normalize(v any) any {
 		return string(x)
 	case time.Time:
 		return x.UTC()
+	case dbtype.Date: // Neo4j の DATE。ほかのストアの date（UTC の 0 時）とそろえる
+		return time.Time(x).UTC()
+	case dbtype.LocalDateTime:
+		return time.Time(x).UTC()
 	case []any: // collect などリストの値
 		out := make([]any, len(x))
 		for i, e := range x {

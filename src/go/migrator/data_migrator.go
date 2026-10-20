@@ -24,7 +24,7 @@ func uuidSQLType() string {
 	if id.Binary() {
 		return "BINARY(17)"
 	}
-	return "VARCHAR(255)"
+	return "VARCHAR(255) COLLATE " + codec.SQLTextCollation
 }
 
 func uuidCQLType() string {
@@ -32,6 +32,38 @@ func uuidCQLType() string {
 		return "blob"
 	}
 	return "text"
+}
+
+// AlignSQLCollation は表の文字列の列のうち照合順序が codec.SQLTextCollation でないものを、1 回の ALTER TABLE で
+// 変える（値は変わらない。以前の移行が MySQL の既定の照合順序で作った表を直す）。変える列が無ければ何もしない。
+func AlignSQLCollation(ctx context.Context, db *sql.DB, table string) error {
+	rows, err := db.QueryContext(ctx, `SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE FROM information_schema.COLUMNS
+		WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLLATION_NAME IS NOT NULL AND COLLATION_NAME <> ?
+		ORDER BY ORDINAL_POSITION`, table, codec.SQLTextCollation)
+	if err != nil {
+		return fmt.Errorf("collation of %s: %w", table, err)
+	}
+	var mods []string
+	for rows.Next() {
+		var name, typ, nullable string
+		if err := rows.Scan(&name, &typ, &nullable); err != nil {
+			rows.Close()
+			return err
+		}
+		m := fmt.Sprintf("MODIFY `%s` %s CHARACTER SET utf8mb4 COLLATE %s", name, typ, codec.SQLTextCollation)
+		if nullable == "NO" {
+			m += " NOT NULL"
+		}
+		mods = append(mods, m)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil || len(mods) == 0 {
+		return err
+	}
+	if _, err := db.ExecContext(ctx, fmt.Sprintf("ALTER TABLE `%s` %s", table, strings.Join(mods, ", "))); err != nil {
+		return fmt.Errorf("align collation of %s: %w", table, err)
+	}
+	return nil
 }
 
 // alignSQLUUID は既存の表の uuid 列の型を保存形式に合わせる。空の表だけ変更し（setup は TRUNCATE で表の定義を
@@ -93,6 +125,9 @@ func prepareDestSchema(ctx context.Context, cfg MigrationConfig, destKind storag
 			if _, err := db.ExecContext(ctx, alter); err != nil && !strings.Contains(err.Error(), "Duplicate column") {
 				return fmt.Errorf("alter %s.%s: %w", cfg.Entity, p, err) // 既存列以外は伝播
 			}
+		}
+		if err := AlignSQLCollation(ctx, db, cfg.Entity); err != nil {
+			return err
 		}
 	case storage.Columnar:
 		sess, _ := reg.Cassandra()
