@@ -261,6 +261,9 @@ func CanAbsorb(k store.Kind, op logical.Node) bool {
 			}
 		}
 		for _, a := range x.Aggs {
+			if a.Fn == "collect" { // リストを返す集約は graph だけ
+				return false
+			}
 			if a.Distinct && k == store.Columnar {
 				return false
 			}
