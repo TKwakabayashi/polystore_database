@@ -38,6 +38,12 @@ func (s *BaseCypherListener) EnterReadingClause(ctx *ReadingClauseContext) {}
 // ExitReadingClause is called when production readingClause is exited.
 func (s *BaseCypherListener) ExitReadingClause(ctx *ReadingClauseContext) {}
 
+// EnterUnwindClause is called when production unwindClause is entered.
+func (s *BaseCypherListener) EnterUnwindClause(ctx *UnwindClauseContext) {}
+
+// ExitUnwindClause is called when production unwindClause is exited.
+func (s *BaseCypherListener) ExitUnwindClause(ctx *UnwindClauseContext) {}
+
 // EnterWithClause is called when production withClause is entered.
 func (s *BaseCypherListener) EnterWithClause(ctx *WithClauseContext) {}
 
@@ -259,6 +265,12 @@ func (s *BaseCypherListener) EnterConditionIsNull(ctx *ConditionIsNullContext) {
 
 // ExitConditionIsNull is called when production ConditionIsNull is exited.
 func (s *BaseCypherListener) ExitConditionIsNull(ctx *ConditionIsNullContext) {}
+
+// EnterConditionInExpr is called when production ConditionInExpr is entered.
+func (s *BaseCypherListener) EnterConditionInExpr(ctx *ConditionInExprContext) {}
+
+// ExitConditionInExpr is called when production ConditionInExpr is exited.
+func (s *BaseCypherListener) ExitConditionInExpr(ctx *ConditionInExprContext) {}
 
 // EnterConditionGreater is called when production ConditionGreater is entered.
 func (s *BaseCypherListener) EnterConditionGreater(ctx *ConditionGreaterContext) {}

@@ -26,6 +26,7 @@ const (
 type varInfo struct {
 	kind   VarKind
 	labels []string // ノードのラベル / 関係のタイプ
+	elem   *varInfo // 値列が束縛のリスト（collect(n)）なら要素の情報。UNWIND で要素を束縛に戻す
 }
 
 // pathDef はパス変数の構成（パターンの左から右の順）。
@@ -57,6 +58,8 @@ func Translate(q *ast.Query) (Node, error) {
 			err = b.match(c)
 		case *ast.ProjectionClause:
 			err = b.project(c)
+		case *ast.UnwindClause:
+			err = b.unwind(c)
 		}
 		if err != nil {
 			return nil, err
@@ -708,6 +711,66 @@ func (b *builder) optionalMatch(m *ast.MatchClause) error {
 	return nil
 }
 
+// unwind は UNWIND。束縛のリスト（collect(n) の値列）を展開した変数は、元の束縛と同じ種類の識別列になる。
+func (b *builder) unwind(u *ast.UnwindClause) error {
+	if b.plan == nil {
+		return unsupported("UNWIND as the first clause")
+	}
+	if _, ok := b.scope[u.Var]; ok {
+		return unsupported("UNWIND rebinding %s", u.Var)
+	}
+	var nd needs
+	b.collectNeeds(u.Expr, convCtx{}, &nd)
+	b.plan = b.supply(b.plan, nd)
+	e, err := b.conv(u.Expr, convCtx{})
+	if err != nil {
+		return err
+	}
+	b.plan = &Unwind{Input: b.plan, List: e, Var: u.Var}
+	info := varInfo{kind: VarValue}
+	if v, ok := u.Expr.(*ast.VarRef); ok && b.scope[v.Name].elem != nil {
+		info = *b.scope[v.Name].elem
+	}
+	b.scope[u.Var] = info
+	b.bound[u.Var] = true
+	if info.kind == VarValue {
+		b.avail[u.Var] = true
+	}
+	return nil
+}
+
+// onlyOutputs は式が射影後の列名（outNames）だけを変数として参照するか（プロパティ参照・集約・量化子は不可）。
+func onlyOutputs(e ast.Expr, outNames map[string]bool) bool {
+	ok, any := true, false
+	var walk func(ast.Expr)
+	walk = func(e ast.Expr) {
+		switch x := e.(type) {
+		case *ast.VarRef:
+			any = true
+			if !outNames[x.Name] {
+				ok = false
+			}
+		case *ast.Lit:
+		case *ast.Bin:
+			walk(x.L)
+			walk(x.R)
+		case *ast.Un:
+			walk(x.X)
+		case *ast.Call:
+			if isPathFn(x.Fn) {
+				ok = false
+			}
+			for _, a := range x.Args {
+				walk(a)
+			}
+		default:
+			ok = false
+		}
+	}
+	walk(e)
+	return ok && any
+}
+
 // boundSet は現在束縛済みの変数（前の節までの結果）。
 func (b *builder) boundSet() map[string]bool {
 	out := map[string]bool{}
@@ -1169,6 +1232,16 @@ func (b *builder) project(c *ast.ProjectionClause) error {
 		if v, ok := o.Expr.(*ast.VarRef); ok && outNames[v.Name] {
 			return &Column{Key: v.Name}, nil
 		}
+		if onlyOutputs(o.Expr, outNames) { // 射影後の列だけの式（toInteger(personId) など）
+			saved := b.scope
+			b.scope = map[string]varInfo{}
+			for n := range outNames {
+				b.scope[n] = varInfo{kind: VarValue}
+			}
+			e, err := b.conv(o.Expr, convCtx{})
+			b.scope = saved
+			return e, err
+		}
 		if collapsing {
 			for _, d := range b.deps(o.Expr) {
 				if _, ok := projIdent[d]; !ok {
@@ -1304,18 +1377,28 @@ func (b *builder) project(c *ast.ProjectionClause) error {
 	newAvail := map[string]bool{}
 	newPaths := map[string]pathDef{}
 	for _, it := range c.Items {
-		if v, ok := it.Expr.(*ast.VarRef); ok {
-			vi := b.scope[v.Name]
+		info := varInfo{kind: VarValue}
+		switch x := it.Expr.(type) {
+		case *ast.VarRef:
+			vi := b.scope[x.Name]
 			if vi.kind == VarNode || vi.kind == VarRel {
 				newScope[it.Name] = vi
 				newBound[it.Name] = true
 				continue
 			}
 			if vi.kind == VarPath {
-				return unsupported("carrying path %s across WITH", v.Name)
+				return unsupported("carrying path %s across WITH", x.Name)
+			}
+			info = vi // 値列（束縛のリストなら要素の情報も）をそのまま引き継ぐ
+		case *ast.Agg:
+			if v, ok := x.Arg.(*ast.VarRef); ok && x.Fn == "collect" {
+				if vi := b.scope[v.Name]; vi.kind == VarNode || vi.kind == VarRel {
+					el := vi
+					info.elem = &el
+				}
 			}
 		}
-		newScope[it.Name] = varInfo{kind: VarValue}
+		newScope[it.Name] = info
 		newBound[it.Name] = true
 		newAvail[it.Name] = true
 	}

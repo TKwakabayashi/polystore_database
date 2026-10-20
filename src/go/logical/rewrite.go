@@ -346,6 +346,8 @@ func Refs(n Node) []string {
 		add(x.Keys...)
 	case *Optional:
 		add(x.Keys...)
+	case *Unwind:
+		add(Columns(x.List)...)
 	case *RelUniqueFilter:
 		add(x.Rels...)
 		for _, s := range x.Segs {
@@ -411,6 +413,8 @@ func child(n Node) Node {
 		return x.Input
 	case *RelUniqueFilter:
 		return x.Input
+	case *Unwind:
+		return x.Input
 	}
 	return nil
 }
@@ -442,6 +446,8 @@ func setChild(n, c Node) {
 	case *Distinct:
 		x.Input = c
 	case *RelUniqueFilter:
+		x.Input = c
+	case *Unwind:
 		x.Input = c
 	}
 }
@@ -490,6 +496,9 @@ func WithInput(n Node, c Node) Node {
 		y := *x
 		cp = &y
 	case *RelUniqueFilter:
+		y := *x
+		cp = &y
+	case *Unwind:
 		y := *x
 		cp = &y
 	default:

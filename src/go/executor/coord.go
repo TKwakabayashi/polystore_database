@@ -158,6 +158,28 @@ func runCoord(op logical.Node, inputs [][]Row) ([]Row, error) {
 		}
 		return out, nil
 
+	case *logical.Unwind:
+		var out []Row
+		for _, r := range in() {
+			v, err := Eval(x.List, r)
+			if err != nil {
+				return nil, err
+			}
+			list, ok := v.([]any)
+			if !ok {
+				if v == nil {
+					continue // UNWIND null は行を残さない
+				}
+				list = []any{v} // リストでない値は 1 要素として扱う（Neo4j と同じ）
+			}
+			for _, el := range list {
+				nr := r.clone()
+				nr[x.Var] = el
+				out = append(out, nr)
+			}
+		}
+		return out, nil
+
 	case *logical.ProjectPath:
 		out := make([]Row, 0, len(in()))
 		for _, r := range in() {

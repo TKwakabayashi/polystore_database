@@ -16,7 +16,7 @@ type Query struct {
 	Clauses []Clause
 }
 
-// Clause は MatchClause か ProjectionClause。
+// Clause は MatchClause / UnwindClause / ProjectionClause。
 type Clause interface{ clause() }
 
 // MatchClause は MATCH（カンマ区切りの複数パターン）と、その直後の WHERE。
@@ -25,6 +25,12 @@ type MatchClause struct {
 	Optional bool
 	Patterns []PatternPath
 	Where    Expr // nil 可
+}
+
+// UnwindClause は UNWIND（リストの要素ごとに 1 行へ展開し、要素を Var に束縛する）。
+type UnwindClause struct {
+	Expr Expr
+	Var  string
 }
 
 // ProjectionClause は WITH と RETURN の共通形。
@@ -40,6 +46,7 @@ type ProjectionClause struct {
 
 func (*MatchClause) clause()      {}
 func (*ProjectionClause) clause() {}
+func (*UnwindClause) clause()     {}
 
 // PatternPath は 1 本のパターン `(p =)? (n0)-[r1]-(n1)…`。Rels[i] は Nodes[i] と Nodes[i+1] を結ぶ。
 type PatternPath struct {
@@ -164,7 +171,7 @@ type Call struct {
 	Args []Expr
 }
 
-// Agg は集約（count/sum/avg/min/max）。Arg が nil なら count(*)。
+// Agg は集約（count/sum/avg/min/max/collect）。Arg が nil なら count(*)。
 type Agg struct {
 	Fn       string
 	Distinct bool
@@ -290,6 +297,8 @@ func (q *Query) String() string {
 			if c.Where != nil {
 				fmt.Fprintf(&b, "  WHERE %s\n", c.Where)
 			}
+		case *UnwindClause:
+			fmt.Fprintf(&b, "UNWIND %s AS %s\n", c.Expr, c.Var)
 		case *ProjectionClause:
 			kw := "WITH"
 			if c.IsReturn {

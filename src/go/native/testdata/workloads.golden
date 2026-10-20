@@ -559,6 +559,221 @@
 [coordinator] Sort[messageCount DESC, person.id ASC]
 [coordinator] Limit[100]
 
+### IC12 @graph
+[graph] columns=(tags)
+  MATCH (tag:Tag) MATCH _sp_r0 = (tag)-[:HAS_TYPE|IS_SUBCLASS_OF*0..]->(baseTagClass:TagClass) WHERE ((tag.name = $p0) OR (baseTagClass.name = $p1)) WITH collect(tag.id) AS v0 RETURN v0 AS c0
+  params: p0="Monarch", p1="Monarch"
+[graph] columns=(comment, friend, tag)
+  MATCH (_n0:Person) WHERE (_n0.id = $p0) MATCH (_n0)-[_r1:KNOWS]-(friend:Person) MATCH (friend)<-[_r2:HAS_CREATOR]-(comment:Comment) MATCH (comment)-[_r3:REPLY_OF]->(_n1:Post) MATCH (_n1)-[_r4:HAS_TAG]->(tag:Tag) RETURN comment.uuid AS c0, friend.uuid AS c1, tag.uuid AS c2
+  params: p0=15393162799448(int64)
+[coordinator] NodeHashJoin[cartesian]
+[graph] columns=(tag, tag.id) in=(tag)
+  MATCH (tag:Entity) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.id AS c1
+[coordinator] Filter((tag.id IN tags))
+[graph] columns=(friend, friend.firstName, friend.id, friend.lastName) in=(friend)
+  MATCH (friend:Entity) WHERE friend.uuid IN $in RETURN friend.uuid AS c0, friend.firstName AS c1, friend.id AS c2, friend.lastName AS c3
+[graph] columns=(tag, tag.name) in=(tag)
+  MATCH (tag:Entity) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.name AS c1
+[coordinator] Aggregation[keys: friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName | collect(DISTINCT tag.name) AS tagNames, count(DISTINCT comment) AS replyCount]
+[coordinator] Sort[replyCount DESC, tointeger(personId) ASC]
+[coordinator] Limit[20]
+
+### IC12 @relational
+[graph] columns=(tags)
+  MATCH (tag:Tag) MATCH _sp_r0 = (tag)-[:HAS_TYPE|IS_SUBCLASS_OF*0..]->(baseTagClass:TagClass) WHERE ((tag.name = $p0) OR (baseTagClass.name = $p1)) WITH collect(tag.id) AS v0 RETURN v0 AS c0
+  params: p0="Monarch", p1="Monarch"
+[graph] columns=(comment, friend, tag)
+  MATCH (_n0:Person) WHERE (_n0.id = $p0) MATCH (_n0)-[_r1:KNOWS]-(friend:Person) MATCH (friend)<-[_r2:HAS_CREATOR]-(comment:Comment) MATCH (comment)-[_r3:REPLY_OF]->(_n1:Post) MATCH (_n1)-[_r4:HAS_TAG]->(tag:Tag) RETURN comment.uuid AS c0, friend.uuid AS c1, tag.uuid AS c2
+  params: p0=15393162799448(int64)
+[coordinator] NodeHashJoin[cartesian]
+[graph] columns=(tag, tag.id) in=(tag)
+  MATCH (tag:Entity) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.id AS c1
+[coordinator] Filter((tag.id IN tags))
+[graph] columns=(friend, friend.firstName, friend.id, friend.lastName) in=(friend)
+  MATCH (friend:Entity) WHERE friend.uuid IN $in RETURN friend.uuid AS c0, friend.firstName AS c1, friend.id AS c2, friend.lastName AS c3
+[graph] columns=(tag, tag.name) in=(tag)
+  MATCH (tag:Entity) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.name AS c1
+[coordinator] Aggregation[keys: friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName | collect(DISTINCT tag.name) AS tagNames, count(DISTINCT comment) AS replyCount]
+[coordinator] Sort[replyCount DESC, tointeger(personId) ASC]
+[coordinator] Limit[20]
+
+### IC12 @document
+[graph] columns=(tags)
+  MATCH (tag:Tag) MATCH _sp_r0 = (tag)-[:HAS_TYPE|IS_SUBCLASS_OF*0..]->(baseTagClass:TagClass) WHERE ((tag.name = $p0) OR (baseTagClass.name = $p1)) WITH collect(tag.id) AS v0 RETURN v0 AS c0
+  params: p0="Monarch", p1="Monarch"
+[graph] columns=(comment, friend, tag)
+  MATCH (_n0:Person) WHERE (_n0.id = $p0) MATCH (_n0)-[_r1:KNOWS]-(friend:Person) MATCH (friend)<-[_r2:HAS_CREATOR]-(comment:Comment) MATCH (comment)-[_r3:REPLY_OF]->(_n1:Post) MATCH (_n1)-[_r4:HAS_TAG]->(tag:Tag) RETURN comment.uuid AS c0, friend.uuid AS c1, tag.uuid AS c2
+  params: p0=15393162799448(int64)
+[coordinator] NodeHashJoin[cartesian]
+[graph] columns=(tag, tag.id) in=(tag)
+  MATCH (tag:Entity) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.id AS c1
+[coordinator] Filter((tag.id IN tags))
+[graph] columns=(friend, friend.firstName, friend.id, friend.lastName) in=(friend)
+  MATCH (friend:Entity) WHERE friend.uuid IN $in RETURN friend.uuid AS c0, friend.firstName AS c1, friend.id AS c2, friend.lastName AS c3
+[graph] columns=(tag, tag.name) in=(tag)
+  MATCH (tag:Entity) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.name AS c1
+[coordinator] Aggregation[keys: friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName | collect(DISTINCT tag.name) AS tagNames, count(DISTINCT comment) AS replyCount]
+[coordinator] Sort[replyCount DESC, tointeger(personId) ASC]
+[coordinator] Limit[20]
+
+### IC12 @columnar
+[graph] columns=(tags)
+  MATCH (tag:Tag) MATCH _sp_r0 = (tag)-[:HAS_TYPE|IS_SUBCLASS_OF*0..]->(baseTagClass:TagClass) WHERE ((tag.name = $p0) OR (baseTagClass.name = $p1)) WITH collect(tag.id) AS v0 RETURN v0 AS c0
+  params: p0="Monarch", p1="Monarch"
+[graph] columns=(comment, friend, tag)
+  MATCH (_n0:Person) WHERE (_n0.id = $p0) MATCH (_n0)-[_r1:KNOWS]-(friend:Person) MATCH (friend)<-[_r2:HAS_CREATOR]-(comment:Comment) MATCH (comment)-[_r3:REPLY_OF]->(_n1:Post) MATCH (_n1)-[_r4:HAS_TAG]->(tag:Tag) RETURN comment.uuid AS c0, friend.uuid AS c1, tag.uuid AS c2
+  params: p0=15393162799448(int64)
+[coordinator] NodeHashJoin[cartesian]
+[graph] columns=(tag, tag.id) in=(tag)
+  MATCH (tag:Entity) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.id AS c1
+[coordinator] Filter((tag.id IN tags))
+[graph] columns=(friend, friend.firstName, friend.id, friend.lastName) in=(friend)
+  MATCH (friend:Entity) WHERE friend.uuid IN $in RETURN friend.uuid AS c0, friend.firstName AS c1, friend.id AS c2, friend.lastName AS c3
+[graph] columns=(tag, tag.name) in=(tag)
+  MATCH (tag:Entity) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.name AS c1
+[coordinator] Aggregation[keys: friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName | collect(DISTINCT tag.name) AS tagNames, count(DISTINCT comment) AS replyCount]
+[coordinator] Sort[replyCount DESC, tointeger(personId) ASC]
+[coordinator] Limit[20]
+
+### IC12 @kvs
+[graph] columns=(tags)
+  MATCH (tag:Tag) MATCH _sp_r0 = (tag)-[:HAS_TYPE|IS_SUBCLASS_OF*0..]->(baseTagClass:TagClass) WHERE ((tag.name = $p0) OR (baseTagClass.name = $p1)) WITH collect(tag.id) AS v0 RETURN v0 AS c0
+  params: p0="Monarch", p1="Monarch"
+[graph] columns=(comment, friend, tag)
+  MATCH (_n0:Person) WHERE (_n0.id = $p0) MATCH (_n0)-[_r1:KNOWS]-(friend:Person) MATCH (friend)<-[_r2:HAS_CREATOR]-(comment:Comment) MATCH (comment)-[_r3:REPLY_OF]->(_n1:Post) MATCH (_n1)-[_r4:HAS_TAG]->(tag:Tag) RETURN comment.uuid AS c0, friend.uuid AS c1, tag.uuid AS c2
+  params: p0=15393162799448(int64)
+[coordinator] NodeHashJoin[cartesian]
+[graph] columns=(tag, tag.id) in=(tag)
+  MATCH (tag:Entity) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.id AS c1
+[coordinator] Filter((tag.id IN tags))
+[graph] columns=(friend, friend.firstName, friend.id, friend.lastName) in=(friend)
+  MATCH (friend:Entity) WHERE friend.uuid IN $in RETURN friend.uuid AS c0, friend.firstName AS c1, friend.id AS c2, friend.lastName AS c3
+[graph] columns=(tag, tag.name) in=(tag)
+  MATCH (tag:Entity) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.name AS c1
+[coordinator] Aggregation[keys: friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName | collect(DISTINCT tag.name) AS tagNames, count(DISTINCT comment) AS replyCount]
+[coordinator] Sort[replyCount DESC, tointeger(personId) ASC]
+[coordinator] Limit[20]
+
+### IC6 @graph
+[graph] columns=(knownTagId)
+  MATCH (knownTag:Tag) WHERE (knownTag.name = $p0) WITH knownTag.id AS v0 RETURN v0 AS c0
+  params: p0="Genghis_Khan"
+[graph] columns=(friend, _w)
+  MATCH (person:Person) WHERE (person.id = $p0) MATCH _sp_r0 = (person)-[:KNOWS*1..2]-(friend) WHERE (NOT (person = friend)) RETURN friend.uuid AS c0, count(*) AS c1
+  params: p0=15393162799448(int64)
+[coordinator] NodeHashJoin[cartesian]
+[coordinator] Aggregation[keys: knownTagId | collect(DISTINCT friend) AS friends]
+[coordinator] Unwind(friends AS f)
+[graph] columns=(f, _r2, post, t, t.id) in=(f)
+  MATCH (f:Entity) WHERE f.uuid IN $in MATCH (f)<-[_r1:HAS_CREATOR]-(post:Post) MATCH (post)-[_r2:HAS_TAG]->(t:Tag) RETURN f.uuid AS c0, _r2.uuid AS c1, post.uuid AS c2, t.uuid AS c3, t.id AS c4
+[coordinator] Filter((t.id = knownTagId))
+[graph] columns=(post, _r3, tag) in=(post)
+  MATCH (post:Entity) WHERE post.uuid IN $in MATCH (post)-[_r3:HAS_TAG]->(tag:Tag) RETURN post.uuid AS c0, _r3.uuid AS c1, tag.uuid AS c2
+[coordinator] Filter(NOT((t = tag)))
+[coordinator] RelUniqueFilter[_r2, _r3]
+[graph] columns=(tag, tag.name) in=(tag)
+  MATCH (tag:Entity) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.name AS c1
+[coordinator] Aggregation[keys: tag.name AS tagName | count(post) AS postCount]
+[coordinator] Projection[tagName, postCount]
+[coordinator] Sort[postCount DESC, tagName ASC]
+[coordinator] Limit[10]
+
+### IC6 @relational
+[graph] columns=(knownTagId)
+  MATCH (knownTag:Tag) WHERE (knownTag.name = $p0) WITH knownTag.id AS v0 RETURN v0 AS c0
+  params: p0="Genghis_Khan"
+[graph] columns=(friend, _w)
+  MATCH (person:Person) WHERE (person.id = $p0) MATCH _sp_r0 = (person)-[:KNOWS*1..2]-(friend) WHERE (NOT (person = friend)) RETURN friend.uuid AS c0, count(*) AS c1
+  params: p0=15393162799448(int64)
+[coordinator] NodeHashJoin[cartesian]
+[coordinator] Aggregation[keys: knownTagId | collect(DISTINCT friend) AS friends]
+[coordinator] Unwind(friends AS f)
+[graph] columns=(f, _r2, post, t, t.id) in=(f)
+  MATCH (f:Entity) WHERE f.uuid IN $in MATCH (f)<-[_r1:HAS_CREATOR]-(post:Post) MATCH (post)-[_r2:HAS_TAG]->(t:Tag) RETURN f.uuid AS c0, _r2.uuid AS c1, post.uuid AS c2, t.uuid AS c3, t.id AS c4
+[coordinator] Filter((t.id = knownTagId))
+[graph] columns=(post, _r3, tag) in=(post)
+  MATCH (post:Entity) WHERE post.uuid IN $in MATCH (post)-[_r3:HAS_TAG]->(tag:Tag) RETURN post.uuid AS c0, _r3.uuid AS c1, tag.uuid AS c2
+[coordinator] Filter(NOT((t = tag)))
+[coordinator] RelUniqueFilter[_r2, _r3]
+[graph] columns=(tag, tag.name) in=(tag)
+  MATCH (tag:Entity) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.name AS c1
+[coordinator] Aggregation[keys: tag.name AS tagName | count(post) AS postCount]
+[coordinator] Projection[tagName, postCount]
+[coordinator] Sort[postCount DESC, tagName ASC]
+[coordinator] Limit[10]
+
+### IC6 @document
+[graph] columns=(knownTagId)
+  MATCH (knownTag:Tag) WHERE (knownTag.name = $p0) WITH knownTag.id AS v0 RETURN v0 AS c0
+  params: p0="Genghis_Khan"
+[graph] columns=(friend, _w)
+  MATCH (person:Person) WHERE (person.id = $p0) MATCH _sp_r0 = (person)-[:KNOWS*1..2]-(friend) WHERE (NOT (person = friend)) RETURN friend.uuid AS c0, count(*) AS c1
+  params: p0=15393162799448(int64)
+[coordinator] NodeHashJoin[cartesian]
+[coordinator] Aggregation[keys: knownTagId | collect(DISTINCT friend) AS friends]
+[coordinator] Unwind(friends AS f)
+[graph] columns=(f, _r2, post, t, t.id) in=(f)
+  MATCH (f:Entity) WHERE f.uuid IN $in MATCH (f)<-[_r1:HAS_CREATOR]-(post:Post) MATCH (post)-[_r2:HAS_TAG]->(t:Tag) RETURN f.uuid AS c0, _r2.uuid AS c1, post.uuid AS c2, t.uuid AS c3, t.id AS c4
+[coordinator] Filter((t.id = knownTagId))
+[graph] columns=(post, _r3, tag) in=(post)
+  MATCH (post:Entity) WHERE post.uuid IN $in MATCH (post)-[_r3:HAS_TAG]->(tag:Tag) RETURN post.uuid AS c0, _r3.uuid AS c1, tag.uuid AS c2
+[coordinator] Filter(NOT((t = tag)))
+[coordinator] RelUniqueFilter[_r2, _r3]
+[graph] columns=(tag, tag.name) in=(tag)
+  MATCH (tag:Entity) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.name AS c1
+[coordinator] Aggregation[keys: tag.name AS tagName | count(post) AS postCount]
+[coordinator] Projection[tagName, postCount]
+[coordinator] Sort[postCount DESC, tagName ASC]
+[coordinator] Limit[10]
+
+### IC6 @columnar
+[graph] columns=(knownTagId)
+  MATCH (knownTag:Tag) WHERE (knownTag.name = $p0) WITH knownTag.id AS v0 RETURN v0 AS c0
+  params: p0="Genghis_Khan"
+[graph] columns=(friend, _w)
+  MATCH (person:Person) WHERE (person.id = $p0) MATCH _sp_r0 = (person)-[:KNOWS*1..2]-(friend) WHERE (NOT (person = friend)) RETURN friend.uuid AS c0, count(*) AS c1
+  params: p0=15393162799448(int64)
+[coordinator] NodeHashJoin[cartesian]
+[coordinator] Aggregation[keys: knownTagId | collect(DISTINCT friend) AS friends]
+[coordinator] Unwind(friends AS f)
+[graph] columns=(f, _r2, post, t, t.id) in=(f)
+  MATCH (f:Entity) WHERE f.uuid IN $in MATCH (f)<-[_r1:HAS_CREATOR]-(post:Post) MATCH (post)-[_r2:HAS_TAG]->(t:Tag) RETURN f.uuid AS c0, _r2.uuid AS c1, post.uuid AS c2, t.uuid AS c3, t.id AS c4
+[coordinator] Filter((t.id = knownTagId))
+[graph] columns=(post, _r3, tag) in=(post)
+  MATCH (post:Entity) WHERE post.uuid IN $in MATCH (post)-[_r3:HAS_TAG]->(tag:Tag) RETURN post.uuid AS c0, _r3.uuid AS c1, tag.uuid AS c2
+[coordinator] Filter(NOT((t = tag)))
+[coordinator] RelUniqueFilter[_r2, _r3]
+[graph] columns=(tag, tag.name) in=(tag)
+  MATCH (tag:Entity) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.name AS c1
+[coordinator] Aggregation[keys: tag.name AS tagName | count(post) AS postCount]
+[coordinator] Projection[tagName, postCount]
+[coordinator] Sort[postCount DESC, tagName ASC]
+[coordinator] Limit[10]
+
+### IC6 @kvs
+[graph] columns=(knownTagId)
+  MATCH (knownTag:Tag) WHERE (knownTag.name = $p0) WITH knownTag.id AS v0 RETURN v0 AS c0
+  params: p0="Genghis_Khan"
+[graph] columns=(friend, _w)
+  MATCH (person:Person) WHERE (person.id = $p0) MATCH _sp_r0 = (person)-[:KNOWS*1..2]-(friend) WHERE (NOT (person = friend)) RETURN friend.uuid AS c0, count(*) AS c1
+  params: p0=15393162799448(int64)
+[coordinator] NodeHashJoin[cartesian]
+[coordinator] Aggregation[keys: knownTagId | collect(DISTINCT friend) AS friends]
+[coordinator] Unwind(friends AS f)
+[graph] columns=(f, _r2, post, t, t.id) in=(f)
+  MATCH (f:Entity) WHERE f.uuid IN $in MATCH (f)<-[_r1:HAS_CREATOR]-(post:Post) MATCH (post)-[_r2:HAS_TAG]->(t:Tag) RETURN f.uuid AS c0, _r2.uuid AS c1, post.uuid AS c2, t.uuid AS c3, t.id AS c4
+[coordinator] Filter((t.id = knownTagId))
+[graph] columns=(post, _r3, tag) in=(post)
+  MATCH (post:Entity) WHERE post.uuid IN $in MATCH (post)-[_r3:HAS_TAG]->(tag:Tag) RETURN post.uuid AS c0, _r3.uuid AS c1, tag.uuid AS c2
+[coordinator] Filter(NOT((t = tag)))
+[coordinator] RelUniqueFilter[_r2, _r3]
+[graph] columns=(tag, tag.name) in=(tag)
+  MATCH (tag:Entity) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.name AS c1
+[coordinator] Aggregation[keys: tag.name AS tagName | count(post) AS postCount]
+[coordinator] Projection[tagName, postCount]
+[coordinator] Sort[postCount DESC, tagName ASC]
+[coordinator] Limit[10]
+
 ### INLIST @graph
 [graph] columns=(o.id, o.type)
   MATCH (o:Organisation) WHERE (o.type IN [$p0, $p1]) WITH o.id AS v0, o.type AS v1 RETURN v0 AS c0, v1 AS c1 ORDER BY v0 LIMIT 20

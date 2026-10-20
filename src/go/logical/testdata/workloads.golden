@@ -162,6 +162,59 @@ Limit[100]
                               GetProperty(post.creationDate) [node:Post]
                                 EntityScan(post:Post)
 
+### IC12
+Limit[20]
+  Sort[replyCount DESC, tointeger(personId) ASC]
+    Aggregation[keys: friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName | collect(DISTINCT tag.name) AS tagNames, count(DISTINCT comment) AS replyCount]
+      GetProperty(tag.name) [node:Tag]
+        GetProperty(friend.lastName) [node:Person]
+          GetProperty(friend.firstName) [node:Person]
+            GetProperty(friend.id) [node:Person]
+              Filter((tag.id IN tags))
+                GetProperty(tag.id) [node:Tag]
+                  NodeHashJoin[cartesian]
+                    Aggregation[keys: ∅ | collect(tag.id) AS tags]
+                      GetProperty(tag.id) [node:Tag]
+                        Filter(((tag.name = "Monarch") OR (baseTagClass.name = "Monarch")))
+                          GetProperty(baseTagClass.name) [node:TagClass]
+                            GetProperty(tag.name) [node:Tag]
+                              VarLengthExpand((tag)-[_r0:HAS_TYPE|IS_SUBCLASS_OF*0..]->(baseTagClass:TagClass))
+                                EntityScan(tag:Tag)
+                    Expand((_n1)-[_r4:HAS_TAG]->(tag:Tag))
+                      Expand((comment)-[_r3:REPLY_OF]->(_n1:Post))
+                        Expand((friend)<-[_r2:HAS_CREATOR]-(comment:Comment))
+                          Expand((_n0)-[_r1:KNOWS]-(friend:Person))
+                            Filter((_n0.id = 15393162799448))
+                              GetProperty(_n0.id) [node:Person]
+                                EntityScan(_n0:Person)
+
+### IC6
+Limit[10]
+  Sort[postCount DESC, tagName ASC]
+    Projection[tagName, postCount]
+      Aggregation[keys: tag.name AS tagName | count(post) AS postCount]
+        GetProperty(tag.name) [node:Tag]
+          RelUniqueFilter[_r2, _r3]
+            Filter(NOT((t = tag)))
+              Expand((post)-[_r3:HAS_TAG]->(tag:Tag))
+                Filter((t.id = knownTagId))
+                  GetProperty(t.id) [node:Tag]
+                    Expand((post)-[_r2:HAS_TAG]->(t:Tag))
+                      Expand((f)<-[_r1:HAS_CREATOR]-(post:Post))
+                        Unwind(friends AS f)
+                          Aggregation[keys: knownTagId | collect(DISTINCT friend) AS friends]
+                            NodeHashJoin[cartesian]
+                              Projection[knownTag.id AS knownTagId]
+                                GetProperty(knownTag.id) [node:Tag]
+                                  Filter((knownTag.name = "Genghis_Khan"))
+                                    GetProperty(knownTag.name) [node:Tag]
+                                      EntityScan(knownTag:Tag)
+                              Filter(NOT((person = friend)))
+                                VarLengthExpand((person)-[_r0:KNOWS*1..2]-(friend))
+                                  Filter((person.id = 15393162799448))
+                                    GetProperty(person.id) [node:Person]
+                                      EntityScan(person:Person)
+
 ### INLIST
 Limit[20]
   Sort[o.id ASC]

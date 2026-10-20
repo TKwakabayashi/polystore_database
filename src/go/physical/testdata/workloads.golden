@@ -1035,17 +1035,356 @@ Coord Limit[100]
 ### IC1
 UNSUPPORTED: ast: unsupported syntax: 11 syntax error(s)
 
-### IC12
-UNSUPPORTED: ast: unsupported syntax: 2 syntax error(s)
+### IC12 @graph
+Coord Limit[20]
+  Coord Sort[replyCount DESC, tointeger(personId) ASC]
+    Coord Aggregation[keys: friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName | collect(DISTINCT tag.name) AS tagNames, count(DISTINCT comment) AS replyCount]
+      Fetch[graph] in=(tag) out=(tag, tag.name)
+        : GetProperty(tag.name) [node:Tag]
+        :   Argument(tag)
+        Fetch[graph] in=(friend) out=(friend, friend.firstName, friend.id, friend.lastName)
+          : GetProperty(friend.lastName) [node:Person]
+          :   GetProperty(friend.firstName) [node:Person]
+          :     GetProperty(friend.id) [node:Person]
+          :       Argument(friend)
+          Coord Filter((tag.id IN tags))
+            Fetch[graph] in=(tag) out=(tag, tag.id)
+              : GetProperty(tag.id) [node:Tag]
+              :   Argument(tag)
+              Coord NodeHashJoin[cartesian]
+                StoreQuery[graph] out=(tags)
+                  : Aggregation[keys: ∅ | collect(tag.id) AS tags]
+                  :   GetProperty(tag.id) [node:Tag]
+                  :     Filter(((tag.name = "Monarch") OR (baseTagClass.name = "Monarch")))
+                  :       GetProperty(baseTagClass.name) [node:TagClass]
+                  :         GetProperty(tag.name) [node:Tag]
+                  :           VarLengthExpand((tag)-[_r0:HAS_TYPE|IS_SUBCLASS_OF*0..]->(baseTagClass:TagClass))
+                  :             EntityScan(tag:Tag)
+                StoreQuery[graph] out=(comment, friend, tag)
+                  : Expand((_n1)-[_r4:HAS_TAG]->(tag:Tag))
+                  :   Expand((comment)-[_r3:REPLY_OF]->(_n1:Post))
+                  :     Expand((friend)<-[_r2:HAS_CREATOR]-(comment:Comment))
+                  :       Expand((_n0)-[_r1:KNOWS]-(friend:Person))
+                  :         Filter((_n0.id = 15393162799448))
+                  :           GetProperty(_n0.id) [node:Person]
+                  :             EntityScan(_n0:Person)
+
+### IC12 @relational
+Coord Limit[20]
+  Coord Sort[replyCount DESC, tointeger(personId) ASC]
+    Coord Aggregation[keys: friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName | collect(DISTINCT tag.name) AS tagNames, count(DISTINCT comment) AS replyCount]
+      Fetch[graph] in=(tag) out=(tag, tag.name)
+        : GetProperty(tag.name) [node:Tag]
+        :   Argument(tag)
+        Fetch[graph] in=(friend) out=(friend, friend.firstName, friend.id, friend.lastName)
+          : GetProperty(friend.lastName) [node:Person]
+          :   GetProperty(friend.firstName) [node:Person]
+          :     GetProperty(friend.id) [node:Person]
+          :       Argument(friend)
+          Coord Filter((tag.id IN tags))
+            Fetch[graph] in=(tag) out=(tag, tag.id)
+              : GetProperty(tag.id) [node:Tag]
+              :   Argument(tag)
+              Coord NodeHashJoin[cartesian]
+                StoreQuery[graph] out=(tags)
+                  : Aggregation[keys: ∅ | collect(tag.id) AS tags]
+                  :   GetProperty(tag.id) [node:Tag]
+                  :     Filter(((tag.name = "Monarch") OR (baseTagClass.name = "Monarch")))
+                  :       GetProperty(baseTagClass.name) [node:TagClass]
+                  :         GetProperty(tag.name) [node:Tag]
+                  :           VarLengthExpand((tag)-[_r0:HAS_TYPE|IS_SUBCLASS_OF*0..]->(baseTagClass:TagClass))
+                  :             EntityScan(tag:Tag)
+                StoreQuery[graph] out=(comment, friend, tag)
+                  : Expand((_n1)-[_r4:HAS_TAG]->(tag:Tag))
+                  :   Expand((comment)-[_r3:REPLY_OF]->(_n1:Post))
+                  :     Expand((friend)<-[_r2:HAS_CREATOR]-(comment:Comment))
+                  :       Expand((_n0)-[_r1:KNOWS]-(friend:Person))
+                  :         Filter((_n0.id = 15393162799448))
+                  :           GetProperty(_n0.id) [node:Person]
+                  :             EntityScan(_n0:Person)
+
+### IC12 @document
+Coord Limit[20]
+  Coord Sort[replyCount DESC, tointeger(personId) ASC]
+    Coord Aggregation[keys: friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName | collect(DISTINCT tag.name) AS tagNames, count(DISTINCT comment) AS replyCount]
+      Fetch[graph] in=(tag) out=(tag, tag.name)
+        : GetProperty(tag.name) [node:Tag]
+        :   Argument(tag)
+        Fetch[graph] in=(friend) out=(friend, friend.firstName, friend.id, friend.lastName)
+          : GetProperty(friend.lastName) [node:Person]
+          :   GetProperty(friend.firstName) [node:Person]
+          :     GetProperty(friend.id) [node:Person]
+          :       Argument(friend)
+          Coord Filter((tag.id IN tags))
+            Fetch[graph] in=(tag) out=(tag, tag.id)
+              : GetProperty(tag.id) [node:Tag]
+              :   Argument(tag)
+              Coord NodeHashJoin[cartesian]
+                StoreQuery[graph] out=(tags)
+                  : Aggregation[keys: ∅ | collect(tag.id) AS tags]
+                  :   GetProperty(tag.id) [node:Tag]
+                  :     Filter(((tag.name = "Monarch") OR (baseTagClass.name = "Monarch")))
+                  :       GetProperty(baseTagClass.name) [node:TagClass]
+                  :         GetProperty(tag.name) [node:Tag]
+                  :           VarLengthExpand((tag)-[_r0:HAS_TYPE|IS_SUBCLASS_OF*0..]->(baseTagClass:TagClass))
+                  :             EntityScan(tag:Tag)
+                StoreQuery[graph] out=(comment, friend, tag)
+                  : Expand((_n1)-[_r4:HAS_TAG]->(tag:Tag))
+                  :   Expand((comment)-[_r3:REPLY_OF]->(_n1:Post))
+                  :     Expand((friend)<-[_r2:HAS_CREATOR]-(comment:Comment))
+                  :       Expand((_n0)-[_r1:KNOWS]-(friend:Person))
+                  :         Filter((_n0.id = 15393162799448))
+                  :           GetProperty(_n0.id) [node:Person]
+                  :             EntityScan(_n0:Person)
+
+### IC12 @columnar
+Coord Limit[20]
+  Coord Sort[replyCount DESC, tointeger(personId) ASC]
+    Coord Aggregation[keys: friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName | collect(DISTINCT tag.name) AS tagNames, count(DISTINCT comment) AS replyCount]
+      Fetch[graph] in=(tag) out=(tag, tag.name)
+        : GetProperty(tag.name) [node:Tag]
+        :   Argument(tag)
+        Fetch[graph] in=(friend) out=(friend, friend.firstName, friend.id, friend.lastName)
+          : GetProperty(friend.lastName) [node:Person]
+          :   GetProperty(friend.firstName) [node:Person]
+          :     GetProperty(friend.id) [node:Person]
+          :       Argument(friend)
+          Coord Filter((tag.id IN tags))
+            Fetch[graph] in=(tag) out=(tag, tag.id)
+              : GetProperty(tag.id) [node:Tag]
+              :   Argument(tag)
+              Coord NodeHashJoin[cartesian]
+                StoreQuery[graph] out=(tags)
+                  : Aggregation[keys: ∅ | collect(tag.id) AS tags]
+                  :   GetProperty(tag.id) [node:Tag]
+                  :     Filter(((tag.name = "Monarch") OR (baseTagClass.name = "Monarch")))
+                  :       GetProperty(baseTagClass.name) [node:TagClass]
+                  :         GetProperty(tag.name) [node:Tag]
+                  :           VarLengthExpand((tag)-[_r0:HAS_TYPE|IS_SUBCLASS_OF*0..]->(baseTagClass:TagClass))
+                  :             EntityScan(tag:Tag)
+                StoreQuery[graph] out=(comment, friend, tag)
+                  : Expand((_n1)-[_r4:HAS_TAG]->(tag:Tag))
+                  :   Expand((comment)-[_r3:REPLY_OF]->(_n1:Post))
+                  :     Expand((friend)<-[_r2:HAS_CREATOR]-(comment:Comment))
+                  :       Expand((_n0)-[_r1:KNOWS]-(friend:Person))
+                  :         Filter((_n0.id = 15393162799448))
+                  :           GetProperty(_n0.id) [node:Person]
+                  :             EntityScan(_n0:Person)
+
+### IC12 @kvs
+Coord Limit[20]
+  Coord Sort[replyCount DESC, tointeger(personId) ASC]
+    Coord Aggregation[keys: friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName | collect(DISTINCT tag.name) AS tagNames, count(DISTINCT comment) AS replyCount]
+      Fetch[graph] in=(tag) out=(tag, tag.name)
+        : GetProperty(tag.name) [node:Tag]
+        :   Argument(tag)
+        Fetch[graph] in=(friend) out=(friend, friend.firstName, friend.id, friend.lastName)
+          : GetProperty(friend.lastName) [node:Person]
+          :   GetProperty(friend.firstName) [node:Person]
+          :     GetProperty(friend.id) [node:Person]
+          :       Argument(friend)
+          Coord Filter((tag.id IN tags))
+            Fetch[graph] in=(tag) out=(tag, tag.id)
+              : GetProperty(tag.id) [node:Tag]
+              :   Argument(tag)
+              Coord NodeHashJoin[cartesian]
+                StoreQuery[graph] out=(tags)
+                  : Aggregation[keys: ∅ | collect(tag.id) AS tags]
+                  :   GetProperty(tag.id) [node:Tag]
+                  :     Filter(((tag.name = "Monarch") OR (baseTagClass.name = "Monarch")))
+                  :       GetProperty(baseTagClass.name) [node:TagClass]
+                  :         GetProperty(tag.name) [node:Tag]
+                  :           VarLengthExpand((tag)-[_r0:HAS_TYPE|IS_SUBCLASS_OF*0..]->(baseTagClass:TagClass))
+                  :             EntityScan(tag:Tag)
+                StoreQuery[graph] out=(comment, friend, tag)
+                  : Expand((_n1)-[_r4:HAS_TAG]->(tag:Tag))
+                  :   Expand((comment)-[_r3:REPLY_OF]->(_n1:Post))
+                  :     Expand((friend)<-[_r2:HAS_CREATOR]-(comment:Comment))
+                  :       Expand((_n0)-[_r1:KNOWS]-(friend:Person))
+                  :         Filter((_n0.id = 15393162799448))
+                  :           GetProperty(_n0.id) [node:Person]
+                  :             EntityScan(_n0:Person)
 
 ### IC3
-UNSUPPORTED: ast: unsupported syntax: 4 syntax error(s)
+UNSUPPORTED: ast: unsupported syntax: 3 syntax error(s)
 
 ### IC4
 UNSUPPORTED: ast: unsupported syntax: 1 syntax error(s)
 
-### IC6
-UNSUPPORTED: ast: unsupported syntax: 3 syntax error(s)
+### IC6 @graph
+Coord Limit[10]
+  Coord Sort[postCount DESC, tagName ASC]
+    Coord Projection[tagName, postCount]
+      Coord Aggregation[keys: tag.name AS tagName | count(post) AS postCount]
+        Fetch[graph] in=(tag) out=(tag, tag.name)
+          : GetProperty(tag.name) [node:Tag]
+          :   Argument(tag)
+          Coord RelUniqueFilter[_r2, _r3]
+            Coord Filter(NOT((t = tag)))
+              StoreQuery[graph] in=(post) out=(post, _r3, tag)
+                : Expand((post)-[_r3:HAS_TAG]->(tag:Tag))
+                :   Argument(post)
+                Coord Filter((t.id = knownTagId))
+                  StoreQuery[graph] in=(f) out=(f, _r2, post, t, t.id)
+                    : GetProperty(t.id) [node:Tag]
+                    :   Expand((post)-[_r2:HAS_TAG]->(t:Tag))
+                    :     Expand((f)<-[_r1:HAS_CREATOR]-(post:Post))
+                    :       Argument(f)
+                    Coord Unwind(friends AS f)
+                      Coord Aggregation[keys: knownTagId | collect(DISTINCT friend) AS friends]
+                        Coord NodeHashJoin[cartesian]
+                          StoreQuery[graph] out=(knownTagId)
+                            : Projection[knownTag.id AS knownTagId]
+                            :   GetProperty(knownTag.id) [node:Tag]
+                            :     Filter((knownTag.name = "Genghis_Khan"))
+                            :       GetProperty(knownTag.name) [node:Tag]
+                            :         EntityScan(knownTag:Tag)
+                          StoreQuery[graph] out=(friend) weighted
+                            : Filter(NOT((person = friend)))
+                            :   VarLengthExpand((person)-[_r0:KNOWS*1..2]-(friend))
+                            :     Filter((person.id = 15393162799448))
+                            :       GetProperty(person.id) [node:Person]
+                            :         EntityScan(person:Person)
+
+### IC6 @relational
+Coord Limit[10]
+  Coord Sort[postCount DESC, tagName ASC]
+    Coord Projection[tagName, postCount]
+      Coord Aggregation[keys: tag.name AS tagName | count(post) AS postCount]
+        Fetch[graph] in=(tag) out=(tag, tag.name)
+          : GetProperty(tag.name) [node:Tag]
+          :   Argument(tag)
+          Coord RelUniqueFilter[_r2, _r3]
+            Coord Filter(NOT((t = tag)))
+              StoreQuery[graph] in=(post) out=(post, _r3, tag)
+                : Expand((post)-[_r3:HAS_TAG]->(tag:Tag))
+                :   Argument(post)
+                Coord Filter((t.id = knownTagId))
+                  StoreQuery[graph] in=(f) out=(f, _r2, post, t, t.id)
+                    : GetProperty(t.id) [node:Tag]
+                    :   Expand((post)-[_r2:HAS_TAG]->(t:Tag))
+                    :     Expand((f)<-[_r1:HAS_CREATOR]-(post:Post))
+                    :       Argument(f)
+                    Coord Unwind(friends AS f)
+                      Coord Aggregation[keys: knownTagId | collect(DISTINCT friend) AS friends]
+                        Coord NodeHashJoin[cartesian]
+                          StoreQuery[graph] out=(knownTagId)
+                            : Projection[knownTag.id AS knownTagId]
+                            :   GetProperty(knownTag.id) [node:Tag]
+                            :     Filter((knownTag.name = "Genghis_Khan"))
+                            :       GetProperty(knownTag.name) [node:Tag]
+                            :         EntityScan(knownTag:Tag)
+                          StoreQuery[graph] out=(friend) weighted
+                            : Filter(NOT((person = friend)))
+                            :   VarLengthExpand((person)-[_r0:KNOWS*1..2]-(friend))
+                            :     Filter((person.id = 15393162799448))
+                            :       GetProperty(person.id) [node:Person]
+                            :         EntityScan(person:Person)
+
+### IC6 @document
+Coord Limit[10]
+  Coord Sort[postCount DESC, tagName ASC]
+    Coord Projection[tagName, postCount]
+      Coord Aggregation[keys: tag.name AS tagName | count(post) AS postCount]
+        Fetch[graph] in=(tag) out=(tag, tag.name)
+          : GetProperty(tag.name) [node:Tag]
+          :   Argument(tag)
+          Coord RelUniqueFilter[_r2, _r3]
+            Coord Filter(NOT((t = tag)))
+              StoreQuery[graph] in=(post) out=(post, _r3, tag)
+                : Expand((post)-[_r3:HAS_TAG]->(tag:Tag))
+                :   Argument(post)
+                Coord Filter((t.id = knownTagId))
+                  StoreQuery[graph] in=(f) out=(f, _r2, post, t, t.id)
+                    : GetProperty(t.id) [node:Tag]
+                    :   Expand((post)-[_r2:HAS_TAG]->(t:Tag))
+                    :     Expand((f)<-[_r1:HAS_CREATOR]-(post:Post))
+                    :       Argument(f)
+                    Coord Unwind(friends AS f)
+                      Coord Aggregation[keys: knownTagId | collect(DISTINCT friend) AS friends]
+                        Coord NodeHashJoin[cartesian]
+                          StoreQuery[graph] out=(knownTagId)
+                            : Projection[knownTag.id AS knownTagId]
+                            :   GetProperty(knownTag.id) [node:Tag]
+                            :     Filter((knownTag.name = "Genghis_Khan"))
+                            :       GetProperty(knownTag.name) [node:Tag]
+                            :         EntityScan(knownTag:Tag)
+                          StoreQuery[graph] out=(friend) weighted
+                            : Filter(NOT((person = friend)))
+                            :   VarLengthExpand((person)-[_r0:KNOWS*1..2]-(friend))
+                            :     Filter((person.id = 15393162799448))
+                            :       GetProperty(person.id) [node:Person]
+                            :         EntityScan(person:Person)
+
+### IC6 @columnar
+Coord Limit[10]
+  Coord Sort[postCount DESC, tagName ASC]
+    Coord Projection[tagName, postCount]
+      Coord Aggregation[keys: tag.name AS tagName | count(post) AS postCount]
+        Fetch[graph] in=(tag) out=(tag, tag.name)
+          : GetProperty(tag.name) [node:Tag]
+          :   Argument(tag)
+          Coord RelUniqueFilter[_r2, _r3]
+            Coord Filter(NOT((t = tag)))
+              StoreQuery[graph] in=(post) out=(post, _r3, tag)
+                : Expand((post)-[_r3:HAS_TAG]->(tag:Tag))
+                :   Argument(post)
+                Coord Filter((t.id = knownTagId))
+                  StoreQuery[graph] in=(f) out=(f, _r2, post, t, t.id)
+                    : GetProperty(t.id) [node:Tag]
+                    :   Expand((post)-[_r2:HAS_TAG]->(t:Tag))
+                    :     Expand((f)<-[_r1:HAS_CREATOR]-(post:Post))
+                    :       Argument(f)
+                    Coord Unwind(friends AS f)
+                      Coord Aggregation[keys: knownTagId | collect(DISTINCT friend) AS friends]
+                        Coord NodeHashJoin[cartesian]
+                          StoreQuery[graph] out=(knownTagId)
+                            : Projection[knownTag.id AS knownTagId]
+                            :   GetProperty(knownTag.id) [node:Tag]
+                            :     Filter((knownTag.name = "Genghis_Khan"))
+                            :       GetProperty(knownTag.name) [node:Tag]
+                            :         EntityScan(knownTag:Tag)
+                          StoreQuery[graph] out=(friend) weighted
+                            : Filter(NOT((person = friend)))
+                            :   VarLengthExpand((person)-[_r0:KNOWS*1..2]-(friend))
+                            :     Filter((person.id = 15393162799448))
+                            :       GetProperty(person.id) [node:Person]
+                            :         EntityScan(person:Person)
+
+### IC6 @kvs
+Coord Limit[10]
+  Coord Sort[postCount DESC, tagName ASC]
+    Coord Projection[tagName, postCount]
+      Coord Aggregation[keys: tag.name AS tagName | count(post) AS postCount]
+        Fetch[graph] in=(tag) out=(tag, tag.name)
+          : GetProperty(tag.name) [node:Tag]
+          :   Argument(tag)
+          Coord RelUniqueFilter[_r2, _r3]
+            Coord Filter(NOT((t = tag)))
+              StoreQuery[graph] in=(post) out=(post, _r3, tag)
+                : Expand((post)-[_r3:HAS_TAG]->(tag:Tag))
+                :   Argument(post)
+                Coord Filter((t.id = knownTagId))
+                  StoreQuery[graph] in=(f) out=(f, _r2, post, t, t.id)
+                    : GetProperty(t.id) [node:Tag]
+                    :   Expand((post)-[_r2:HAS_TAG]->(t:Tag))
+                    :     Expand((f)<-[_r1:HAS_CREATOR]-(post:Post))
+                    :       Argument(f)
+                    Coord Unwind(friends AS f)
+                      Coord Aggregation[keys: knownTagId | collect(DISTINCT friend) AS friends]
+                        Coord NodeHashJoin[cartesian]
+                          StoreQuery[graph] out=(knownTagId)
+                            : Projection[knownTag.id AS knownTagId]
+                            :   GetProperty(knownTag.id) [node:Tag]
+                            :     Filter((knownTag.name = "Genghis_Khan"))
+                            :       GetProperty(knownTag.name) [node:Tag]
+                            :         EntityScan(knownTag:Tag)
+                          StoreQuery[graph] out=(friend) weighted
+                            : Filter(NOT((person = friend)))
+                            :   VarLengthExpand((person)-[_r0:KNOWS*1..2]-(friend))
+                            :     Filter((person.id = 15393162799448))
+                            :       GetProperty(person.id) [node:Person]
+                            :         EntityScan(person:Person)
 
 ### INLIST @graph
 StoreQuery[graph] out=(o.id, o.type)

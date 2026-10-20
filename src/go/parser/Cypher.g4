@@ -41,7 +41,7 @@ ASC: 'ASC';
 DESC: 'DESC';
 LIMIT: 'LIMIT';
 OPTIONAL: 'OPTIONAL';
-UNWIND: 'UNWIND';
+UNWIND: [uU][nN][wW][iI][nN][dD];
 FINISH: 'FINISH';
 SET: 'SET';
 
@@ -59,6 +59,7 @@ SUM: [sS][uU][mM];
 AVG: [aA][vV][gG];
 MIN: [mM][iI][nN];
 MAX: [mM][aA][xX];
+COLLECT: [cC][oO][lL][lL][eE][cC][tT];
 COALESCE: [cC][oO][aA][lL][eE][sS][cC][eE];
 
 IN: [iI][nN];
@@ -97,7 +98,8 @@ cypher: statement+ EOF;
 // statement は 1 つ以上の reading 節（MATCH[WHERE] / WITH）に続く RETURN。
 // 単段クエリ（MATCH [WHERE] RETURN）は readingClause 1 個 + returnClause として後方互換。
 statement: readingClause+ returnClause;
-readingClause: OPTIONAL? matchClause whereClause? | withClause;
+readingClause: OPTIONAL? matchClause whereClause? | withClause | unwindClause;
+unwindClause: UNWIND valueExpr AS variable;
 withClause: WITH DISTINCT? returnItems orderItems? limitNum? whereClause?;
 matchClause: MATCH WS* pattern (COMMA WS* pattern)*;
 returnClause: RETURN WS* returnItems orderItems? limitNum?;
@@ -137,7 +139,7 @@ valueExpr:
     | LSQUARE (valueExpr (COMMA valueExpr)*)? RSQUARE            #veList
     | (STRING | NUMBER)                                          #veLit
     | LPAREN valueExpr RPAREN                                    #veParen;
-aggregateFunc: (COUNT | SUM | AVG | MIN | MAX) LPAREN (STAR | DISTINCT? aggArg) RPAREN;
+aggregateFunc: (COUNT | SUM | AVG | MIN | MAX | COLLECT) LPAREN (STAR | DISTINCT? aggArg) RPAREN;
 aggArg: IDENTIFIER (DOT IDENTIFIER)?;
 
 orderItems: ORDER_BY orderItem (COMMA orderItem)*;
@@ -147,7 +149,7 @@ limitNum: LIMIT NUMBER;
 labels: COLON label+;
 label: IDENTIFIER;
 properties: LCURLY property (COMMA property)* RCURLY;
-property: IDENTIFIER COLON value;
+property: IDENTIFIER COLON (value | expression);
 
 condition:
     LPAREN condition RPAREN #conditionParen
@@ -161,6 +163,7 @@ condition:
     | expression IS NULL #ConditionIsNull
     | expression IS NOT NULL #ConditionIsNotNull
     | expression IN list #ConditionIn
+    | expression IN expression #ConditionInExpr
     | expression EQ value # ConditionEquality
     | expression NEQ value # ConditionNotEquality
     | expression RANGLE value # ConditionGreater

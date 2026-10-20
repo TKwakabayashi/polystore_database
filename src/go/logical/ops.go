@@ -313,6 +313,14 @@ type Optional struct {
 	New   []string
 }
 
+// Unwind はリスト式 List の要素ごとに 1 行へ展開し、要素を列 Var に置く（空リスト・null は行を残さない）。
+// 識別子のリスト（collect した束縛）を展開した Var は識別列になる。
+type Unwind struct {
+	Input Node
+	List  Expr
+	Var   string
+}
+
 // RelUniqueFilter は同一 MATCH 内の関係（Rels の識別列と Segs の区間列に含まれる関係）が互いに異なる行だけを残す。
 type RelUniqueFilter struct {
 	Input Node
@@ -339,6 +347,7 @@ func (n *Limit) Children() []Node           { return []Node{n.Input} }
 func (n *Distinct) Children() []Node        { return []Node{n.Input} }
 func (n *NodeHashJoin) Children() []Node    { return []Node{n.Left, n.Right} }
 func (n *RelUniqueFilter) Children() []Node { return []Node{n.Input} }
+func (n *Unwind) Children() []Node          { return []Node{n.Input} }
 
 // ---- Describe ----
 
@@ -476,6 +485,8 @@ func (n *NodeHashJoin) Describe() string {
 	}
 	return fmt.Sprintf("NodeHashJoin[%s]", strings.Join(n.Keys, ", "))
 }
+
+func (n *Unwind) Describe() string { return fmt.Sprintf("Unwind(%s AS %s)", n.List, n.Var) }
 
 func (n *RelUniqueFilter) Describe() string {
 	parts := append([]string{}, n.Rels...)

@@ -327,6 +327,13 @@ var equivalenceQueries = []struct {
 	{"optional_case_subject", "MATCH (a:Person)-[:KNOWS]->(b:Person) OPTIONAL MATCH (b)-[r:KNOWS]->(a) RETURN a.id, b.id, CASE r WHEN null THEN false ELSE true END AS back", 7},
 	{"optional_into_bound", "MATCH (a:Person {id: $x})-[:KNOWS]-(b:Person) OPTIONAL MATCH (b)-[:IS_LOCATED_IN]->(c:Place)<-[:IS_LOCATED_IN]-(a) RETURN b.id, c.name", 3},
 	{"optional_then_with", "MATCH (p:Person) OPTIONAL MATCH (p)-[:KNOWS]->(f:Person) WITH p, count(f) AS deg RETURN deg, count(p) AS people ORDER BY deg ASC", 3},
+	{"unwind_collected_nodes", "MATCH (p:Person {id: $x})-[:KNOWS]-(f:Person) WITH collect(f) AS fs UNWIND fs AS g MATCH (g)-[:IS_LOCATED_IN]->(c:Place) RETURN g.id, c.name", 2},
+	{"unwind_distinct_weighted", "MATCH (p:Person {id: $x})-[:KNOWS*1..2]-(f:Person) WITH collect(DISTINCT f) AS fs UNWIND fs AS g RETURN g.id", -1},
+	{"unwind_literal", "MATCH (p:Person {id: $x}) UNWIND [1, 2, 3] AS k RETURN p.id, k", 3},
+	{"collect_values", "MATCH (p:Person)-[:IS_LOCATED_IN]->(c:Place) WITH c.name AS n, collect(p.id) AS ids RETURN n, size(ids) AS k", 2},
+	{"in_list_column", "MATCH (p:Person {id: $x})-[:KNOWS]-(f:Person) WITH collect(f.id) AS ids MATCH (q:Person) WHERE q.id IN ids RETURN q.id", 3},
+	{"pattern_prop_variable", "MATCH (a:Person {id: $x}) WITH a.lastName AS ln MATCH (b:Person {lastName: ln}) RETURN b.id", -1},
+	{"order_by_output_expr", "MATCH (p:Person)-[:KNOWS]-(f:Person) RETURN p.id AS pid, count(f) AS n ORDER BY n DESC, toInteger(pid) ASC LIMIT 3", 3},
 }
 
 func TestPlacementEquivalence(t *testing.T) {
@@ -391,6 +398,16 @@ func TestHandCheckedResults(t *testing.T) {
 		// 単純 CASE の WHEN null は一致しない（Neo4j と同じ）ので back は常に true
 		{"MATCH (a:Person {id: $x})-[:KNOWS]->(b:Person) OPTIONAL MATCH (b)-[r:KNOWS]->(a) RETURN b.id, CASE r WHEN null THEN false ELSE true END AS back",
 			[]string{"b.id=2;back=true;", "b.id=5;back=true;"}},
+		// collect した友人（p2, p3, p5）を UNWIND して所在地へ（p5 は所在地なし）
+		{"MATCH (p:Person {id: $x})-[:KNOWS]-(f:Person) WITH collect(f) AS fs UNWIND fs AS g MATCH (g)-[:IS_LOCATED_IN]->(c:Place) RETURN g.id, c.name",
+			[]string{"c.name=Kyoto;g.id=2;", "c.name=Tokyo;g.id=3;"}},
+		// IN の右辺がリスト列
+		{"MATCH (p:Person {id: $x})-[:KNOWS]-(f:Person) WITH collect(f.id) AS ids MATCH (q:Person) WHERE q.id IN ids RETURN q.id",
+			[]string{"q.id=2;", "q.id=3;", "q.id=5;"}},
+		// 2 ホップ以内の到達者は経路で重複する（重み付き行）が、collect(DISTINCT) で 1 回ずつ: {p2, p3, p4, p5, p6}
+		// （p1 へ戻るには同じ辺を 2 回使うので関係一意性で除かれる）
+		{"MATCH (p:Person {id: $x})-[:KNOWS*1..2]-(f:Person) WITH collect(DISTINCT f) AS fs UNWIND fs AS g RETURN count(g) AS n",
+			[]string{"n=5;"}},
 		// 集約の後の ORDER BY / LIMIT（WITH の途中）
 		{"MATCH (p:Person)-[:KNOWS]-(f:Person) WITH p, count(f) AS deg ORDER BY deg DESC, p.id ASC LIMIT 2 RETURN p.id, deg",
 			[]string{"deg=3;p.id=1;", "deg=3;p.id=2;"}},

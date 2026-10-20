@@ -120,6 +120,13 @@ func (b *builder) cypher(ctx parser.ICypherContext) (*Query, error) {
 				return nil, err
 			}
 			q.Clauses = append(q.Clauses, w)
+		case rc.UnwindClause() != nil:
+			uc := rc.UnwindClause()
+			e, err := b.valueExpr(uc.ValueExpr())
+			if err != nil {
+				return nil, err
+			}
+			q.Clauses = append(q.Clauses, &UnwindClause{Expr: e, Var: uc.Variable().GetText()})
 		}
 	}
 	r, err := b.ret(st.ReturnClause())
@@ -250,7 +257,13 @@ func (b *builder) props(pc parser.IPropertiesContext) ([]PropEq, error) {
 	}
 	var out []PropEq
 	for _, p := range pc.AllProperty() {
-		v, err := b.value(p.Value())
+		var v Expr
+		var err error
+		if p.Value() != nil {
+			v, err = b.value(p.Value())
+		} else {
+			v, err = b.expression(p.Expression())
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -369,6 +382,8 @@ func (b *builder) aggregate(ac parser.IAggregateFuncContext) (Expr, error) {
 		fn = "min"
 	case ac.MAX() != nil:
 		fn = "max"
+	case ac.COLLECT() != nil:
+		fn = "collect"
 	}
 	a := &Agg{Fn: fn, Distinct: ac.DISTINCT() != nil}
 	if arg := ac.AggArg(); arg != nil {
@@ -581,6 +596,8 @@ func (b *builder) cond(cc parser.IConditionContext) (Expr, error) {
 			l.Elems = append(l.Elems, lv)
 		}
 		return &Bin{Op: "IN", L: x, R: l}, nil
+	case *parser.ConditionInExprContext:
+		return b.cmpExpr("IN", c.Expression(0), c.Expression(1))
 	case *parser.ConditionEqualityContext:
 		return b.cmpValue("=", c.Expression(), c.Value())
 	case *parser.ConditionNotEqualityContext:

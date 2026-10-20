@@ -769,6 +769,12 @@ func external(v any) any {
 			rels[i] = u.String()
 		}
 		return map[string]any{"nodes": nodes, "rels": rels}
+	case []any:
+		out := make([]any, len(x))
+		for i, e := range x {
+			out[i] = external(e)
+		}
+		return out
 	}
 	return v
 }

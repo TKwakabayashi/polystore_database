@@ -139,10 +139,12 @@ func canonValue(v interface{}) string {
 	case time.Time:
 		return x.UTC().Format(time.RFC3339Nano)
 	case []interface{}:
+		// collect の要素順は Cypher でも定まらないので、リストは多重集合として比べる。
 		parts := make([]string, len(x))
 		for i, e := range x {
 			parts[i] = canonValue(e)
 		}
+		sort.Strings(parts)
 		return "[" + strings.Join(parts, ",") + "]"
 	}
 	return fmt.Sprint(v)

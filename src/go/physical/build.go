@@ -180,8 +180,10 @@ func (pl *planner) build(n logical.Node) (*state, error) {
 			return nil, err
 		}
 		if l.open != nil && r.open != nil && l.open.leaf && r.open.leaf &&
-			l.open.store == store.Graph && r.open.store == store.Graph {
-			// 両側が graph だけで完結するなら 1 本の MATCH にまとめる。
+			l.open.store == store.Graph && r.open.store == store.Graph &&
+			graphPattern(l.open.ops) && graphPattern(r.open.ops) {
+			// 両側が graph のパターンだけで完結するなら 1 本の MATCH にまとめる
+			// （射影・集約を吸収した側は MATCH の 1 部分に書けないので、コーディネータで直積にする）。
 			o := l.open
 			o.ops = &logical.NodeHashJoin{Left: l.open.ops, Right: r.open.ops, Keys: x.Keys}
 			for k := range r.open.avail {
@@ -398,8 +400,12 @@ func (pl *planner) add(st *state, op logical.Node) error {
 		pl.coord(st, op)
 		return nil
 
+	case *logical.Unwind:
+		pl.coord(st, op)
+		return nil
+
 	case *logical.Projection, *logical.Aggregation, *logical.Sort, *logical.Limit, *logical.Distinct:
-		if o != nil && o.leaf && CanAbsorb(o.store, op) && availAll(o, logical.Refs(op)) {
+		if o != nil && o.leaf && CanAbsorb(o.store, op) && availAll(o, logical.Refs(op)) && !collectsIdent(o, op) {
 			pl.extend(st, op)
 			return nil
 		}
@@ -407,6 +413,21 @@ func (pl *planner) add(st *state, op logical.Node) error {
 		return nil
 	}
 	return unsupported("operator %T", op)
+}
+
+// collectsIdent は op が識別列を collect するか。識別子のリストはストアから返させず（要素の復元を持たない）、
+// コーディネータで集める。
+func collectsIdent(o *openQ, op logical.Node) bool {
+	agg, ok := op.(*logical.Aggregation)
+	if !ok {
+		return false
+	}
+	for _, a := range agg.Aggs {
+		if c, ok := a.Arg.(*logical.Column); ok && a.Fn == "collect" && o.idents[c.Key] {
+			return true
+		}
+	}
+	return false
 }
 
 // addGraph は graph の演算子（トラバーサル）を足す。開いた graph クエリが必要な識別列を持っていれば統合する。

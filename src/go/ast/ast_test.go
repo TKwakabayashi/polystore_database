@@ -133,7 +133,7 @@ func TestWithClause(t *testing.T) {
 
 func TestUnsupported(t *testing.T) {
 	for _, q := range []string{
-		"MATCH (a) UNWIND [1, 2] AS x RETURN x",
+		"MATCH (a) RETURN a.b.c + 1",
 		"MATCH (a) RETURN a.b.c",
 	} {
 		if _, err := ast.Parse(q, nil); !errors.Is(err, ast.ErrUnsupported) {

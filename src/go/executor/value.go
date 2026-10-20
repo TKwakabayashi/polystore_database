@@ -63,6 +63,12 @@ func normalize(v any) any {
 		return string(x)
 	case time.Time:
 		return x.UTC()
+	case []any: // collect などリストの値
+		out := make([]any, len(x))
+		for i, e := range x {
+			out[i] = normalize(e)
+		}
+		return out
 	}
 	return v
 }

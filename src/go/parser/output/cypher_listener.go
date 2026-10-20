@@ -16,6 +16,9 @@ type CypherListener interface {
 	// EnterReadingClause is called when entering the readingClause production.
 	EnterReadingClause(c *ReadingClauseContext)
 
+	// EnterUnwindClause is called when entering the unwindClause production.
+	EnterUnwindClause(c *UnwindClauseContext)
+
 	// EnterWithClause is called when entering the withClause production.
 	EnterWithClause(c *WithClauseContext)
 
@@ -127,6 +130,9 @@ type CypherListener interface {
 	// EnterConditionIsNull is called when entering the ConditionIsNull production.
 	EnterConditionIsNull(c *ConditionIsNullContext)
 
+	// EnterConditionInExpr is called when entering the ConditionInExpr production.
+	EnterConditionInExpr(c *ConditionInExprContext)
+
 	// EnterConditionGreater is called when entering the ConditionGreater production.
 	EnterConditionGreater(c *ConditionGreaterContext)
 
@@ -210,6 +216,9 @@ type CypherListener interface {
 
 	// ExitReadingClause is called when exiting the readingClause production.
 	ExitReadingClause(c *ReadingClauseContext)
+
+	// ExitUnwindClause is called when exiting the unwindClause production.
+	ExitUnwindClause(c *UnwindClauseContext)
 
 	// ExitWithClause is called when exiting the withClause production.
 	ExitWithClause(c *WithClauseContext)
@@ -321,6 +330,9 @@ type CypherListener interface {
 
 	// ExitConditionIsNull is called when exiting the ConditionIsNull production.
 	ExitConditionIsNull(c *ConditionIsNullContext)
+
+	// ExitConditionInExpr is called when exiting the ConditionInExpr production.
+	ExitConditionInExpr(c *ConditionInExprContext)
 
 	// ExitConditionGreater is called when exiting the ConditionGreater production.
 	ExitConditionGreater(c *ConditionGreaterContext)
