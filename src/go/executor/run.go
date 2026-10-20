@@ -13,11 +13,11 @@ import (
 
 	"polystore_database/src/go/ast"
 	"polystore_database/src/go/codec"
-	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/id"
 	"polystore_database/src/go/logical"
 	"polystore_database/src/go/native"
 	"polystore_database/src/go/physical"
+	"polystore_database/src/go/result"
 	"polystore_database/src/go/schema"
 	"polystore_database/src/go/settings"
 	"polystore_database/src/go/store"
@@ -54,6 +54,7 @@ type Executor struct {
 	order   []physical.Node // 計測の並び（葉 → 根）
 	lowered map[*physical.StoreQuery]*native.Query
 	lists   map[*physical.ListFetch][]*native.Query
+	args    map[*physical.ArgRows][]Row // OPTIONAL の内側の葉へ渡す外側の行
 }
 
 type stepAcc struct {
@@ -68,13 +69,13 @@ func New(ctx context.Context, be Backend, types native.TypeFn) *Executor {
 }
 
 // Steps は直前の実行の演算子ごとの計測（葉 → 根。並列モデルではバッチごとの時間の合計）。
-func (e *Executor) Steps() []core.StepMetric {
+func (e *Executor) Steps() []result.StepMetric {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	var out []core.StepMetric
+	var out []result.StepMetric
 	for _, n := range e.order {
 		if a, ok := e.acc[n]; ok {
-			out = append(out, core.StepMetric{Step: len(out) + 1, Op: a.op, Duration: a.dur, InRows: a.in, OutRows: a.out})
+			out = append(out, result.StepMetric{Step: len(out) + 1, Op: a.op, Duration: a.dur, InRows: a.in, OutRows: a.out})
 		}
 	}
 	return out
@@ -91,6 +92,7 @@ func (e *Executor) reset(root physical.Node) {
 	e.acc = map[physical.Node]*stepAcc{}
 	e.lowered = map[*physical.StoreQuery]*native.Query{}
 	e.lists = map[*physical.ListFetch][]*native.Query{}
+	e.args = map[*physical.ArgRows][]Row{}
 	e.order = nil
 	var walk func(physical.Node)
 	walk = func(n physical.Node) {
@@ -195,6 +197,10 @@ func (e *Executor) step(n physical.Node, inputs [][]Row) ([]Row, error) {
 		out, err = e.listFetch(x, inputs[0])
 	case *physical.Coord:
 		out, err = runCoord(x.Op, inputs)
+	case *physical.ArgRows:
+		out = e.argRows(x)
+	case *physical.OptionalApply:
+		out = leftApply(inputs[0], inputs[1], x)
 	default:
 		err = fmt.Errorf("executor: physical node %T", n)
 	}
@@ -205,8 +211,106 @@ func (e *Executor) step(n physical.Node, inputs [][]Row) ([]Row, error) {
 	return out, nil
 }
 
+// setArg は OPTIONAL の内側の葉へ、外側の行の識別列の組（重複なし、null を含む組は除く）を渡す。
+func (e *Executor) setArg(a *physical.ArgRows, outer []Row) {
+	seen := map[string]bool{}
+	var rows []Row
+	for _, r := range outer {
+		nr := Row{}
+		vals := make([]any, len(a.Cols))
+		ok := true
+		for i, c := range a.Cols {
+			v := r[c]
+			if v == nil {
+				ok = false
+				break
+			}
+			nr[c], vals[i] = v, v
+		}
+		if !ok {
+			continue
+		}
+		if k := keyString(vals...); !seen[k] {
+			seen[k] = true
+			rows = append(rows, nr)
+		}
+	}
+	e.mu.Lock()
+	e.args[a] = rows
+	e.mu.Unlock()
+}
+
+func (e *Executor) argRows(a *physical.ArgRows) []Row {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	out := make([]Row, len(e.args[a]))
+	for i, r := range e.args[a] {
+		out[i] = r.clone()
+	}
+	return out
+}
+
+// leftApply は外側の各行に、識別列 Keys が一致する内側の行を結合する。一致しない外側の行は、New と内側が
+// 作る列を null にして 1 行だけ残す（OPTIONAL MATCH）。重みは掛け合わせる。
+func leftApply(outer, inner []Row, o *physical.OptionalApply) []Row {
+	key := func(r Row) (string, bool) {
+		vals := make([]any, len(o.Keys))
+		for i, k := range o.Keys {
+			if r[k] == nil {
+				return "", false
+			}
+			vals[i] = r[k]
+		}
+		return keyString(vals...), true
+	}
+	by := map[string][]Row{}
+	for _, r := range inner {
+		if k, ok := key(r); ok {
+			by[k] = append(by[k], r)
+		}
+	}
+	var out []Row
+	for _, r := range outer {
+		k, ok := key(r)
+		matches := by[k]
+		if !ok || len(matches) == 0 {
+			nr := r.clone()
+			for _, c := range o.New {
+				nr[c] = nil
+			}
+			for _, c := range o.InnerCols {
+				nr[c] = nil
+			}
+			out = append(out, nr)
+			continue
+		}
+		for _, m := range matches {
+			nr := r.clone()
+			for c, v := range m {
+				nr[c] = v
+			}
+			setWeight(nr, weightOf(r)*weightOf(m))
+			out = append(out, nr)
+		}
+	}
+	return out
+}
+
 // bulk は葉から全件を実体化して評価する。
 func (e *Executor) bulk(n physical.Node) ([]Row, error) {
+	if o, ok := n.(*physical.OptionalApply); ok {
+		// 内側は外側の行に依存するので、外側 → 葉への受け渡し → 内側 の順に評価する。
+		outer, err := e.bulk(o.Outer)
+		if err != nil {
+			return nil, err
+		}
+		e.setArg(o.Arg, outer)
+		inner, err := e.bulk(o.Inner)
+		if err != nil {
+			return nil, err
+		}
+		return e.step(n, [][]Row{outer, inner})
+	}
 	var inputs [][]Row
 	for _, c := range n.Children() {
 		rows, err := e.bulk(c)
@@ -569,12 +673,12 @@ func checkLowerable(n physical.Node, cat *physical.Catalog) error {
 }
 
 // Run は Cypher を bulk で計画・実行して結果を返す。構造化できないクエリは graph への原文委譲（verbatim）。
-func Run(ctx context.Context, be Backend, md *schema.MappingDictionary, cypher string, params map[string]string) (core.Result, error) {
+func Run(ctx context.Context, be Backend, md *schema.MappingDictionary, cypher string, params map[string]string) (result.Result, error) {
 	return RunModel(ctx, be, md, cypher, params, settings.EngineBulk)
 }
 
 // RunModel は反復モデルを指定して Cypher を計画・実行する。
-func RunModel(ctx context.Context, be Backend, md *schema.MappingDictionary, cypher string, params map[string]string, model settings.EngineKind) (core.Result, error) {
+func RunModel(ctx context.Context, be Backend, md *schema.MappingDictionary, cypher string, params map[string]string, model settings.EngineKind) (result.Result, error) {
 	t0 := time.Now()
 	p, cat, err := Plan(cypher, params, md)
 	planT := time.Since(t0)
@@ -582,22 +686,22 @@ func RunModel(ctx context.Context, be Backend, md *schema.MappingDictionary, cyp
 		start := time.Now()
 		rows, verr := be.Verbatim(ctx, cypher, typedParams(params))
 		if verr != nil {
-			return core.Result{}, verr
+			return result.Result{}, verr
 		}
-		return core.Result{Rows: rows, PlanTime: planT, ExecTime: time.Since(start), Engine: "redesign-" + string(model) + "(verbatim)", RoundTrips: 1}, nil
+		return result.Result{Rows: rows, PlanTime: planT, ExecTime: time.Since(start), Engine: "redesign-" + string(model) + "(verbatim)", RoundTrips: 1}, nil
 	}
 	if err != nil {
-		return core.Result{}, err
+		return result.Result{}, err
 	}
 	ex := New(ctx, be, cat.TypeOf)
 	start := time.Now()
 	rows, err := ex.ExecuteModel(p, model)
 	if err != nil {
 		// 失敗・打ち切りでも、そこまでに終わった演算子の計測は返す（原因の切り分け用）。
-		return core.Result{PlanTime: planT, ExecTime: time.Since(start), Steps: ex.Steps(),
+		return result.Result{PlanTime: planT, ExecTime: time.Since(start), Steps: ex.Steps(),
 			RoundTrips: ex.RoundTrips(), Engine: "redesign-" + string(model)}, err
 	}
-	res := core.Result{Rows: OutputRows(p, rows), PlanTime: planT, ExecTime: time.Since(start),
+	res := result.Result{Rows: OutputRows(p, rows), PlanTime: planT, ExecTime: time.Since(start),
 		Steps: ex.Steps(), RoundTrips: ex.RoundTrips(), Engine: "redesign-" + string(model)}
 	if model == settings.EngineVectorized || model == settings.EngineVecStream || model == settings.EngineStream {
 		res.VectorWidth = vectorWidth()

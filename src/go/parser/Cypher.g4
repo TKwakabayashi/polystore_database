@@ -64,6 +64,8 @@ COALESCE: [cC][oO][aA][lL][eE][sS][cC][eE];
 IN: [iI][nN];
 IS: [iI][sS];
 NULL: [nN][uU][lL][lL];
+TRUE: [tT][rR][uU][eE];
+FALSE: [fF][aA][lL][sS][eE];
 
 // predicates
 ALL: [aA][lL][lL];
@@ -95,7 +97,7 @@ cypher: statement+ EOF;
 // statement は 1 つ以上の reading 節（MATCH[WHERE] / WITH）に続く RETURN。
 // 単段クエリ（MATCH [WHERE] RETURN）は readingClause 1 個 + returnClause として後方互換。
 statement: readingClause+ returnClause;
-readingClause: matchClause whereClause? | withClause;
+readingClause: OPTIONAL? matchClause whereClause? | withClause;
 withClause: WITH DISTINCT? returnItems orderItems? limitNum? whereClause?;
 matchClause: MATCH WS* pattern (COMMA WS* pattern)*;
 returnClause: RETURN WS* returnItems orderItems? limitNum?;
@@ -117,8 +119,12 @@ returnItem:
     | caseExpr (AS variable)?
     | valueExpr (AS variable)?
     | COALESCE LPAREN expression (COMMA expression)* RPAREN (AS variable)?;
-caseExpr: CASE (WHEN condition THEN caseResult)+ (ELSE caseResult)? END;
-caseResult: value | expression;
+caseExpr:
+      CASE (WHEN condition THEN caseResult)+ (ELSE caseResult)? END              #caseSearched
+    | CASE valueExpr (WHEN caseKey THEN caseResult)+ (ELSE caseResult)? END    #caseSimple;
+// 単純 CASE の比較値（Neo4j と同じく `=` で比べるので WHEN null は一致しない）。
+caseKey: value | NULL | TRUE | FALSE | expression;
+caseResult: value | NULL | TRUE | FALSE | expression;
 
 // valueExpr は RETURN 項目の汎用計算式（算術・関数呼び・list リテラル）。
 // 単純なプロパティ参照（a.b）は従来どおり材料化列として扱い、複合式のみ Expr として評価する。
@@ -135,7 +141,7 @@ aggregateFunc: (COUNT | SUM | AVG | MIN | MAX) LPAREN (STAR | DISTINCT? aggArg) 
 aggArg: IDENTIFIER (DOT IDENTIFIER)?;
 
 orderItems: ORDER_BY orderItem (COMMA orderItem)*;
-orderItem: expression (ASC|DESC);
+orderItem: expression (ASC|DESC)?;
 limitNum: LIMIT NUMBER;
 
 labels: COLON label+;

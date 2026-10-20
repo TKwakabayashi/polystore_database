@@ -1,12 +1,12 @@
 package store
 
 // limits.go はストア固有の**物理的制約**を 1 か所に集約する。
-// plan/capability.go（そのストアが何をネイティブ実行できるか）と対になる
+// physical/catalog.go の能力表（そのストアが何をネイティブ実行できるか）と対になる
 // 「どこまで一度に投げられるか」のテーブル。
 //
 // ここに置くのは「ストアの事実」であって設定ではない。ユーザが性能のために動かすノブは
-// settings 側（MaterializeChunkSize / IntegrateRowThreshold）に置き、実効値は
-// engine/core が min(希望値, 物理上限) で clamp する。
+// settings 側（MaterializeChunkSize / StoreFetchParallelism）に置き、実効値は
+// executor が min(希望値, 物理上限) で clamp する。
 
 // Limits は 1 クエリへ載せられる識別子数の制約。
 type Limits struct {

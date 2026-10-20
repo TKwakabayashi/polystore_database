@@ -154,10 +154,21 @@ func (b *builder) conv(e ast.Expr, ctx convCtx) (Expr, error) {
 		return c, nil
 	case *ast.Case:
 		c := &Case{}
+		var subj Expr
+		if x.Subject != nil {
+			v, err := b.conv(x.Subject, ctx)
+			if err != nil {
+				return nil, err
+			}
+			subj = v
+		}
 		for _, w := range x.Whens {
 			wv, err := b.conv(w.When, ctx)
 			if err != nil {
 				return nil, err
+			}
+			if subj != nil { // 単純 CASE は WHEN subject = 値 として評価する（null とは一致しない）
+				wv = &Bin{Op: "=", L: subj, R: wv}
 			}
 			tv, err := b.conv(w.Then, ctx)
 			if err != nil {
@@ -278,6 +289,9 @@ func (b *builder) collectNeeds(e ast.Expr, ctx convCtx, n *needs) {
 			b.collectNeeds(a, ctx, n)
 		}
 	case *ast.Case:
+		if x.Subject != nil {
+			b.collectNeeds(x.Subject, ctx, n)
+		}
 		for _, w := range x.Whens {
 			b.collectNeeds(w.When, ctx, n)
 			b.collectNeeds(w.Then, ctx, n)
@@ -377,6 +391,9 @@ func (b *builder) deps(e ast.Expr) []string {
 				walk(a, qv)
 			}
 		case *ast.Case:
+			if x.Subject != nil {
+				walk(x.Subject, qv)
+			}
 			for _, w := range x.Whens {
 				walk(w.When, qv)
 				walk(w.Then, qv)
@@ -424,6 +441,9 @@ type patEdge struct {
 }
 
 func (b *builder) match(m *ast.MatchClause) error {
+	if m.Optional {
+		return b.optionalMatch(m)
+	}
 	// 1. パターングラフ
 	vertices := map[string]*patVertex{}
 	var vorder []string
@@ -609,6 +629,81 @@ func (b *builder) match(m *ast.MatchClause) error {
 	}
 	if len(pending) > 0 {
 		return unsupported("unplaceable predicate %s", pending[0])
+	}
+	return nil
+}
+
+// optionalMatch は OPTIONAL MATCH を左外部 apply（Optional）にする。パターンと WHERE は、外側の行が持つ
+// 束縛済みの識別列（Keys）だけを受け取る Argument の上に、通常の MATCH と同じ規則で組む（WHERE は一致の条件）。
+func (b *builder) optionalMatch(m *ast.MatchClause) error {
+	if b.plan == nil {
+		return unsupported("OPTIONAL MATCH as the first clause")
+	}
+	// Keys: パターンと WHERE が参照する、束縛済みのノード・関係（出現順）。
+	var keys []string
+	seen := map[string]bool{}
+	consider := func(v string) error {
+		if seen[v] || !b.bound[v] {
+			return nil
+		}
+		seen[v] = true
+		switch b.scope[v].kind {
+		case VarNode, VarRel:
+			keys = append(keys, v)
+			return nil
+		}
+		return unsupported("OPTIONAL MATCH referring to value %s", v)
+	}
+	var order []string // 新しく束縛される変数の候補（出現順）
+	for _, p := range m.Patterns {
+		for i, n := range p.Nodes {
+			if err := consider(n.Var); err != nil {
+				return err
+			}
+			order = append(order, n.Var)
+			if i < len(p.Rels) {
+				if err := consider(p.Rels[i].Var); err != nil {
+					return err
+				}
+				order = append(order, p.Rels[i].Var)
+			}
+		}
+	}
+	if m.Where != nil {
+		for _, d := range b.deps(m.Where) {
+			if err := consider(d); err != nil {
+				return err
+			}
+		}
+	}
+
+	outer, outerBound, outerAvail := b.plan, b.bound, b.avail
+	b.plan = &Argument{Cols: keys}
+	b.bound = map[string]bool{}
+	for _, k := range keys {
+		b.bound[k] = true
+	}
+	b.avail = map[string]bool{}
+	if err := b.match(&ast.MatchClause{Patterns: m.Patterns, Where: m.Where}); err != nil {
+		return err
+	}
+	inner, innerBound, innerAvail := b.plan, b.bound, b.avail
+
+	var newVars []string
+	added := map[string]bool{}
+	for _, v := range order {
+		if innerBound[v] && !seen[v] && !added[v] {
+			added[v] = true
+			newVars = append(newVars, v)
+		}
+	}
+	b.plan = &Optional{Outer: outer, Inner: inner, Keys: keys, New: newVars}
+	b.bound, b.avail = outerBound, outerAvail
+	for k := range innerBound {
+		b.bound[k] = true
+	}
+	for k := range innerAvail {
+		b.avail[k] = true
 	}
 	return nil
 }

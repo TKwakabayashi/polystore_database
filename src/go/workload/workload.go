@@ -2,7 +2,7 @@ package workload
 
 import (
 	"polystore_database/src/go/migrator"
-	"polystore_database/src/go/plan"
+	"polystore_database/src/go/schema"
 	"sort"
 	"strings"
 )
@@ -90,8 +90,8 @@ func DefineWorkloadQ2(mode migrator.MigrationMode, isMigration bool) (string, ma
 	var migs []migrator.MigrationConfig
 	if isMigration {
 		migs = []migrator.MigrationConfig{ // 導出:要確認
-			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id", "firstName", "lastName"}, Mode: mode},
-			{ObjType: plan.Entity, Entity: "Message", Properties: []string{"id", "content", "imageFile", "creationDate"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Person", Properties: []string{"id", "firstName", "lastName"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Message", Properties: []string{"id", "content", "imageFile", "creationDate"}, Mode: mode},
 		}
 	}
 	return cypher, params, migs
@@ -110,8 +110,8 @@ func DefineWorkloadQ8(mode migrator.MigrationMode, isMigration bool) (string, ma
 	var migs []migrator.MigrationConfig
 	if isMigration {
 		migs = []migrator.MigrationConfig{ // 導出:要確認
-			{ObjType: plan.Entity, Entity: "Comment", Properties: []string{"creationDate", "id", "content"}, Mode: mode},
-			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id", "firstName", "lastName"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Comment", Properties: []string{"creationDate", "id", "content"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Person", Properties: []string{"id", "firstName", "lastName"}, Mode: mode},
 		}
 	}
 	return cypher, params, migs
@@ -134,8 +134,8 @@ func DefineWorkloadQ9(mode migrator.MigrationMode, isMigration bool) (string, ma
 	var migs []migrator.MigrationConfig
 	if isMigration {
 		migs = []migrator.MigrationConfig{
-			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id", "firstName", "lastName"}, Mode: mode},
-			{ObjType: plan.Entity, Entity: "Message", Properties: []string{"creationDate", "id", "content", "imageFile"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Person", Properties: []string{"id", "firstName", "lastName"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Message", Properties: []string{"creationDate", "id", "content", "imageFile"}, Mode: mode},
 		}
 	}
 	return cypher, params, migs
@@ -158,10 +158,10 @@ func DefineWorkloadQ11(mode migrator.MigrationMode, isMigration bool) (string, m
 	var migs []migrator.MigrationConfig
 	if isMigration {
 		migs = []migrator.MigrationConfig{
-			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id", "firstName", "lastName", "browserUsed", "creationDate", "email", "gender", "locationIP", "speaks"}, Mode: mode},
-			{ObjType: plan.Entity, Entity: "Organisation", Properties: []string{"type", "name"}, Mode: mode},
-			{ObjType: plan.Entity, Entity: "Place", Properties: []string{"type", "name"}, Mode: mode},
-			{ObjType: plan.Relationship, Entity: "WORK_AT", Properties: []string{"workFrom"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Person", Properties: []string{"id", "firstName", "lastName", "browserUsed", "creationDate", "email", "gender", "locationIP", "speaks"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Organisation", Properties: []string{"type", "name"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Place", Properties: []string{"type", "name"}, Mode: mode},
+			{ObjType: schema.ObjRelationship, Entity: "WORK_AT", Properties: []string{"workFrom"}, Mode: mode},
 		}
 	}
 	return cypher, params, migs
@@ -178,8 +178,8 @@ func DefineWorkloadIS1(mode migrator.MigrationMode, isMigration bool) (string, m
 	var migs []migrator.MigrationConfig
 	if isMigration {
 		migs = []migrator.MigrationConfig{
-			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id", "firstName", "lastName", "birthday", "gender", "locationIP", "browserUsed", "creationDate"}, Mode: mode},
-			{ObjType: plan.Entity, Entity: "Place", Properties: []string{"type", "id"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Person", Properties: []string{"id", "firstName", "lastName", "birthday", "gender", "locationIP", "browserUsed", "creationDate"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Place", Properties: []string{"type", "id"}, Mode: mode},
 		}
 	}
 	return cypher, params, migs
@@ -197,8 +197,8 @@ func DefineWorkloadIS2(mode migrator.MigrationMode, isMigration bool) (string, m
 	var migs []migrator.MigrationConfig
 	if isMigration {
 		migs = []migrator.MigrationConfig{ // 導出:要確認
-			{ObjType: plan.Entity, Entity: "Message", Properties: []string{"id", "content", "imageFile", "creationDate"}, Mode: mode},
-			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id", "firstName", "lastName"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Message", Properties: []string{"id", "content", "imageFile", "creationDate"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Person", Properties: []string{"id", "firstName", "lastName"}, Mode: mode},
 		}
 	}
 	return cypher, params, migs
@@ -214,8 +214,8 @@ func DefineWorkloadIS3(mode migrator.MigrationMode, isMigration bool) (string, m
 	var migs []migrator.MigrationConfig
 	if isMigration {
 		migs = []migrator.MigrationConfig{ // 導出:要確認
-			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id", "firstName", "lastName"}, Mode: mode},
-			{ObjType: plan.Relationship, Entity: "KNOWS", Properties: []string{"creationDate"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Person", Properties: []string{"id", "firstName", "lastName"}, Mode: mode},
+			{ObjType: schema.ObjRelationship, Entity: "KNOWS", Properties: []string{"creationDate"}, Mode: mode},
 		}
 	}
 	return cypher, params, migs
@@ -230,7 +230,7 @@ func DefineWorkloadIS4(mode migrator.MigrationMode, isMigration bool) (string, m
 	var migs []migrator.MigrationConfig
 	if isMigration { // authoritative（旧 executeWorkFlowIS4 より）
 		migs = []migrator.MigrationConfig{
-			{ObjType: plan.Entity, Entity: "Message", Properties: []string{"creationDate", "content", "imageFile"}},
+			{ObjType: schema.ObjEntity, Entity: "Message", Properties: []string{"creationDate", "content", "imageFile"}},
 		}
 	}
 	return cypher, params, migs
@@ -245,7 +245,7 @@ func DefineWorkloadIS5(mode migrator.MigrationMode, isMigration bool) (string, m
 	var migs []migrator.MigrationConfig
 	if isMigration {
 		migs = []migrator.MigrationConfig{ // 導出:要確認
-			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id", "firstName", "lastName"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Person", Properties: []string{"id", "firstName", "lastName"}, Mode: mode},
 		}
 	}
 	return cypher, params, migs
@@ -265,7 +265,7 @@ func DefineWorkloadAGG1(mode migrator.MigrationMode, isMigration bool) (string, 
 	var migs []migrator.MigrationConfig
 	if isMigration {
 		migs = []migrator.MigrationConfig{
-			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id", "firstName", "lastName"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Person", Properties: []string{"id", "firstName", "lastName"}, Mode: mode},
 		}
 	}
 	return cypher, params, migs
@@ -286,8 +286,8 @@ func DefineWorkloadAGG2(mode migrator.MigrationMode, isMigration bool) (string, 
 	var migs []migrator.MigrationConfig
 	if isMigration {
 		migs = []migrator.MigrationConfig{
-			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id", "firstName"}, Mode: mode},
-			{ObjType: plan.Entity, Entity: "Message", Properties: []string{"length"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Person", Properties: []string{"id", "firstName"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Message", Properties: []string{"length"}, Mode: mode},
 		}
 	}
 	return cypher, params, migs
@@ -304,8 +304,8 @@ func DefineWorkloadAGG3(mode migrator.MigrationMode, isMigration bool) (string, 
 	var migs []migrator.MigrationConfig
 	if isMigration {
 		migs = []migrator.MigrationConfig{
-			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id"}, Mode: mode},
-			{ObjType: plan.Entity, Entity: "Message", Properties: []string{"length"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Person", Properties: []string{"id"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Message", Properties: []string{"length"}, Mode: mode},
 		}
 	}
 	return cypher, params, migs
@@ -328,7 +328,7 @@ func DefineWorkloadAGG4(mode migrator.MigrationMode, isMigration bool) (string, 
 	var migs []migrator.MigrationConfig
 	if isMigration {
 		migs = []migrator.MigrationConfig{
-			{ObjType: plan.Entity, Entity: "Message", Properties: []string{"id", "length"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Message", Properties: []string{"id", "length"}, Mode: mode},
 		}
 	}
 	return cypher, params, migs
@@ -347,7 +347,7 @@ func DefineWorkloadAGG5(mode migrator.MigrationMode, isMigration bool) (string, 
 	var migs []migrator.MigrationConfig
 	if isMigration {
 		migs = []migrator.MigrationConfig{
-			{ObjType: plan.Entity, Entity: "Organisation", Properties: []string{"id"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Organisation", Properties: []string{"id"}, Mode: mode},
 		}
 	}
 	return cypher, params, migs
@@ -371,7 +371,7 @@ func DefineWorkloadTP1(mode migrator.MigrationMode, isMigration bool) (string, m
 	var migs []migrator.MigrationConfig
 	if isMigration {
 		migs = []migrator.MigrationConfig{
-			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"firstName", "lastName"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Person", Properties: []string{"firstName", "lastName"}, Mode: mode},
 		}
 	}
 	return cypher, params, migs
@@ -387,7 +387,7 @@ func DefineWorkloadAGG6(mode migrator.MigrationMode, isMigration bool) (string, 
 	var migs []migrator.MigrationConfig
 	if isMigration {
 		migs = []migrator.MigrationConfig{
-			{ObjType: plan.Entity, Entity: "Organisation", Properties: []string{"type", "id"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Organisation", Properties: []string{"type", "id"}, Mode: mode},
 		}
 	}
 	return cypher, params, migs
@@ -405,8 +405,8 @@ func DefineWorkloadIS6(mode migrator.MigrationMode, isMigration bool) (string, m
 	var migs []migrator.MigrationConfig
 	if isMigration {
 		migs = []migrator.MigrationConfig{ // 導出:要確認
-			{ObjType: plan.Entity, Entity: "Forum", Properties: []string{"id", "title"}, Mode: mode},
-			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id", "firstName", "lastName"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Forum", Properties: []string{"id", "title"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Person", Properties: []string{"id", "firstName", "lastName"}, Mode: mode},
 		}
 	}
 	return cypher, params, migs
@@ -429,7 +429,7 @@ func DefineWorkloadINLIST(mode migrator.MigrationMode, isMigration bool) (string
 	var migs []migrator.MigrationConfig
 	if isMigration {
 		migs = []migrator.MigrationConfig{
-			{ObjType: plan.Entity, Entity: "Organisation", Properties: []string{"id", "type"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Organisation", Properties: []string{"id", "type"}, Mode: mode},
 		}
 	}
 	return cypher, params, migs
@@ -450,7 +450,7 @@ func DefineWorkloadISNULL(mode migrator.MigrationMode, isMigration bool) (string
 	var migs []migrator.MigrationConfig
 	if isMigration {
 		migs = []migrator.MigrationConfig{
-			{ObjType: plan.Entity, Entity: "Message", Properties: []string{"id", "content"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Message", Properties: []string{"id", "content"}, Mode: mode},
 		}
 	}
 	return cypher, params, migs
@@ -470,7 +470,7 @@ func DefineWorkloadVARCMP(mode migrator.MigrationMode, isMigration bool) (string
 	var migs []migrator.MigrationConfig
 	if isMigration {
 		migs = []migrator.MigrationConfig{
-			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id", "firstName"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Person", Properties: []string{"id", "firstName"}, Mode: mode},
 		}
 	}
 	return cypher, params, migs
@@ -490,8 +490,8 @@ func DefineWorkloadMULTIPAT(mode migrator.MigrationMode, isMigration bool) (stri
 	var migs []migrator.MigrationConfig
 	if isMigration {
 		migs = []migrator.MigrationConfig{
-			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id", "firstName"}, Mode: mode},
-			{ObjType: plan.Entity, Entity: "Place", Properties: []string{"id"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Person", Properties: []string{"id", "firstName"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Place", Properties: []string{"id"}, Mode: mode},
 		}
 	}
 	return cypher, params, migs
@@ -513,7 +513,7 @@ func DefineWorkloadPATHFILT(mode migrator.MigrationMode, isMigration bool) (stri
 	var migs []migrator.MigrationConfig
 	if isMigration {
 		migs = []migrator.MigrationConfig{
-			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id", "firstName"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Person", Properties: []string{"id", "firstName"}, Mode: mode},
 		}
 	}
 	return cypher, params, migs
@@ -539,9 +539,9 @@ func DefineWorkloadBI3(mode migrator.MigrationMode, isMigration bool) (string, m
 	var migs []migrator.MigrationConfig
 	if isMigration {
 		migs = []migrator.MigrationConfig{
-			{ObjType: plan.Entity, Entity: "Forum", Properties: []string{"id", "title", "creationDate"}, Mode: mode},
-			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id"}, Mode: mode},
-			{ObjType: plan.Entity, Entity: "Message", Properties: []string{"id"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Forum", Properties: []string{"id", "title", "creationDate"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Person", Properties: []string{"id"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Message", Properties: []string{"id"}, Mode: mode},
 		}
 	}
 	return cypher, params, migs
@@ -567,8 +567,8 @@ func DefineWorkloadBI9(mode migrator.MigrationMode, isMigration bool) (string, m
 	var migs []migrator.MigrationConfig
 	if isMigration {
 		migs = []migrator.MigrationConfig{
-			{ObjType: plan.Entity, Entity: "Person", Properties: []string{"id", "firstName", "lastName"}, Mode: mode},
-			{ObjType: plan.Entity, Entity: "Message", Properties: []string{"id", "creationDate"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Person", Properties: []string{"id", "firstName", "lastName"}, Mode: mode},
+			{ObjType: schema.ObjEntity, Entity: "Message", Properties: []string{"id", "creationDate"}, Mode: mode},
 		}
 	}
 	return cypher, params, migs

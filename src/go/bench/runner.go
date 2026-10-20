@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 
-	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/migrator"
+	"polystore_database/src/go/result"
 	"polystore_database/src/go/settings"
 	"polystore_database/src/go/storage"
 	"polystore_database/src/go/workload"
@@ -79,7 +79,7 @@ func RunWorkflow(ctx context.Context, name string, cfg storage.Config, cypher st
 }
 
 // output は settings.Format に従って結果を出力する（既存/自作の両方に適用）。
-func output(title string, r core.Result) {
+func output(title string, r result.Result) {
 	switch settings.Format {
 	case settings.FormatTiming:
 		PrintTiming(title, r)

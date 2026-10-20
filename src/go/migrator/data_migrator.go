@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"polystore_database/src/go/codec"
-	"polystore_database/src/go/plan"
 	schema "polystore_database/src/go/schema"
 	"polystore_database/src/go/storage"
 
@@ -61,7 +60,7 @@ func prepareDestSchema(ctx context.Context, cfg MigrationConfig, destKind storag
 		session := drv.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite})
 		defer session.Close(ctx)
 		var stmt string
-		if cfg.ObjType == plan.Relationship {
+		if cfg.ObjType == schema.ObjRelationship {
 			// リレーションプロパティの range index は Community でも利用可
 			stmt = fmt.Sprintf("CREATE INDEX %s_uuid_idx IF NOT EXISTS FOR ()-[r:%s]-() ON (r.uuid)", strings.ToLower(cfg.Entity), cfg.Entity)
 		} else {

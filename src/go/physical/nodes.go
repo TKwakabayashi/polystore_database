@@ -106,6 +106,31 @@ func (f *ListFetch) Describe() string {
 	return fmt.Sprintf("ListFetch[%s] %s from %s [elem:%s]", f.Store, f.Key(), f.Source, strings.Join(f.Labels, "|"))
 }
 
+// ArgRows は OptionalApply の内側の葉。実行時に外側の行（Cols の識別列の組、重複なし）を受け取る。
+type ArgRows struct {
+	Cols []string
+}
+
+func (*ArgRows) Children() []Node   { return nil }
+func (a *ArgRows) Describe() string { return fmt.Sprintf("ArgRows(%s)", strings.Join(a.Cols, ", ")) }
+
+// OptionalApply は OPTIONAL MATCH の左外部 apply。Outer を評価し、その識別列 Keys を Inner の葉（ArgRows）へ
+// 渡して Inner を評価し、Keys で結合する。一致が無い外側の行は New と Inner が作る列を null にして残す。
+type OptionalApply struct {
+	Outer Node
+	Inner Node
+	Arg   *ArgRows
+	Keys  []string
+	New   []string
+	// InnerCols は Inner が作る列（一致しない行で null にする列）。finalize が決める。
+	InnerCols []string
+}
+
+func (o *OptionalApply) Children() []Node { return []Node{o.Outer, o.Inner} }
+func (o *OptionalApply) Describe() string {
+	return fmt.Sprintf("OptionalApply[keys: %s | new: %s]", strings.Join(o.Keys, ", "), strings.Join(o.New, ", "))
+}
+
 // Coord はコーディネータで実行する論理演算子 1 個。Op の入力は Argument に差し替えてある。
 type Coord struct {
 	Op     logical.Node

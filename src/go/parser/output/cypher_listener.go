@@ -49,8 +49,14 @@ type CypherListener interface {
 	// EnterReturnItem is called when entering the returnItem production.
 	EnterReturnItem(c *ReturnItemContext)
 
-	// EnterCaseExpr is called when entering the caseExpr production.
-	EnterCaseExpr(c *CaseExprContext)
+	// EnterCaseSearched is called when entering the caseSearched production.
+	EnterCaseSearched(c *CaseSearchedContext)
+
+	// EnterCaseSimple is called when entering the caseSimple production.
+	EnterCaseSimple(c *CaseSimpleContext)
+
+	// EnterCaseKey is called when entering the caseKey production.
+	EnterCaseKey(c *CaseKeyContext)
 
 	// EnterCaseResult is called when entering the caseResult production.
 	EnterCaseResult(c *CaseResultContext)
@@ -238,8 +244,14 @@ type CypherListener interface {
 	// ExitReturnItem is called when exiting the returnItem production.
 	ExitReturnItem(c *ReturnItemContext)
 
-	// ExitCaseExpr is called when exiting the caseExpr production.
-	ExitCaseExpr(c *CaseExprContext)
+	// ExitCaseSearched is called when exiting the caseSearched production.
+	ExitCaseSearched(c *CaseSearchedContext)
+
+	// ExitCaseSimple is called when exiting the caseSimple production.
+	ExitCaseSimple(c *CaseSimpleContext)
+
+	// ExitCaseKey is called when exiting the caseKey production.
+	ExitCaseKey(c *CaseKeyContext)
 
 	// ExitCaseResult is called when exiting the caseResult production.
 	ExitCaseResult(c *CaseResultContext)

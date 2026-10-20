@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"polystore_database/src/go/codec"
-	"polystore_database/src/go/plan"
 	"polystore_database/src/go/storage"
 	"strings"
 
@@ -16,6 +15,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/sync/errgroup"
+	"polystore_database/src/go/schema"
 )
 
 func deleteDataStream(ctx context.Context, cfg MigrationConfig, dbKind storage.StoreKind, reg *storage.Registry, inCh <-chan DataRowStream, typeMap map[string]string) error {
@@ -87,7 +87,7 @@ func deleteGraph(ctx context.Context, cfg MigrationConfig, reg *storage.Registry
 	}
 
 	var query string
-	if cfg.ObjType == plan.Relationship {
+	if cfg.ObjType == schema.ObjRelationship {
 		// Relationshipのプロパティ削除 (APOCを使用)
 		query = fmt.Sprintf(`
 					MATCH ()-[t:%s]-() WHERE t.uuid IN $uuids 

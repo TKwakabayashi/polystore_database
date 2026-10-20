@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/migrator"
+	"polystore_database/src/go/result"
 	"polystore_database/src/go/settings"
 	"polystore_database/src/go/storage"
 	"polystore_database/src/go/workload"
@@ -30,7 +30,7 @@ import (
 //     ボトルネックとなる演算子を配置・バッチ別に特定するための Result.Steps + RoundTrips。
 //
 // スイープ軸は settings から取得（VerifyEngines / VerifyBatchSizes / BenchPlacements /
-// BenchPushdowns）。非 graph 配置では該当プロパティを対象ストアへコピー（DeleteSource=false）し
+// pushdown 列は常に "fused"）。非 graph 配置では該当プロパティを対象ストアへコピー（DeleteSource=false）し
 // mapping を更新してから、その配置に対して全 (pushdown × engine × batch) を計測する。計測後は
 // mapping を graph へ戻す。実験終了時（異常時含む）も必ず graph 状態へ復元する。
 //
@@ -40,7 +40,7 @@ import (
 //   - pprof（block/mutex 記録）は計測歪みを避けるため無効化。
 func RunVerifyMatrix(ctx context.Context, cfg storage.Config, workloads []string, out string) (err error) {
 	placements := settings.BenchPlacements
-	pushdowns := settings.BenchPushdowns
+	pushdowns := []string{pushdownLabel}
 	engines := settings.VerifyEngines
 	batchSizes := settings.VerifyBatchSizes
 	if len(batchSizes) == 0 {
@@ -52,13 +52,9 @@ func RunVerifyMatrix(ctx context.Context, cfg storage.Config, workloads []string
 	settings.ProfileScopes[settings.ScopeEngine] = false
 	defer func() { settings.ProfileScopes[settings.ScopeEngine] = prevProfile }()
 
-	// pushdown / VectorSize はループ内で一時上書きするため元値を退避（bench と同じ作法）。
-	prevPushdown := settings.Pushdown
+	// VectorSize はループ内で一時上書きするため元値を退避（bench と同じ作法）。
 	prevVector := settings.VectorSize
-	defer func() {
-		settings.Pushdown = prevPushdown
-		settings.VectorSize = prevVector
-	}()
+	defer func() { settings.VectorSize = prevVector }()
 
 	// mapping スナップショット（graph 状態）。各 placement 後と実験終了時に復元する。
 	snapshot, rerr := os.ReadFile(cfg.MappingPath)
@@ -130,13 +126,6 @@ func RunVerifyMatrix(ctx context.Context, cfg storage.Config, workloads []string
 			}
 
 			for _, pd := range pushdowns {
-				pdMode, ok := pushdownModeMap[pd]
-				if !ok {
-					fmt.Printf("[%s] 未知の pushdown %q（auto/engine）\n", name, pd)
-					continue
-				}
-				settings.Pushdown = pdMode
-
 				for _, eng := range engines {
 					for _, bs := range batchSizesFor(eng, batchSizes) {
 						settings.VectorSize = bs
@@ -215,7 +204,7 @@ func verifyRow(runID, wl, engine, placement, pushdown, batch string, rows int, l
 }
 
 // writeDetail は Result.Steps を step 昇順で 1 行ずつ Detail CSV へ書く（RoundTrips は各行に併記）。
-func writeDetail(w *csv.Writer, runID, wl, engine, placement, pushdown, batch string, r core.Result) {
+func writeDetail(w *csv.Writer, runID, wl, engine, placement, pushdown, batch string, r result.Result) {
 	rt := strconv.FormatInt(r.RoundTrips, 10)
 	for _, st := range r.Steps {
 		_ = w.Write([]string{

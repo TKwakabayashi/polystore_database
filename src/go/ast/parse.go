@@ -112,6 +112,7 @@ func (b *builder) cypher(ctx parser.ICypherContext) (*Query, error) {
 			if err != nil {
 				return nil, err
 			}
+			m.Optional = rc.OPTIONAL() != nil
 			q.Clauses = append(q.Clauses, m)
 		case rc.WithClause() != nil:
 			w, err := b.with(rc.WithClause())
@@ -383,31 +384,82 @@ func (b *builder) aggregate(ac parser.IAggregateFuncContext) (Expr, error) {
 
 func (b *builder) caseExpr(cc parser.ICaseExprContext) (Expr, error) {
 	c := &Case{}
-	conds, results := cc.AllCondition(), cc.AllCaseResult()
-	for i, cond := range conds {
-		w, err := b.cond(cond)
+	switch x := cc.(type) {
+	case *parser.CaseSearchedContext:
+		conds, results := x.AllCondition(), x.AllCaseResult()
+		for i, cond := range conds {
+			w, err := b.cond(cond)
+			if err != nil {
+				return nil, err
+			}
+			t, err := b.caseResult(results[i])
+			if err != nil {
+				return nil, err
+			}
+			c.Whens = append(c.Whens, CaseWhen{When: w, Then: t})
+		}
+		if x.ELSE() != nil && len(results) > len(conds) {
+			e, err := b.caseResult(results[len(conds)])
+			if err != nil {
+				return nil, err
+			}
+			c.Else = e
+		}
+		return c, nil
+	case *parser.CaseSimpleContext:
+		subj, err := b.valueExpr(x.ValueExpr())
 		if err != nil {
 			return nil, err
 		}
-		t, err := b.caseResult(results[i])
-		if err != nil {
-			return nil, err
+		c.Subject = subj
+		keys, results := x.AllCaseKey(), x.AllCaseResult()
+		for i, k := range keys {
+			kv, err := b.caseKey(k)
+			if err != nil {
+				return nil, err
+			}
+			t, err := b.caseResult(results[i])
+			if err != nil {
+				return nil, err
+			}
+			c.Whens = append(c.Whens, CaseWhen{When: kv, Then: t})
 		}
-		c.Whens = append(c.Whens, CaseWhen{When: w, Then: t})
+		if x.ELSE() != nil && len(results) > len(keys) {
+			e, err := b.caseResult(results[len(keys)])
+			if err != nil {
+				return nil, err
+			}
+			c.Else = e
+		}
+		return c, nil
 	}
-	if cc.ELSE() != nil && len(results) > len(conds) {
-		e, err := b.caseResult(results[len(conds)])
-		if err != nil {
-			return nil, err
-		}
-		c.Else = e
+	return nil, b.unsupported("case expression")
+}
+
+func (b *builder) caseKey(kc parser.ICaseKeyContext) (Expr, error) {
+	switch {
+	case kc.Value() != nil:
+		return b.value(kc.Value())
+	case kc.NULL() != nil:
+		return &Lit{Val: nil}, nil
+	case kc.TRUE() != nil:
+		return &Lit{Val: true}, nil
+	case kc.FALSE() != nil:
+		return &Lit{Val: false}, nil
 	}
-	return c, nil
+	return b.expression(kc.Expression())
 }
 
 func (b *builder) caseResult(rc parser.ICaseResultContext) (Expr, error) {
-	if rc.Value() != nil {
+	switch {
+	case rc.Value() != nil:
 		return b.value(rc.Value())
+	case rc.NULL() != nil:
+		return &Lit{Val: nil}, nil
+	case rc.TRUE() != nil:
+		return &Lit{Val: true}, nil
+	case rc.FALSE() != nil:
+		return &Lit{Val: false}, nil
 	}
 	return b.expression(rc.Expression())
 }

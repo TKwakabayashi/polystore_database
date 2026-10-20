@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"polystore_database/src/go/plan"
 )
 
 // ================================
@@ -58,19 +57,19 @@ func (md *MappingDictionary) SaveMappingDictionary(path string) error {
 	return os.WriteFile(path, data, 0644)
 }
 
-func (md *MappingDictionary) LookupMappingDictionary(objType plan.ObjectType, label string, propertyName string) (store string, datatype string, err error) {
+func (md *MappingDictionary) LookupMappingDictionary(objType ObjectType, label string, propertyName string) (store string, datatype string, err error) {
 	if md == nil {
 		return "unknown_store", "unknown_type", fmt.Errorf("mapping dictionary not found")
 	}
 
 	switch objType {
-	case plan.Entity:
+	case ObjEntity:
 		if entity, ok := md.Entities[label]; ok {
 			if prop, ok := entity.Properties[propertyName]; ok {
 				return prop.Databases[0], prop.Type, nil
 			}
 		}
-	case plan.Relationship:
+	case ObjRelationship:
 		if rel, ok := md.Relationships[label]; ok {
 			if prop, ok := rel.Properties[propertyName]; ok {
 				return prop.Databases[0], prop.Type, nil
@@ -82,15 +81,15 @@ func (md *MappingDictionary) LookupMappingDictionary(objType plan.ObjectType, la
 	return "unknown_store", "unknown_type", fmt.Errorf("property '%s' not found for %s '%s'", propertyName, objType.String(), label)
 }
 
-func (md *MappingDictionary) GetPropertyDataType(objType plan.ObjectType, label string, propertyName string) (string, error) {
+func (md *MappingDictionary) GetPropertyDataType(objType ObjectType, label string, propertyName string) (string, error) {
 	switch objType {
-	case plan.Entity:
+	case ObjEntity:
 		if entity, ok := md.Entities[label]; ok {
 			if prop, ok := entity.Properties[propertyName]; ok {
 				return prop.Type, nil
 			}
 		}
-	case plan.Relationship:
+	case ObjRelationship:
 		if rel, ok := md.Relationships[label]; ok {
 			if prop, ok := rel.Properties[propertyName]; ok {
 				return prop.Type, nil
@@ -103,15 +102,15 @@ func (md *MappingDictionary) GetPropertyDataType(objType plan.ObjectType, label 
 	return "", fmt.Errorf("property '%s' not found for %s '%s'", propertyName, objType.String(), label)
 }
 
-func (md *MappingDictionary) GetDatastores(objType plan.ObjectType, label string, propertyName string) ([]string, error) {
+func (md *MappingDictionary) GetDatastores(objType ObjectType, label string, propertyName string) ([]string, error) {
 	switch objType {
-	case plan.Entity:
+	case ObjEntity:
 		if entity, ok := md.Entities[label]; ok {
 			if prop, ok := entity.Properties[propertyName]; ok {
 				return prop.Databases, nil
 			}
 		}
-	case plan.Relationship:
+	case ObjRelationship:
 		if rel, ok := md.Relationships[label]; ok {
 			if prop, ok := rel.Properties[propertyName]; ok {
 				return prop.Databases, nil
@@ -124,7 +123,7 @@ func (md *MappingDictionary) GetDatastores(objType plan.ObjectType, label string
 	return nil, fmt.Errorf("property '%s' not found for %s '%s'", propertyName, objType.String(), label)
 }
 
-func (md *MappingDictionary) CheckDatastore(objType plan.ObjectType, label string, propertyNames []string, expectedStore string) bool {
+func (md *MappingDictionary) CheckDatastore(objType ObjectType, label string, propertyNames []string, expectedStore string) bool {
 	for _, propName := range propertyNames {
 		stores, err := md.GetDatastores(objType, label, propName)
 		if err != nil {
@@ -145,18 +144,18 @@ func (md *MappingDictionary) CheckDatastore(objType plan.ObjectType, label strin
 	return true
 }
 
-func (md *MappingDictionary) UpdateDatastore(objType plan.ObjectType, label string, propertyNames []string, newDatastore string) error {
+func (md *MappingDictionary) UpdateDatastore(objType ObjectType, label string, propertyNames []string, newDatastore string) error {
 	newDataList := []string{newDatastore}
 
 	for _, propName := range propertyNames {
 		var targetProps map[string]*PropertyMapping
 
 		switch objType {
-		case plan.Entity:
+		case ObjEntity:
 			if entity, ok := md.Entities[label]; ok {
 				targetProps = entity.Properties
 			}
-		case plan.Relationship:
+		case ObjRelationship:
 			if rel, ok := md.Relationships[label]; ok {
 				targetProps = rel.Properties
 			}

@@ -163,6 +163,13 @@ func (e *Executor) pull(root physical.Node, width, workers int) ([]Row, error) {
 }
 
 func (e *Executor) iter(ctx context.Context, n physical.Node, width, workers int) (iterator, error) {
+	if o, ok := n.(*physical.OptionalApply); ok {
+		outer, err := e.iter(ctx, o.Outer, width, workers)
+		if err != nil {
+			return nil, err
+		}
+		return &optionalIter{e: e, o: o, outer: outer, ctx: ctx, width: width, workers: workers}, nil
+	}
 	var kids []iterator
 	for _, c := range n.Children() {
 		k, err := e.iter(ctx, c, width, workers)
@@ -351,6 +358,50 @@ func (it *blockingIter) close() {
 	}
 }
 
+// optionalIter は外側を全件引き出してから内側の反復子を組み（内側の葉は外側の行に依存する）、
+// 結合結果を幅で払い出す。
+type optionalIter struct {
+	e              *Executor
+	o              *physical.OptionalApply
+	outer          iterator
+	ctx            context.Context
+	width, workers int
+	rows           [][]Row
+	done           bool
+}
+
+func (it *optionalIter) next() (*Batch, error) {
+	if !it.done {
+		outer, err := drain(it.outer)
+		if err != nil {
+			return nil, err
+		}
+		it.e.setArg(it.o.Arg, outer)
+		inIt, err := it.e.iter(it.ctx, it.o.Inner, it.width, it.workers)
+		if err != nil {
+			return nil, err
+		}
+		inner, err := drain(inIt)
+		inIt.close()
+		if err != nil {
+			return nil, err
+		}
+		rows, err := it.e.step(it.o, [][]Row{outer, inner})
+		if err != nil {
+			return nil, err
+		}
+		it.rows, it.done = chunk(rows, it.width), true
+	}
+	if len(it.rows) == 0 {
+		return nil, nil
+	}
+	b := toBatch(it.rows[0])
+	it.rows = it.rows[1:]
+	return b, nil
+}
+
+func (it *optionalIter) close() { it.outer.close() }
+
 // exchange は子を直列に pull する driver と W ワーカーで、ストアへの発行を並列にする（vecstream）。
 // 出力は幅で再チャンクする。行の順序は保たない（後段の Sort が順序を決める）。
 type exchange struct {
@@ -462,6 +513,35 @@ func (e *Executor) push(root physical.Node, width int) ([]Row, error) {
 // stage は n の出力チャネルを返し、n を処理する goroutine を g に登録する。
 func (e *Executor) stage(ctx context.Context, g *errgroup.Group, n physical.Node, width int) <-chan []Row {
 	out := make(chan []Row, 4)
+	if o, ok := n.(*physical.OptionalApply); ok {
+		// 内側は外側の行に依存するので、外側を集めてから内側の pipeline を同期で回す。
+		outerCh := e.stage(ctx, g, o.Outer, width)
+		g.Go(func() error {
+			defer close(out)
+			var outer []Row
+			for b := range outerCh {
+				outer = append(outer, b...)
+			}
+			e.setArg(o.Arg, outer)
+			inner, err := e.push(o.Inner, width)
+			if err != nil {
+				return err
+			}
+			rows, err := e.step(o, [][]Row{outer, inner})
+			if err != nil {
+				return err
+			}
+			for _, part := range chunk(rows, width) {
+				select {
+				case out <- part:
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
+			return nil
+		})
+		return out
+	}
 	var ins []<-chan []Row
 	for _, c := range n.Children() {
 		ins = append(ins, e.stage(ctx, g, c, width))

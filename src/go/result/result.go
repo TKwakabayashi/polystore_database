@@ -1,4 +1,5 @@
-package core
+// Package result は 1 クエリ実行の結果と計測（旧 engine/core.Result を、旧エンジンの削除に合わせて移した）。
+package result
 
 import "time"
 

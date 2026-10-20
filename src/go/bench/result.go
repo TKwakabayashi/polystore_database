@@ -5,21 +5,21 @@ import (
 	"sort"
 	"time"
 
-	"polystore_database/src/go/engine/core"
+	"polystore_database/src/go/result"
 )
 
-// 結果型は core.Result / core.StepMetric に統一（旧 bench.ExecResult / StepMetric は廃止）。
+// 結果型は result.Result / result.StepMetric に統一（旧 bench.ExecResult / StepMetric は廃止）。
 
 // TrialResult は1ワークロード試行の集計（将来の詳細レポート用スキャフォールド）。
 type TrialResult struct {
 	WorkloadName string
 	Mode         string
 	TotalTime    time.Duration
-	Steps        []core.StepMetric
+	Steps        []result.StepMetric
 }
 
 // PrintRows は結果行を1件ずつ出力する。
-func PrintRows(r core.Result) {
+func PrintRows(r result.Result) {
 	fmt.Printf("\n--- 結果: %d 件 ---\n", r.RowCount())
 	for i, row := range r.Rows {
 		keys := make([]string, 0, len(row))
@@ -40,7 +40,7 @@ func PrintRows(r core.Result) {
 }
 
 // PrintTiming は全体実行時間と件数を出力する。
-func PrintTiming(title string, r core.Result) {
+func PrintTiming(title string, r result.Result) {
 	fmt.Printf("[%s]\n", title)
 	fmt.Printf("  - 全体実行時間 (Latency): %v\n", r.TotalLatency())
 	fmt.Printf("  - 最終結果数: %d\n", r.RowCount())
@@ -48,7 +48,7 @@ func PrintTiming(title string, r core.Result) {
 }
 
 // PrintDetail は演算子ごとの実行時間・中間件数を出力する（bulk 用）。
-func PrintDetail(title string, r core.Result) {
+func PrintDetail(title string, r result.Result) {
 	fmt.Printf("[%s]\n", title)
 	fmt.Printf("  - 全体実行時間 (Latency): %v\n", r.TotalLatency())
 	fmt.Printf("  - オペレータ合計時間 (Sum): %v\n", r.SumStepTime())

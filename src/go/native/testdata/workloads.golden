@@ -302,6 +302,31 @@
 [coordinator] Aggregation[keys: o.type | count(*) AS cnt, min(o.id) AS mn, max(o.id) AS mx]
 [coordinator] Sort[cnt DESC]
 
+### BI12 @graph
+[graph] columns=(messageCount, personCount)
+  MATCH (person:Person) OPTIONAL MATCH (person)<-[_r0:HAS_CREATOR]-(message:Message), _sp_r1 = (message)-[:REPLY_OF*0..]->(post:Post) WHERE (message.content IS NOT NULL) AND (message.length < $p0) AND (message.creationDate > $p1) AND (post.language IN [$p2, $p3]) WITH person AS person, count(message) AS v1 WITH v1 AS v2, count(person) AS v3 RETURN v2 AS c0, v3 AS c1 ORDER BY v3 DESC, v2 DESC
+  params: p0=20(int64), p1=2010-07-22 00:00:00 +0000 UTC(time.Time), p2="ar", p3="hu"
+
+### BI12 @relational
+[graph] columns=(messageCount, personCount)
+  MATCH (person:Person) OPTIONAL MATCH (person)<-[_r0:HAS_CREATOR]-(message:Message), _sp_r1 = (message)-[:REPLY_OF*0..]->(post:Post) WHERE (message.content IS NOT NULL) AND (message.length < $p0) AND (message.creationDate > $p1) AND (post.language IN [$p2, $p3]) WITH person AS person, count(message) AS v1 WITH v1 AS v2, count(person) AS v3 RETURN v2 AS c0, v3 AS c1 ORDER BY v3 DESC, v2 DESC
+  params: p0=20(int64), p1=2010-07-22 00:00:00 +0000 UTC(time.Time), p2="ar", p3="hu"
+
+### BI12 @document
+[graph] columns=(messageCount, personCount)
+  MATCH (person:Person) OPTIONAL MATCH (person)<-[_r0:HAS_CREATOR]-(message:Message), _sp_r1 = (message)-[:REPLY_OF*0..]->(post:Post) WHERE (message.content IS NOT NULL) AND (message.length < $p0) AND (message.creationDate > $p1) AND (post.language IN [$p2, $p3]) WITH person AS person, count(message) AS v1 WITH v1 AS v2, count(person) AS v3 RETURN v2 AS c0, v3 AS c1 ORDER BY v3 DESC, v2 DESC
+  params: p0=20(int64), p1=2010-07-22 00:00:00 +0000 UTC(time.Time), p2="ar", p3="hu"
+
+### BI12 @columnar
+[graph] columns=(messageCount, personCount)
+  MATCH (person:Person) OPTIONAL MATCH (person)<-[_r0:HAS_CREATOR]-(message:Message), _sp_r1 = (message)-[:REPLY_OF*0..]->(post:Post) WHERE (message.content IS NOT NULL) AND (message.length < $p0) AND (message.creationDate > $p1) AND (post.language IN [$p2, $p3]) WITH person AS person, count(message) AS v1 WITH v1 AS v2, count(person) AS v3 RETURN v2 AS c0, v3 AS c1 ORDER BY v3 DESC, v2 DESC
+  params: p0=20(int64), p1=2010-07-22 00:00:00 +0000 UTC(time.Time), p2="ar", p3="hu"
+
+### BI12 @kvs
+[graph] columns=(messageCount, personCount)
+  MATCH (person:Person) OPTIONAL MATCH (person)<-[_r0:HAS_CREATOR]-(message:Message), _sp_r1 = (message)-[:REPLY_OF*0..]->(post:Post) WHERE (message.content IS NOT NULL) AND (message.length < $p0) AND (message.creationDate > $p1) AND (post.language IN [$p2, $p3]) WITH person AS person, count(message) AS v1 WITH v1 AS v2, count(person) AS v3 RETURN v2 AS c0, v3 AS c1 ORDER BY v3 DESC, v2 DESC
+  params: p0=20(int64), p1=2010-07-22 00:00:00 +0000 UTC(time.Time), p2="ar", p3="hu"
+
 ### BI3 @graph
 [graph] columns=(forum.id, forum.title, forum.creationDate, person.id, messageCount)
   MATCH (country:Place) WHERE (country.type = $p0) AND (country.name = $p1) MATCH (country)<-[_r0:IS_PART_OF]-(city:Place) MATCH (city)<-[_r1:IS_LOCATED_IN]-(person:Person) MATCH (person)<-[_r2:HAS_MODERATOR]-(forum:Forum) MATCH (forum)-[_r3:CONTAINER_OF]->(post:Post) MATCH _sp_r4 = (post)<-[:REPLY_OF*0..]-(message:Message) MATCH (message)-[_r5:HAS_TAG]->(tag:Tag) MATCH (tag)-[_r6:HAS_TYPE]->(tagclass:TagClass) WHERE (tagclass.name = $p2) WITH forum.id AS v0, forum.title AS v1, forum.creationDate AS v2, person.id AS v3, count(DISTINCT message.id) AS v4 RETURN v0 AS c0, v1 AS c1, v2 AS c2, v3 AS c3, v4 AS c4 ORDER BY v4 DESC, v0 LIMIT 20
@@ -377,6 +402,56 @@
 [coordinator] Aggregation[keys: forum.id, forum.title, forum.creationDate, person.id | count(DISTINCT message.id) AS messageCount]
 [coordinator] Sort[messageCount DESC, forum.id ASC]
 [coordinator] Limit[20]
+
+### BI5 @graph
+[graph] columns=(person.id, replyCount, likeCount, messageCount, score)
+  MATCH (tag:Tag) WHERE (tag.name = $p0) MATCH (tag)<-[_r0:HAS_TAG]-(message:Message) MATCH (message)-[_r1:HAS_CREATOR]->(person:Person) OPTIONAL MATCH (message)<-[likes:LIKES]-(_n0:Person) WITH person AS person, message AS message, count(likes) AS v2 OPTIONAL MATCH (message)<-[_r2:REPLY_OF]-(reply:Comment) WITH person AS person, message AS message, v2 AS v5, count(reply) AS v6 WITH person AS person, count(message) AS v8, sum(v5) AS v9, sum(v6) AS v10 WITH person.id AS v11, v10 AS v12, v9 AS v13, v8 AS v14, ((($p1 * v8) + ($p2 * v10)) + ($p3 * v9)) AS v15 RETURN v11 AS c0, v12 AS c1, v13 AS c2, v14 AS c3, v15 AS c4 ORDER BY v15 DESC, v11 LIMIT 100
+  params: p0="Abbas_I_of_Persia", p1=1(int64), p2=2(int64), p3=10(int64)
+
+### BI5 @relational
+[graph] columns=(person.id, replyCount, likeCount, messageCount, score)
+  MATCH (tag:Tag) WHERE (tag.name = $p0) MATCH (tag)<-[_r0:HAS_TAG]-(message:Message) MATCH (message)-[_r1:HAS_CREATOR]->(person:Person) OPTIONAL MATCH (message)<-[likes:LIKES]-(_n0:Person) WITH person AS person, message AS message, count(likes) AS v2 OPTIONAL MATCH (message)<-[_r2:REPLY_OF]-(reply:Comment) WITH person AS person, message AS message, v2 AS v5, count(reply) AS v6 WITH person AS person, count(message) AS v8, sum(v5) AS v9, sum(v6) AS v10 WITH person.id AS v11, v10 AS v12, v9 AS v13, v8 AS v14, ((($p1 * v8) + ($p2 * v10)) + ($p3 * v9)) AS v15 RETURN v11 AS c0, v12 AS c1, v13 AS c2, v14 AS c3, v15 AS c4 ORDER BY v15 DESC, v11 LIMIT 100
+  params: p0="Abbas_I_of_Persia", p1=1(int64), p2=2(int64), p3=10(int64)
+
+### BI5 @document
+[graph] columns=(person.id, replyCount, likeCount, messageCount, score)
+  MATCH (tag:Tag) WHERE (tag.name = $p0) MATCH (tag)<-[_r0:HAS_TAG]-(message:Message) MATCH (message)-[_r1:HAS_CREATOR]->(person:Person) OPTIONAL MATCH (message)<-[likes:LIKES]-(_n0:Person) WITH person AS person, message AS message, count(likes) AS v2 OPTIONAL MATCH (message)<-[_r2:REPLY_OF]-(reply:Comment) WITH person AS person, message AS message, v2 AS v5, count(reply) AS v6 WITH person AS person, count(message) AS v8, sum(v5) AS v9, sum(v6) AS v10 WITH person.id AS v11, v10 AS v12, v9 AS v13, v8 AS v14, ((($p1 * v8) + ($p2 * v10)) + ($p3 * v9)) AS v15 RETURN v11 AS c0, v12 AS c1, v13 AS c2, v14 AS c3, v15 AS c4 ORDER BY v15 DESC, v11 LIMIT 100
+  params: p0="Abbas_I_of_Persia", p1=1(int64), p2=2(int64), p3=10(int64)
+
+### BI5 @columnar
+[graph] columns=(person.id, replyCount, likeCount, messageCount, score)
+  MATCH (tag:Tag) WHERE (tag.name = $p0) MATCH (tag)<-[_r0:HAS_TAG]-(message:Message) MATCH (message)-[_r1:HAS_CREATOR]->(person:Person) OPTIONAL MATCH (message)<-[likes:LIKES]-(_n0:Person) WITH person AS person, message AS message, count(likes) AS v2 OPTIONAL MATCH (message)<-[_r2:REPLY_OF]-(reply:Comment) WITH person AS person, message AS message, v2 AS v5, count(reply) AS v6 WITH person AS person, count(message) AS v8, sum(v5) AS v9, sum(v6) AS v10 WITH person.id AS v11, v10 AS v12, v9 AS v13, v8 AS v14, ((($p1 * v8) + ($p2 * v10)) + ($p3 * v9)) AS v15 RETURN v11 AS c0, v12 AS c1, v13 AS c2, v14 AS c3, v15 AS c4 ORDER BY v15 DESC, v11 LIMIT 100
+  params: p0="Abbas_I_of_Persia", p1=1(int64), p2=2(int64), p3=10(int64)
+
+### BI5 @kvs
+[graph] columns=(person.id, replyCount, likeCount, messageCount, score)
+  MATCH (tag:Tag) WHERE (tag.name = $p0) MATCH (tag)<-[_r0:HAS_TAG]-(message:Message) MATCH (message)-[_r1:HAS_CREATOR]->(person:Person) OPTIONAL MATCH (message)<-[likes:LIKES]-(_n0:Person) WITH person AS person, message AS message, count(likes) AS v2 OPTIONAL MATCH (message)<-[_r2:REPLY_OF]-(reply:Comment) WITH person AS person, message AS message, v2 AS v5, count(reply) AS v6 WITH person AS person, count(message) AS v8, sum(v5) AS v9, sum(v6) AS v10 WITH person.id AS v11, v10 AS v12, v9 AS v13, v8 AS v14, ((($p1 * v8) + ($p2 * v10)) + ($p3 * v9)) AS v15 RETURN v11 AS c0, v12 AS c1, v13 AS c2, v14 AS c3, v15 AS c4 ORDER BY v15 DESC, v11 LIMIT 100
+  params: p0="Abbas_I_of_Persia", p1=1(int64), p2=2(int64), p3=10(int64)
+
+### BI6 @graph
+[graph] columns=(person1.id, authorityScore)
+  MATCH (tag:Tag) WHERE (tag.name = $p0) MATCH (tag)<-[_r0:HAS_TAG]-(message1:Message) MATCH (message1)-[_r1:HAS_CREATOR]->(person1:Person) OPTIONAL MATCH (message1)<-[_r2:LIKES]-(person2:Person) OPTIONAL MATCH (person2)<-[_r3:HAS_CREATOR]-(message2:Message), (message2)<-[like:LIKES]-(person3:Person) WITH person1.id AS v0, count(DISTINCT like) AS v1 RETURN v0 AS c0, v1 AS c1 ORDER BY v1 DESC, v0 LIMIT 100
+  params: p0="Arnold_Schwarzenegger"
+
+### BI6 @relational
+[graph] columns=(person1.id, authorityScore)
+  MATCH (tag:Tag) WHERE (tag.name = $p0) MATCH (tag)<-[_r0:HAS_TAG]-(message1:Message) MATCH (message1)-[_r1:HAS_CREATOR]->(person1:Person) OPTIONAL MATCH (message1)<-[_r2:LIKES]-(person2:Person) OPTIONAL MATCH (person2)<-[_r3:HAS_CREATOR]-(message2:Message), (message2)<-[like:LIKES]-(person3:Person) WITH person1.id AS v0, count(DISTINCT like) AS v1 RETURN v0 AS c0, v1 AS c1 ORDER BY v1 DESC, v0 LIMIT 100
+  params: p0="Arnold_Schwarzenegger"
+
+### BI6 @document
+[graph] columns=(person1.id, authorityScore)
+  MATCH (tag:Tag) WHERE (tag.name = $p0) MATCH (tag)<-[_r0:HAS_TAG]-(message1:Message) MATCH (message1)-[_r1:HAS_CREATOR]->(person1:Person) OPTIONAL MATCH (message1)<-[_r2:LIKES]-(person2:Person) OPTIONAL MATCH (person2)<-[_r3:HAS_CREATOR]-(message2:Message), (message2)<-[like:LIKES]-(person3:Person) WITH person1.id AS v0, count(DISTINCT like) AS v1 RETURN v0 AS c0, v1 AS c1 ORDER BY v1 DESC, v0 LIMIT 100
+  params: p0="Arnold_Schwarzenegger"
+
+### BI6 @columnar
+[graph] columns=(person1.id, authorityScore)
+  MATCH (tag:Tag) WHERE (tag.name = $p0) MATCH (tag)<-[_r0:HAS_TAG]-(message1:Message) MATCH (message1)-[_r1:HAS_CREATOR]->(person1:Person) OPTIONAL MATCH (message1)<-[_r2:LIKES]-(person2:Person) OPTIONAL MATCH (person2)<-[_r3:HAS_CREATOR]-(message2:Message), (message2)<-[like:LIKES]-(person3:Person) WITH person1.id AS v0, count(DISTINCT like) AS v1 RETURN v0 AS c0, v1 AS c1 ORDER BY v1 DESC, v0 LIMIT 100
+  params: p0="Arnold_Schwarzenegger"
+
+### BI6 @kvs
+[graph] columns=(person1.id, authorityScore)
+  MATCH (tag:Tag) WHERE (tag.name = $p0) MATCH (tag)<-[_r0:HAS_TAG]-(message1:Message) MATCH (message1)-[_r1:HAS_CREATOR]->(person1:Person) OPTIONAL MATCH (message1)<-[_r2:LIKES]-(person2:Person) OPTIONAL MATCH (person2)<-[_r3:HAS_CREATOR]-(message2:Message), (message2)<-[like:LIKES]-(person3:Person) WITH person1.id AS v0, count(DISTINCT like) AS v1 RETURN v0 AS c0, v1 AS c1 ORDER BY v1 DESC, v0 LIMIT 100
+  params: p0="Arnold_Schwarzenegger"
 
 ### BI9 @graph
 [graph] columns=(person.id, person.firstName, person.lastName, threadCount, messageCount)
@@ -902,6 +977,31 @@
 [kvs] columns=(mod, mod.firstName, mod.id, mod.lastName) in=(mod)
   KVS Person ids get=(id, firstName, lastName)
 [coordinator] Projection[f.id, f.title, mod.id, mod.firstName, mod.lastName]
+
+### IS7 @graph
+[graph] columns=(commentId, commentContent, commentCreationDate, replyAuthorId, replyAuthorFirstName, replyAuthorLastName, replyAuthorKnowsOriginalMessageAuthor)
+  MATCH (m:Message) WHERE (m.id = $p0) MATCH (m)<-[_r0:REPLY_OF]-(c:Comment) MATCH (c)-[_r1:HAS_CREATOR]->(p:Person) OPTIONAL MATCH (m)-[_r2:HAS_CREATOR]->(a:Person), (a)-[r:KNOWS]-(p) WITH c.creationDate AS v0, p.id AS v1, CASE WHEN (r = null) THEN false ELSE true END AS v2, p AS p, c AS c WITH * ORDER BY v0 DESC, v1 WITH c.id AS v5, c.content AS v6, v0 AS v7, v1 AS v8, p.firstName AS v9, p.lastName AS v10, v2 AS v11 RETURN v5 AS c0, v6 AS c1, v7 AS c2, v8 AS c3, v9 AS c4, v10 AS c5, v11 AS c6
+  params: p0=1030792151051(int64)
+
+### IS7 @relational
+[graph] columns=(commentId, commentContent, commentCreationDate, replyAuthorId, replyAuthorFirstName, replyAuthorLastName, replyAuthorKnowsOriginalMessageAuthor)
+  MATCH (m:Message) WHERE (m.id = $p0) MATCH (m)<-[_r0:REPLY_OF]-(c:Comment) MATCH (c)-[_r1:HAS_CREATOR]->(p:Person) OPTIONAL MATCH (m)-[_r2:HAS_CREATOR]->(a:Person), (a)-[r:KNOWS]-(p) WITH c.creationDate AS v0, p.id AS v1, CASE WHEN (r = null) THEN false ELSE true END AS v2, p AS p, c AS c WITH * ORDER BY v0 DESC, v1 WITH c.id AS v5, c.content AS v6, v0 AS v7, v1 AS v8, p.firstName AS v9, p.lastName AS v10, v2 AS v11 RETURN v5 AS c0, v6 AS c1, v7 AS c2, v8 AS c3, v9 AS c4, v10 AS c5, v11 AS c6
+  params: p0=1030792151051(int64)
+
+### IS7 @document
+[graph] columns=(commentId, commentContent, commentCreationDate, replyAuthorId, replyAuthorFirstName, replyAuthorLastName, replyAuthorKnowsOriginalMessageAuthor)
+  MATCH (m:Message) WHERE (m.id = $p0) MATCH (m)<-[_r0:REPLY_OF]-(c:Comment) MATCH (c)-[_r1:HAS_CREATOR]->(p:Person) OPTIONAL MATCH (m)-[_r2:HAS_CREATOR]->(a:Person), (a)-[r:KNOWS]-(p) WITH c.creationDate AS v0, p.id AS v1, CASE WHEN (r = null) THEN false ELSE true END AS v2, p AS p, c AS c WITH * ORDER BY v0 DESC, v1 WITH c.id AS v5, c.content AS v6, v0 AS v7, v1 AS v8, p.firstName AS v9, p.lastName AS v10, v2 AS v11 RETURN v5 AS c0, v6 AS c1, v7 AS c2, v8 AS c3, v9 AS c4, v10 AS c5, v11 AS c6
+  params: p0=1030792151051(int64)
+
+### IS7 @columnar
+[graph] columns=(commentId, commentContent, commentCreationDate, replyAuthorId, replyAuthorFirstName, replyAuthorLastName, replyAuthorKnowsOriginalMessageAuthor)
+  MATCH (m:Message) WHERE (m.id = $p0) MATCH (m)<-[_r0:REPLY_OF]-(c:Comment) MATCH (c)-[_r1:HAS_CREATOR]->(p:Person) OPTIONAL MATCH (m)-[_r2:HAS_CREATOR]->(a:Person), (a)-[r:KNOWS]-(p) WITH c.creationDate AS v0, p.id AS v1, CASE WHEN (r = null) THEN false ELSE true END AS v2, p AS p, c AS c WITH * ORDER BY v0 DESC, v1 WITH c.id AS v5, c.content AS v6, v0 AS v7, v1 AS v8, p.firstName AS v9, p.lastName AS v10, v2 AS v11 RETURN v5 AS c0, v6 AS c1, v7 AS c2, v8 AS c3, v9 AS c4, v10 AS c5, v11 AS c6
+  params: p0=1030792151051(int64)
+
+### IS7 @kvs
+[graph] columns=(commentId, commentContent, commentCreationDate, replyAuthorId, replyAuthorFirstName, replyAuthorLastName, replyAuthorKnowsOriginalMessageAuthor)
+  MATCH (m:Message) WHERE (m.id = $p0) MATCH (m)<-[_r0:REPLY_OF]-(c:Comment) MATCH (c)-[_r1:HAS_CREATOR]->(p:Person) OPTIONAL MATCH (m)-[_r2:HAS_CREATOR]->(a:Person), (a)-[r:KNOWS]-(p) WITH c.creationDate AS v0, p.id AS v1, CASE WHEN (r = null) THEN false ELSE true END AS v2, p AS p, c AS c WITH * ORDER BY v0 DESC, v1 WITH c.id AS v5, c.content AS v6, v0 AS v7, v1 AS v8, p.firstName AS v9, p.lastName AS v10, v2 AS v11 RETURN v5 AS c0, v6 AS c1, v7 AS c2, v8 AS c3, v9 AS c4, v10 AS c5, v11 AS c6
+  params: p0=1030792151051(int64)
 
 ### ISNULL @graph
 [graph] columns=(m.id, m.content)

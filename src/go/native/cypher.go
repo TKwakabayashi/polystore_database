@@ -50,6 +50,10 @@ type cyBuilder struct {
 	own     map[string]owner
 	types   TypeFn
 	relVars map[string]bool
+
+	// optional は OPTIONAL MATCH の内側を書いている間の節（MATCH 片をここへ , で連ね、WHERE もここへ付ける）。
+	inOptional bool
+	optional   *cyClause
 }
 
 var identRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
@@ -125,12 +129,30 @@ func lowerCypher(q *physical.StoreQuery, types TypeFn) (*Query, error) {
 }
 
 func (b *cyBuilder) add(head string) *cyClause {
+	if b.inOptional {
+		// OPTIONAL MATCH の内側の MATCH 片は 1 つの節に連ねる（節を分けると部分一致を許してしまう）。
+		pat, ok := strings.CutPrefix(head, "MATCH ")
+		if !ok {
+			b.optional = nil // パターン以外の節（WITH など）は吸収しない形なのでここには来ない
+		} else if b.optional == nil {
+			b.optional = &cyClause{head: "OPTIONAL MATCH " + pat}
+			b.clauses = append(b.clauses, b.optional)
+			return b.optional
+		} else {
+			b.optional.head += ", " + pat
+			return b.optional
+		}
+	}
 	c := &cyClause{head: head}
 	b.clauses = append(b.clauses, c)
 	return c
 }
 
 func (b *cyBuilder) where(cond string) {
+	if b.inOptional && b.optional != nil {
+		b.optional.where = append(b.optional.where, cond)
+		return
+	}
 	if len(b.clauses) == 0 {
 		b.add("WITH *")
 	}
@@ -195,12 +217,29 @@ func relBody(v string, types []string, rng string) string {
 func (b *cyBuilder) node(n logical.Node) error {
 	switch x := n.(type) {
 	case *physical.Argument:
+		if b.inOptional {
+			return nil // OPTIONAL の内側の葉: 外側で束縛済みの変数をそのまま使う
+		}
 		return b.argument(x.Cols)
 	case *logical.NodeHashJoin:
 		if err := b.node(x.Left); err != nil {
 			return err
 		}
 		return b.node(x.Right)
+	case *logical.Optional:
+		if err := b.node(x.Outer); err != nil {
+			return err
+		}
+		if b.inOptional {
+			return unsupported("nested OPTIONAL MATCH in one query")
+		}
+		b.inOptional, b.optional = true, nil
+		err := b.node(x.Inner)
+		if err == nil && b.optional == nil {
+			err = unsupported("OPTIONAL MATCH without a pattern")
+		}
+		b.inOptional, b.optional = false, nil
+		return err
 	}
 	if c := logical.Child(n); c != nil {
 		if err := b.node(c); err != nil {

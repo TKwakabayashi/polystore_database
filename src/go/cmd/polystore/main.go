@@ -101,13 +101,6 @@ func main() {
 			log.Fatalf("verify に失敗: %v", err)
 		}
 
-	case "tailab":
-		// tail pushdown の A/B 計測（bulk 固定）: rdb 配置で tail を engine 計算 vs MySQL ネイティブ実行。
-		// 例: -mode tailab -workload TP1
-		if err := bench.RunTailAB(ctx, cfg, *workload); err != nil {
-			log.Fatalf("tailab に失敗: %v", err)
-		}
-
 	default: // "run"
 		// クエリ実行のみ（settings.RunTarget / settings.Format に従う）
 		bench.RunWorkloadByName(ctx, *workload, cfg)

@@ -47,6 +47,7 @@ type planner struct {
 	segTypes   map[string][]string
 	pathElems  map[string][]logical.PathElem
 	owners     map[string]owner // alias → プロパティの持ち主（リテラルの型付け用）
+	args       []*ArgRows       // 組み立て中の OPTIONAL の内側の葉（buildOptional が拾う）
 }
 
 type owner struct {
@@ -129,6 +130,15 @@ func (pl *planner) close(st *state) {
 // boundary は st を閉じ、keys を受け取る新しいクエリを開く。
 func (pl *planner) boundary(st *state, k store.Kind, op logical.Node, keys []string, single string) {
 	pl.close(st)
+	// OPTIONAL の内側の最初の graph クエリは、葉（ArgRows）の識別列をすべて受け取る
+	// （後続の ExpandInto などが外側の別の変数を使えるように。graph は複数キーを UNWIND で受け取れる）。
+	if arg, ok := st.phys.(*ArgRows); ok && k == store.Graph {
+		for _, c := range arg.Cols {
+			if !contains(keys, c) {
+				keys = append(keys, c)
+			}
+		}
+	}
 	st.open = newOpen(k, logical.WithInput(op, &Argument{Cols: keys}), st.phys, keys, single)
 	st.phys = nil
 	produce(st.open, op)
@@ -151,6 +161,14 @@ func (pl *planner) build(n logical.Node) (*state, error) {
 		o := newOpen(k, x, nil, nil, single)
 		o.avail[x.Alias], o.idents[x.Alias] = true, true
 		return &state{open: o}, nil
+
+	case *logical.Argument:
+		arg := &ArgRows{Cols: x.Cols}
+		pl.args = append(pl.args, arg)
+		return &state{phys: arg}, nil
+
+	case *logical.Optional:
+		return pl.buildOptional(x)
 
 	case *logical.NodeHashJoin:
 		l, err := pl.build(x.Left)
@@ -194,6 +212,64 @@ func (pl *planner) build(n logical.Node) (*state, error) {
 		return nil, err
 	}
 	return st, nil
+}
+
+// buildOptional は OPTIONAL MATCH を組む。外側と内側がどちらも graph だけで完結するなら、
+// 1 本の Cypher（OPTIONAL MATCH）にまとめる。それ以外は OptionalApply（内側の葉 ArgRows に外側の行を渡す）。
+func (pl *planner) buildOptional(x *logical.Optional) (*state, error) {
+	outer, err := pl.build(x.Outer)
+	if err != nil {
+		return nil, err
+	}
+	mark := len(pl.args)
+	inner, err := pl.build(x.Inner)
+	if err != nil {
+		return nil, err
+	}
+	if len(pl.args) != mark+1 {
+		return nil, unsupported("OPTIONAL MATCH inner plan must have one argument leaf")
+	}
+	arg := pl.args[mark]
+	pl.args = pl.args[:mark]
+
+	// graph に吸収: 外側が開いた graph の葉クエリで、内側が ArgRows を入力とする 1 本の graph クエリだけ
+	// （内側の識別列はすべて外側のクエリにある）。
+	if o, in := outer.open, inner.open; o != nil && in != nil && o.leaf && o.store == store.Graph &&
+		in.store == store.Graph && in.input == Node(arg) && inner.phys == nil && identAll(o, x.Keys) && graphPattern(in.ops) {
+		o.ops = &logical.Optional{Outer: o.ops, Inner: in.ops, Keys: x.Keys, New: x.New}
+		for k := range in.avail {
+			o.avail[k] = true
+		}
+		for k := range in.idents {
+			o.idents[k] = true
+		}
+		return &state{open: o}, nil
+	}
+	pl.close(outer)
+	pl.close(inner)
+	return &state{phys: &OptionalApply{Outer: outer.phys, Inner: inner.phys, Arg: arg, Keys: x.Keys, New: x.New}}, nil
+}
+
+// graphPattern は委譲する部分木が、OPTIONAL MATCH の 1 節に書けるパターンと条件だけか。
+func graphPattern(n logical.Node) bool {
+	ok := true
+	var walk func(logical.Node)
+	walk = func(n logical.Node) {
+		if n == nil || !ok {
+			return
+		}
+		switch n.(type) {
+		case *Argument, *logical.EntityScan, *logical.Expand, *logical.ExpandInto, *logical.VarLengthExpand,
+			*logical.Filter, *logical.GetProperty, *logical.RelUniqueFilter, *logical.NodeHashJoin:
+		default:
+			ok = false
+		}
+		for _, c := range n.Children() {
+			walk(c)
+		}
+	}
+	walk(n)
+	return ok
 }
 
 func unsupported(format string, args ...any) error {
@@ -565,6 +641,25 @@ func finalize(n Node, need map[string]bool, all bool) {
 			}
 			finalize(x.Input, below, all)
 		}
+	case *OptionalApply:
+		// 内側が作る列（一致しない行で null にする列）を控え、外側には自分の列と Keys を、内側には
+		// 上が使う列と Keys を求める。
+		x.InnerCols = innerCols(x.Inner)
+		outerNeed := map[string]bool{}
+		innerNeed := map[string]bool{}
+		for k := range need {
+			if contains(x.InnerCols, k) {
+				innerNeed[k] = true
+			} else {
+				outerNeed[k] = true
+			}
+		}
+		for _, k := range x.Keys {
+			outerNeed[k] = true
+			innerNeed[k] = true
+		}
+		finalize(x.Outer, outerNeed, all)
+		finalize(x.Inner, innerNeed, false)
 	case *ListFetch:
 		below := map[string]bool{x.Source: true}
 		for k := range need {
@@ -593,6 +688,43 @@ func finalize(n Node, need map[string]bool, all bool) {
 	}
 }
 
+// innerCols は OptionalApply の内側が作る列（StoreQuery の topCols と Coord の生成列の和、ArgRows の列を除く）。
+func innerCols(n Node) []string {
+	var out []string
+	add := func(ks ...string) {
+		for _, k := range ks {
+			if !contains(out, k) {
+				out = append(out, k)
+			}
+		}
+	}
+	var walk func(Node)
+	walk = func(n Node) {
+		switch x := n.(type) {
+		case *StoreQuery:
+			for _, c := range topCols(x.Ops) {
+				if !contains(x.Keys, c) {
+					add(c)
+				}
+			}
+		case *ListFetch:
+			add(x.Key())
+		case *Coord:
+			if pp, ok := x.Op.(*logical.ProjectPath); ok {
+				add(pp.Path)
+			}
+		case *OptionalApply:
+			add(x.New...)
+			add(innerCols(x.Inner)...)
+		}
+		for _, c := range n.Children() {
+			walk(c)
+		}
+	}
+	walk(n)
+	return out
+}
+
 // topCols はクエリの最上位の行にある列（生成順。Projection/Aggregation で付け替わる）。
 func topCols(n logical.Node) []string {
 	var cols []string
@@ -612,6 +744,10 @@ func topCols(n logical.Node) []string {
 		case *logical.NodeHashJoin:
 			walk(x.Left)
 			walk(x.Right)
+			return
+		case *logical.Optional:
+			walk(x.Outer)
+			walk(x.Inner)
 			return
 		case *Argument:
 			add(x.Cols...)

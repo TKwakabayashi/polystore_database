@@ -23,13 +23,13 @@ import (
 	"time"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
+	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"polystore_database/src/go/bench"
 	"polystore_database/src/go/codec"
 	"polystore_database/src/go/executor"
 	"polystore_database/src/go/id"
 	"polystore_database/src/go/migrator"
-	"polystore_database/src/go/plan"
 	"polystore_database/src/go/schema"
 	"polystore_database/src/go/settings"
 	"polystore_database/src/go/storage"
@@ -197,12 +197,6 @@ func TestRedesignPlacements(t *testing.T) {
 		{"kvs", "kvs", migrator.ModeGraphToKvs},
 		{"document", "document", migrator.ModeGraphToDoc},
 	}
-	if db, ok := reg.Mongo(); ok {
-		if names, err := db.ListCollectionNames(ctx, map[string]any{}); err == nil && len(names) == 0 {
-			placements = placements[:3]
-			t.Log("document: Mongo にデータが無いため skip")
-		}
-	}
 
 	var names []string
 	for n := range workload.Registry {
@@ -214,7 +208,10 @@ func TestRedesignPlacements(t *testing.T) {
 			pc, name := pc, name
 			t.Run(pc.name+"/"+name, func(t *testing.T) {
 				cypher, params, migs := workload.Registry[name](pc.mode, true)
-				md, moved := placeMapping(t, base, pc.target, migs, func(kind plan.ObjectType, label, prop string) bool {
+				if len(migs) == 0 {
+					migs = allProperties(base, pc.mode) // 移行設定を持たないワークロードは、移行済みの全列で試す
+				}
+				md, moved := placeMapping(t, base, pc.target, migs, func(kind schema.ObjectType, label, prop string) bool {
 					return populated(ctx, reg, pc.target, kind, label, prop)
 				})
 				if moved == 0 {
@@ -250,7 +247,7 @@ func TestRedesignPlacements(t *testing.T) {
 // placeMapping は移行設定の列のうち、target ストアに実際にデータがある列だけを移した mapping を作る
 // （過去の移行で作られた表は、ワークロードの移行設定の列をすべて持っているとは限らないため）。
 func placeMapping(t *testing.T, base *schema.MappingDictionary, target string, migs []migrator.MigrationConfig,
-	ok func(kind plan.ObjectType, label, prop string) bool) (*schema.MappingDictionary, int) {
+	ok func(kind schema.ObjectType, label, prop string) bool) (*schema.MappingDictionary, int) {
 	t.Helper()
 	b, err := json.Marshal(base)
 	if err != nil {
@@ -266,7 +263,7 @@ func placeMapping(t *testing.T, base *schema.MappingDictionary, target string, m
 			if !ok(m.ObjType, m.Entity, p) {
 				continue
 			}
-			if m.ObjType == plan.Relationship {
+			if m.ObjType == schema.ObjRelationship {
 				if r, has := md.Relationships[m.Entity]; has {
 					if pm, has := r.Properties[p]; has {
 						pm.Databases = []string{target}
@@ -289,7 +286,7 @@ func placeMapping(t *testing.T, base *schema.MappingDictionary, target string, m
 var populatedCache = map[string]bool{}
 
 // populated は target ストアの label/prop に値が入っているか（NULL だけの列・無い列は false）。
-func populated(ctx context.Context, reg *storage.Registry, target string, kind plan.ObjectType, label, prop string) bool {
+func populated(ctx context.Context, reg *storage.Registry, target string, kind schema.ObjectType, label, prop string) bool {
 	key := target + "/" + label + "/" + prop
 	if v, ok := populatedCache[key]; ok {
 		return v
@@ -317,12 +314,18 @@ func populated(ctx context.Context, reg *storage.Registry, target string, kind p
 		}
 	case "kvs":
 		v = kvsPopulated(ctx, reg, kind, label, prop)
+	case "document":
+		if db, ok := reg.Mongo(); ok {
+			n, err := db.Collection(label).CountDocuments(ctx, map[string]interface{}{prop: map[string]interface{}{"$ne": nil}},
+				options.Count().SetLimit(1))
+			v = err == nil && n > 0
+		}
 	}
 	populatedCache[key] = v
 	return v
 }
 
-func kvsPopulated(ctx context.Context, reg *storage.Registry, kind plan.ObjectType, label, prop string) bool {
+func kvsPopulated(ctx context.Context, reg *storage.Registry, kind schema.ObjectType, label, prop string) bool {
 	ldb, ok := reg.LevelDB()
 	if !ok {
 		return false
@@ -332,7 +335,7 @@ func kvsPopulated(ctx context.Context, reg *storage.Registry, kind plan.ObjectTy
 		return false
 	}
 	q := fmt.Sprintf("MATCH (n:%s) RETURN n.uuid AS u LIMIT 20", label)
-	if kind == plan.Relationship {
+	if kind == schema.ObjRelationship {
 		q = fmt.Sprintf("MATCH ()-[n:%s]->() RETURN n.uuid AS u LIMIT 20", label)
 	}
 	sess := d.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead})
@@ -399,10 +402,13 @@ func TestRedesignModels(t *testing.T) {
 			pc, name := pc, name
 			t.Run(pc.name+"/"+name, func(t *testing.T) {
 				cypher, params, migs := workload.Registry[name](pc.mode, pc.target != "")
+				if pc.target != "" && len(migs) == 0 {
+					migs = allProperties(base, pc.mode)
+				}
 				md := base
 				if pc.target != "" {
 					var moved int
-					md, moved = placeMapping(t, base, pc.target, migs, func(kind plan.ObjectType, label, prop string) bool {
+					md, moved = placeMapping(t, base, pc.target, migs, func(kind schema.ObjectType, label, prop string) bool {
 						return populated(ctx, reg, pc.target, kind, label, prop)
 					})
 					if moved == 0 {
@@ -444,4 +450,25 @@ func TestRedesignModels(t *testing.T) {
 			})
 		}
 	}
+}
+
+// allProperties は mapping の全エンティティ・全関係の全プロパティを移行対象とする設定
+// （placeMapping が、移行先に値がある列だけを実際に移す）。
+func allProperties(md *schema.MappingDictionary, mode migrator.MigrationMode) []migrator.MigrationConfig {
+	var out []migrator.MigrationConfig
+	add := func(kind schema.ObjectType, name string, props map[string]*schema.PropertyMapping) {
+		var ps []string
+		for p := range props {
+			ps = append(ps, p)
+		}
+		sort.Strings(ps)
+		out = append(out, migrator.MigrationConfig{ObjType: kind, Entity: name, Properties: ps, Mode: mode})
+	}
+	for name, e := range md.Entities {
+		add(schema.ObjEntity, name, e.Properties)
+	}
+	for name, r := range md.Relationships {
+		add(schema.ObjRelationship, name, r.Properties)
+	}
+	return out
 }

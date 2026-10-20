@@ -320,6 +320,13 @@ var equivalenceQueries = []struct {
 	{"with_distinct_limit", "MATCH (p:Person {id: $x})-[:KNOWS]-(f:Person) WITH DISTINCT f ORDER BY f.id ASC LIMIT 2 MATCH (f)-[:KNOWS]-(g:Person) RETURN f.id, g.id", -1},
 	{"with_values", "MATCH (p:Person) WITH p.lastName AS ln, count(*) AS c WHERE c > 1 RETURN ln, c ORDER BY ln ASC", 2},
 	{"case_expr", "MATCH (p:Person) RETURN p.id, CASE WHEN p.gender = 'male' THEN 1 ELSE 0 END AS isMale ORDER BY p.id ASC", 6},
+	{"optional_basic", "MATCH (p:Person) OPTIONAL MATCH (p)-[:IS_LOCATED_IN]->(c:Place) RETURN p.id, c.name", 6},
+	{"optional_where", "MATCH (p:Person) OPTIONAL MATCH (p)-[:KNOWS]->(f:Person) WHERE f.gender = 'female' RETURN p.id, f.id", 6},
+	{"optional_count", "MATCH (p:Person) OPTIONAL MATCH (p)-[:KNOWS]->(f:Person) RETURN p.id, count(f) AS n", 6},
+	{"optional_chain_null_start", "MATCH (p:Person) OPTIONAL MATCH (p)-[:IS_LOCATED_IN]->(c:Place) OPTIONAL MATCH (c)<-[:IS_LOCATED_IN]-(o:Person) RETURN p.id, c.name, count(o) AS n", 6},
+	{"optional_case_subject", "MATCH (a:Person)-[:KNOWS]->(b:Person) OPTIONAL MATCH (b)-[r:KNOWS]->(a) RETURN a.id, b.id, CASE r WHEN null THEN false ELSE true END AS back", 7},
+	{"optional_into_bound", "MATCH (a:Person {id: $x})-[:KNOWS]-(b:Person) OPTIONAL MATCH (b)-[:IS_LOCATED_IN]->(c:Place)<-[:IS_LOCATED_IN]-(a) RETURN b.id, c.name", 3},
+	{"optional_then_with", "MATCH (p:Person) OPTIONAL MATCH (p)-[:KNOWS]->(f:Person) WITH p, count(f) AS deg RETURN deg, count(p) AS people ORDER BY deg ASC", 3},
 }
 
 func TestPlacementEquivalence(t *testing.T) {
@@ -372,6 +379,18 @@ func TestHandCheckedResults(t *testing.T) {
 		// 経路ごとに 1 行（p1→p2→p4 と p1→p5→p6 … 2 ホップの到達先）
 		{"MATCH (p:Person {id: $x})-[:KNOWS*2]->(f:Person) RETURN f.id",
 			[]string{"f.id=3;", "f.id=4;", "f.id=6;"}},
+		// OPTIONAL MATCH: p5, p6 は所在地が無いので null で残る
+		{"MATCH (p:Person) OPTIONAL MATCH (p)-[:IS_LOCATED_IN]->(c:Place) RETURN p.id, c.name",
+			[]string{"c.name=Tokyo;p.id=1;", "c.name=Kyoto;p.id=2;", "c.name=Tokyo;p.id=3;", "c.name=Kyoto;p.id=4;", "c.name=<nil>;p.id=5;", "c.name=<nil>;p.id=6;"}},
+		// count(f) は一致しなかった行（f = null）を数えない: 出次数 p1:2 p2:2 p3:1 p4:1 p5:1 p6:0
+		{"MATCH (p:Person) OPTIONAL MATCH (p)-[:KNOWS]->(f:Person) RETURN p.id, count(f) AS n",
+			[]string{"n=2;p.id=1;", "n=2;p.id=2;", "n=1;p.id=3;", "n=1;p.id=4;", "n=1;p.id=5;", "n=0;p.id=6;"}},
+		// WHERE は一致の条件: female の友人がいない人も null で残る（female は p1, p4, p6: p2→p4, p3→p1, p5→p6）
+		{"MATCH (p:Person) OPTIONAL MATCH (p)-[:KNOWS]->(f:Person) WHERE f.gender = 'female' RETURN p.id, f.id",
+			[]string{"f.id=<nil>;p.id=1;", "f.id=4;p.id=2;", "f.id=1;p.id=3;", "f.id=<nil>;p.id=4;", "f.id=6;p.id=5;", "f.id=<nil>;p.id=6;"}},
+		// 単純 CASE の WHEN null は一致しない（Neo4j と同じ）ので back は常に true
+		{"MATCH (a:Person {id: $x})-[:KNOWS]->(b:Person) OPTIONAL MATCH (b)-[r:KNOWS]->(a) RETURN b.id, CASE r WHEN null THEN false ELSE true END AS back",
+			[]string{"b.id=2;back=true;", "b.id=5;back=true;"}},
 		// 集約の後の ORDER BY / LIMIT（WITH の途中）
 		{"MATCH (p:Person)-[:KNOWS]-(f:Person) WITH p, count(f) AS deg ORDER BY deg DESC, p.id ASC LIMIT 2 RETURN p.id, deg",
 			[]string{"deg=3;p.id=1;", "deg=3;p.id=2;"}},

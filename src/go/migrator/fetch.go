@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"polystore_database/src/go/codec"
 	"polystore_database/src/go/id"
-	"polystore_database/src/go/plan"
 	"polystore_database/src/go/storage"
 	"strings"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"github.com/syndtr/goleveldb/leveldb/util"
 	"go.mongodb.org/mongo-driver/bson"
+	"polystore_database/src/go/schema"
 )
 
 // fetchDataStream はソースからデータを読み出し dataCh へ流す。
@@ -46,7 +46,7 @@ func fetchGraph(ctx context.Context, cfg MigrationConfig, reg *storage.Registry,
 	defer session.Close(ctx)
 
 	var label, query string
-	if cfg.ObjType == plan.Relationship {
+	if cfg.ObjType == schema.ObjRelationship {
 		label = "r"
 		// 有向 -> で各リレーションを1回だけ読む（無向 - だと両方向で2回 fetch し無駄）
 		query = fmt.Sprintf("MATCH ()-[%s:%s]->() ", label, cfg.Entity)

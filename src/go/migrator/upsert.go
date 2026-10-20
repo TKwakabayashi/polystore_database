@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"polystore_database/src/go/codec"
 	"polystore_database/src/go/id"
-	"polystore_database/src/go/plan"
 	"polystore_database/src/go/storage"
 	"sort"
 	"strings"
@@ -21,6 +20,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/sync/errgroup"
+	"polystore_database/src/go/schema"
 )
 
 // upsertDataStream は inCh から受け取った行をバッチで移行先へ書き込む。
@@ -96,7 +96,7 @@ func upsertGraph(ctx context.Context, cfg MigrationConfig, reg *storage.Registry
 	}
 
 	var query string
-	if cfg.ObjType == plan.Relationship {
+	if cfg.ObjType == schema.ObjRelationship {
 		query = fmt.Sprintf("UNWIND $batch AS row MATCH ()-[r:%s {uuid: row.uuid}]-() SET r += row.payload", cfg.Entity)
 	} else {
 		query = fmt.Sprintf("UNWIND $batch AS row MERGE (n:Entity:%s {uuid: row.uuid}) SET n += row.payload", cfg.Entity)

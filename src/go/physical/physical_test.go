@@ -14,7 +14,6 @@ import (
 	"polystore_database/src/go/logical"
 	"polystore_database/src/go/migrator"
 	"polystore_database/src/go/physical"
-	oldplan "polystore_database/src/go/plan"
 	"polystore_database/src/go/schema"
 	"polystore_database/src/go/workload"
 )
@@ -71,7 +70,7 @@ func place(t *testing.T, base *schema.MappingDictionary, target string, migs []m
 	md := clone(t, base)
 	for _, m := range migs {
 		for _, p := range m.Properties {
-			if m.ObjType == oldplan.Relationship {
+			if m.ObjType == schema.ObjRelationship {
 				if r, ok := md.Relationships[m.Entity]; ok {
 					if pm, ok := r.Properties[p]; ok {
 						pm.Databases = []string{target}

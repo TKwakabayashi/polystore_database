@@ -63,6 +63,24 @@ Sort[cnt DESC]
       GetProperty(o.type) [node:Organisation]
         EntityScan(o:Organisation)
 
+### BI12
+Sort[personCount DESC, messageCount DESC]
+  Aggregation[keys: messageCount | count(person) AS personCount]
+    Aggregation[keys: person | count(message) AS messageCount]
+      Optional[keys: person | new: _r0, message, _r1, post]
+        EntityScan(person:Person)
+        Filter((post.language IN ["ar", "hu"]))
+          GetProperty(post.language) [node:Post]
+            VarLengthExpand((message)-[_r1:REPLY_OF*0..]->(post:Post))
+              Filter((message.creationDate > "2010-07-22T00:00:00.000Z"))
+                GetProperty(message.creationDate) [node:Message]
+                  Filter((message.length < 20))
+                    GetProperty(message.length) [node:Message]
+                      Filter((message.content IS NOT NULL))
+                        GetProperty(message.content) [node:Message]
+                          Expand((person)<-[_r0:HAS_CREATOR]-(message:Message))
+                            Argument(person)
+
 ### BI3
 Limit[20]
   Sort[messageCount DESC, forum.id ASC]
@@ -86,6 +104,44 @@ Limit[20]
                                       Filter((country.type = "Country"))
                                         GetProperty(country.type) [node:Place]
                                           EntityScan(country:Place)
+
+### BI5
+Limit[100]
+  Sort[score DESC, person.id ASC]
+    Projection[person.id, replyCount, likeCount, messageCount, (((1 * messageCount) + (2 * replyCount)) + (10 * likeCount)) AS score]
+      GetProperty(person.id) [node:Person]
+        Aggregation[keys: person | count(message) AS messageCount, sum(likeCount) AS likeCount, sum(replyCount) AS replyCount]
+          Aggregation[keys: person, message, likeCount | count(reply) AS replyCount]
+            Optional[keys: message | new: _r2, reply]
+              Aggregation[keys: person, message | count(likes) AS likeCount]
+                Optional[keys: message | new: likes, _n0]
+                  Expand((message)-[_r1:HAS_CREATOR]->(person:Person))
+                    Expand((tag)<-[_r0:HAS_TAG]-(message:Message))
+                      Filter((tag.name = "Abbas_I_of_Persia"))
+                        GetProperty(tag.name) [node:Tag]
+                          EntityScan(tag:Tag)
+                  Expand((message)<-[likes:LIKES]-(_n0:Person))
+                    Argument(message)
+              Expand((message)<-[_r2:REPLY_OF]-(reply:Comment))
+                Argument(message)
+
+### BI6
+Limit[100]
+  Sort[authorityScore DESC, person1.id ASC]
+    Aggregation[keys: person1.id | count(DISTINCT like) AS authorityScore]
+      GetProperty(person1.id) [node:Person]
+        Optional[keys: person2 | new: _r3, message2, like, person3]
+          Optional[keys: message1 | new: _r2, person2]
+            Expand((message1)-[_r1:HAS_CREATOR]->(person1:Person))
+              Expand((tag)<-[_r0:HAS_TAG]-(message1:Message))
+                Filter((tag.name = "Arnold_Schwarzenegger"))
+                  GetProperty(tag.name) [node:Tag]
+                    EntityScan(tag:Tag)
+            Expand((message1)<-[_r2:LIKES]-(person2:Person))
+              Argument(message1)
+          Expand((message2)<-[like:LIKES]-(person3:Person))
+            Expand((person2)<-[_r3:HAS_CREATOR]-(message2:Message))
+              Argument(person2)
 
 ### BI9
 Limit[100]
@@ -189,6 +245,25 @@ Projection[f.id, f.title, mod.id, mod.firstName, mod.lastName]
                   Filter((m.id = 1030792151051))
                     GetProperty(m.id) [node:Message]
                       EntityScan(m:Message)
+
+### IS7
+Sort[commentCreationDate DESC, replyAuthorId ASC]
+  Projection[c.id AS commentId, c.content AS commentContent, c.creationDate AS commentCreationDate, p.id AS replyAuthorId, p.firstName AS replyAuthorFirstName, p.lastName AS replyAuthorLastName, CASE WHEN (r = null) THEN false ELSE true END AS replyAuthorKnowsOriginalMessageAuthor]
+    GetProperty(p.lastName) [node:Person]
+      GetProperty(p.firstName) [node:Person]
+        GetProperty(p.id) [node:Person]
+          GetProperty(c.creationDate) [node:Comment]
+            GetProperty(c.content) [node:Comment]
+              GetProperty(c.id) [node:Comment]
+                Optional[keys: m, p | new: _r2, a, r]
+                  Expand((c)-[_r1:HAS_CREATOR]->(p:Person))
+                    Expand((m)<-[_r0:REPLY_OF]-(c:Comment))
+                      Filter((m.id = 1030792151051))
+                        GetProperty(m.id) [node:Message]
+                          EntityScan(m:Message)
+                  ExpandInto((a)-[r:KNOWS]-(p))
+                    Expand((m)-[_r2:HAS_CREATOR]->(a:Person))
+                      Argument(m, p)
 
 ### ISNULL
 Limit[20]

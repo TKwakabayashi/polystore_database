@@ -38,6 +38,10 @@ func DeferOutputFetch(n Node) Node {
 		x.Left = DeferOutputFetch(x.Left)
 		x.Right = DeferOutputFetch(x.Right)
 		return x
+	case *Optional:
+		x.Outer = DeferOutputFetch(x.Outer)
+		x.Inner = DeferOutputFetch(x.Inner)
+		return x
 	}
 	if c := child(n); c != nil {
 		setChild(n, DeferOutputFetch(c))
@@ -281,6 +285,9 @@ func prune(n Node, need map[string]bool, all bool) Node {
 	case *NodeHashJoin:
 		x.Left = prune(x.Left, below, belowAll)
 		x.Right = prune(x.Right, below, belowAll)
+	case *Optional:
+		x.Outer = prune(x.Outer, below, belowAll)
+		x.Inner = prune(x.Inner, below, belowAll)
 	default:
 		if c := child(n); c != nil {
 			setChild(n, prune(c, below, belowAll))
@@ -336,6 +343,8 @@ func Refs(n Node) []string {
 	case *Distinct:
 		add(x.Cols...)
 	case *NodeHashJoin:
+		add(x.Keys...)
+	case *Optional:
 		add(x.Keys...)
 	case *RelUniqueFilter:
 		add(x.Rels...)

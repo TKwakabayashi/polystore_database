@@ -180,6 +180,55 @@ func (b *memBackend) eval(n logical.Node, keys []string, in []Key) ([]Row, error
 			}
 		}
 		return out, nil
+	case *logical.Optional:
+		// 1 本の graph クエリに吸収された OPTIONAL MATCH（Cypher の OPTIONAL MATCH と同じ意味）。
+		outer, err := b.eval(x.Outer, keys, in)
+		if err != nil {
+			return nil, err
+		}
+		var argCols []string
+		var findArg func(logical.Node)
+		findArg = func(n logical.Node) {
+			if a, ok := n.(*physical.Argument); ok {
+				argCols = a.Cols
+			}
+			for _, c := range n.Children() {
+				findArg(c)
+			}
+		}
+		findArg(x.Inner)
+		var innerKeys []Key
+		seen := map[string]bool{}
+		for _, r := range outer {
+			k := make(Key, len(argCols))
+			vals := make([]any, len(argCols))
+			ok := true
+			for i, c := range argCols {
+				u, isU := r[c].(id.UUID)
+				if !isU {
+					ok = false
+					break
+				}
+				k[i], vals[i] = u, u
+			}
+			if ks := keyString(vals...); ok && !seen[ks] {
+				seen[ks] = true
+				innerKeys = append(innerKeys, k)
+			}
+		}
+		inner, err := b.eval(x.Inner, argCols, innerKeys)
+		if err != nil {
+			return nil, err
+		}
+		pad := append([]string{}, x.New...)
+		for _, r := range inner {
+			for c := range r {
+				if _, inOuter := outer0(outer)[c]; !inOuter && !contains(pad, c) {
+					pad = append(pad, c)
+				}
+			}
+		}
+		return leftApply(outer, inner, &physical.OptionalApply{Keys: x.Keys, New: x.New, InnerCols: pad}), nil
 	case *logical.NodeHashJoin:
 		l, err := b.eval(x.Left, keys, in)
 		if err != nil {
@@ -322,4 +371,20 @@ func (b *memBackend) segOK(preds []logical.SegPred, nodes, rels []id.UUID) (bool
 		}
 	}
 	return true, nil
+}
+
+func outer0(rows []Row) Row {
+	if len(rows) == 0 {
+		return Row{}
+	}
+	return rows[0]
+}
+
+func contains(xs []string, s string) bool {
+	for _, x := range xs {
+		if x == s {
+			return true
+		}
+	}
+	return false
 }

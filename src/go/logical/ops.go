@@ -298,6 +298,21 @@ type NodeHashJoin struct {
 	Keys  []string
 }
 
+// Argument は Optional の内側の葉。外側の各行が持つ識別列 Cols（束縛済みの変数）を受け取る。
+type Argument struct {
+	Cols []string
+}
+
+// Optional は OPTIONAL MATCH（左外部 apply）。外側の各行について、Inner（Argument から始まる部分木）の
+// 一致を識別列 Keys で結合する。一致が無い外側の行は、Inner が新しく束縛する変数 New と Inner が作る列を
+// null にして残す。
+type Optional struct {
+	Outer Node
+	Inner Node
+	Keys  []string
+	New   []string
+}
+
 // RelUniqueFilter は同一 MATCH 内の関係（Rels の識別列と Segs の区間列に含まれる関係）が互いに異なる行だけを残す。
 type RelUniqueFilter struct {
 	Input Node
@@ -308,6 +323,8 @@ type RelUniqueFilter struct {
 // ---- Children ----
 
 func (*EntityScan) Children() []Node        { return nil }
+func (*Argument) Children() []Node          { return nil }
+func (n *Optional) Children() []Node        { return []Node{n.Outer, n.Inner} }
 func (n *GetProperty) Children() []Node     { return []Node{n.Input} }
 func (n *GetListProperty) Children() []Node { return []Node{n.Input} }
 func (n *Expand) Children() []Node          { return []Node{n.Input} }
@@ -330,6 +347,14 @@ func labelSuffix(ls []string) string {
 		return ""
 	}
 	return ":" + strings.Join(ls, "|")
+}
+
+func (n *Argument) Describe() string {
+	return fmt.Sprintf("Argument(%s)", strings.Join(n.Cols, ", "))
+}
+
+func (n *Optional) Describe() string {
+	return fmt.Sprintf("Optional[keys: %s | new: %s]", strings.Join(n.Keys, ", "), strings.Join(n.New, ", "))
 }
 
 func (n *EntityScan) Describe() string {

@@ -104,11 +104,23 @@ func (s *BaseCypherListener) EnterReturnItem(ctx *ReturnItemContext) {}
 // ExitReturnItem is called when production returnItem is exited.
 func (s *BaseCypherListener) ExitReturnItem(ctx *ReturnItemContext) {}
 
-// EnterCaseExpr is called when production caseExpr is entered.
-func (s *BaseCypherListener) EnterCaseExpr(ctx *CaseExprContext) {}
+// EnterCaseSearched is called when production caseSearched is entered.
+func (s *BaseCypherListener) EnterCaseSearched(ctx *CaseSearchedContext) {}
 
-// ExitCaseExpr is called when production caseExpr is exited.
-func (s *BaseCypherListener) ExitCaseExpr(ctx *CaseExprContext) {}
+// ExitCaseSearched is called when production caseSearched is exited.
+func (s *BaseCypherListener) ExitCaseSearched(ctx *CaseSearchedContext) {}
+
+// EnterCaseSimple is called when production caseSimple is entered.
+func (s *BaseCypherListener) EnterCaseSimple(ctx *CaseSimpleContext) {}
+
+// ExitCaseSimple is called when production caseSimple is exited.
+func (s *BaseCypherListener) ExitCaseSimple(ctx *CaseSimpleContext) {}
+
+// EnterCaseKey is called when production caseKey is entered.
+func (s *BaseCypherListener) EnterCaseKey(ctx *CaseKeyContext) {}
+
+// ExitCaseKey is called when production caseKey is exited.
+func (s *BaseCypherListener) ExitCaseKey(ctx *CaseKeyContext) {}
 
 // EnterCaseResult is called when production caseResult is entered.
 func (s *BaseCypherListener) EnterCaseResult(ctx *CaseResultContext) {}

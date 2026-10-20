@@ -20,7 +20,9 @@ type Query struct {
 type Clause interface{ clause() }
 
 // MatchClause は MATCH（カンマ区切りの複数パターン）と、その直後の WHERE。
+// Optional なら OPTIONAL MATCH（一致しない行は新しい変数を null にして残す。WHERE は一致の条件）。
 type MatchClause struct {
+	Optional bool
 	Patterns []PatternPath
 	Where    Expr // nil 可
 }
@@ -169,10 +171,12 @@ type Agg struct {
 	Arg      Expr
 }
 
-// Case は探索 CASE（WHEN 条件 THEN 結果 … ELSE 結果 END）。
+// Case は CASE 式。Subject が nil なら探索 CASE（WHEN 条件）、非 nil なら単純 CASE
+// （WHEN の値と Subject を `=` で比べる。Neo4j と同じく WHEN null は一致しない）。
 type Case struct {
-	Whens []CaseWhen
-	Else  Expr // nil 可（= null）
+	Subject Expr
+	Whens   []CaseWhen
+	Else    Expr // nil 可（= null）
 }
 
 // CaseWhen は CASE の 1 分岐。
@@ -239,6 +243,9 @@ func (e *Agg) String() string {
 func (e *Case) String() string {
 	var b strings.Builder
 	b.WriteString("CASE")
+	if e.Subject != nil {
+		b.WriteString(" " + e.Subject.String())
+	}
 	for _, w := range e.Whens {
 		fmt.Fprintf(&b, " WHEN %s THEN %s", w.When, w.Then)
 	}
@@ -275,7 +282,11 @@ func (q *Query) String() string {
 			for i, p := range c.Patterns {
 				parts[i] = p.String()
 			}
-			fmt.Fprintf(&b, "MATCH %s\n", strings.Join(parts, ", "))
+			kw := "MATCH"
+			if c.Optional {
+				kw = "OPTIONAL MATCH"
+			}
+			fmt.Fprintf(&b, "%s %s\n", kw, strings.Join(parts, ", "))
 			if c.Where != nil {
 				fmt.Fprintf(&b, "  WHERE %s\n", c.Where)
 			}
