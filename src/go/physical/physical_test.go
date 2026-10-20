@@ -62,6 +62,7 @@ func clone(t *testing.T, md *schema.MappingDictionary) *schema.MappingDictionary
 	if err := json.Unmarshal(b, &out); err != nil {
 		t.Fatal(err)
 	}
+	out.Stats = md.Stats
 	return &out
 }
 

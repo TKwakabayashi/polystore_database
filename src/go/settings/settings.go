@@ -34,6 +34,11 @@ var MaterializeChunkSize = 0
 // 刷新版の翻訳（logical.Translate）が、パターンの起点を選ぶときに統計の代わりに使う。
 var UniqueKeyProps = []string{"id"}
 
+// CostBasedPlanning は、統計（mapping.json の隣の stats.json。`-mode stats` で収集）があるとき、
+// 翻訳が成分の起点・分割するか・辺をたどる順序を推定コスト（中間行数の和）で決めるか（刷新版）。
+// 統計が無い・false なら規則（一意キーの等値 > 等値・IN > 述語の数、出現順）で決める。
+var CostBasedPlanning = true
+
 // SplitAnchoredPatterns は、連結したパターンに起点になれる頂点（前の節で束縛済み・一意キーの等値）が
 // 2 つ以上あるとき、頂点を最寄りの起点へ振り分けて起点ごとに展開し、共有する頂点で NodeHashJoin する
 // （両側から探索して中央で合流する）か（刷新版）。全 graph なら 1 本の Cypher に戻るので Neo4j の計画は変わらない。

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"polystore_database/src/go/stats"
 )
 
 // ================================
@@ -14,6 +15,9 @@ type MappingDictionary struct {
 	Labels        map[string][]string             `json:"labels"`
 	Entities      map[string]*EntityMapping       `json:"entities"`
 	Relationships map[string]*RelationshipMapping `json:"relationships"`
+
+	// Stats は計画用の統計（mapping.json の隣の stats.json。無ければ nil）。mapping.json には書かない。
+	Stats *stats.Stats `json:"-"`
 }
 
 type EntityMapping struct {
@@ -46,6 +50,11 @@ func LoadMappingDictionary(path string) (*MappingDictionary, error) {
 	if err := json.Unmarshal(data, &mappingDictionary); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal mapping dictionary: %v", err)
 	}
+	st, err := stats.Load(stats.PathFor(path))
+	if err != nil {
+		return nil, err
+	}
+	mappingDictionary.Stats = st
 	return &mappingDictionary, nil
 }
 

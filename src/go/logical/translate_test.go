@@ -12,6 +12,7 @@ import (
 	"polystore_database/src/go/ast"
 	"polystore_database/src/go/logical"
 	"polystore_database/src/go/migrator"
+	"polystore_database/src/go/stats"
 	"polystore_database/src/go/workload"
 )
 
@@ -81,6 +82,40 @@ func TestTranslateWorkloads(t *testing.T) {
 		b.WriteString("\n")
 	}
 	golden(t, "workloads.golden", b.String())
+}
+
+// 統計（catalog/stats.json。ldbc_sf1 で収集）を使った計画のうち、規則の計画と違うものだけを golden で固定する。
+func TestTranslateWorkloadsCost(t *testing.T) {
+	st, err := stats.Load("../../../catalog/stats.json")
+	if err != nil || st == nil {
+		t.Skipf("catalog/stats.json が無い（-mode stats で収集）: %v", err)
+	}
+	var names []string
+	for n := range workload.Registry {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	var b strings.Builder
+	for _, n := range names {
+		cypher, params, _ := workload.Registry[n](migrator.ModeGraphToRdb, false)
+		a, err := ast.Parse(cypher, params)
+		if err != nil {
+			continue
+		}
+		rule, err := logical.Translate(a)
+		if err != nil {
+			continue
+		}
+		cost, err := logical.TranslateWith(a, st)
+		if err != nil {
+			t.Errorf("%s: %v", n, err)
+			continue
+		}
+		if logical.Dump(cost) != logical.Dump(rule) {
+			b.WriteString("### " + n + "\n" + logical.Dump(cost) + "\n")
+		}
+	}
+	golden(t, "workloads_cost.golden", b.String())
 }
 
 // 代表ケース（循環・逆向き・直積・WITH・パス条件）を golden で固定する。

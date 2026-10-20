@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+
 	"flag"
+	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"log"
 	"strings"
 
@@ -10,6 +12,7 @@ import (
 	"polystore_database/src/go/migrator"
 	"polystore_database/src/go/settings"
 	"polystore_database/src/go/setup"
+	"polystore_database/src/go/stats"
 	"polystore_database/src/go/storage"
 	workloads "polystore_database/src/go/workload"
 )
@@ -19,7 +22,7 @@ import (
 // パッケージ（編集→再ビルド）で切り替える。
 func main() {
 	var (
-		mode       = flag.String("mode", "run", "実行モード: setup | migrate | run | workflow | bench | bench-models | verify")
+		mode       = flag.String("mode", "run", "実行モード: setup | migrate | run | workflow | bench | bench-models | verify | stats")
 		workload   = flag.String("workload", "Q11", "ワークロード名（bench はカンマ区切り複数 or all）")
 		configPath = flag.String("config", "../../config/config.json", "設定ファイル(JSON)")
 		migMode    = flag.String("migmode", "graph_to_rdb", "移行モード（a_to_b）: migrate / workflow で使用")
@@ -34,6 +37,22 @@ func main() {
 	ctx := context.Background()
 
 	switch *mode {
+	case "stats":
+		// 計画用の統計（ラベル件数・タイプ別の関係数）を Neo4j の count store から集め、mapping.json の隣へ保存
+		driver, err := neo4j.NewDriverWithContext(cfg.Neo4j.URI, neo4j.BasicAuth(cfg.Neo4j.User, cfg.Neo4j.Password, ""))
+		if err != nil {
+			log.Fatalf("Neo4j への接続に失敗: %v", err)
+		}
+		defer driver.Close(ctx)
+		st, err := stats.Collect(ctx, driver)
+		if err != nil {
+			log.Fatalf("統計の収集に失敗: %v", err)
+		}
+		path := stats.PathFor(cfg.MappingPath)
+		if err := st.Save(path); err != nil {
+			log.Fatalf("統計の保存に失敗: %v", err)
+		}
+		log.Printf("統計を保存: %s（ノード %d、ラベル %d、関係タイプ %d）", path, st.Nodes, len(st.Labels), len(st.RelTypes))
 	case "setup":
 		// Neo4j 整備＋他4ストア初期化（最初に1回）
 		if err := setup.Run(ctx, cfg); err != nil {

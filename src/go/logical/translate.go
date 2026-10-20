@@ -2,9 +2,11 @@ package logical
 
 import (
 	"fmt"
+	"math"
 
 	"polystore_database/src/go/ast"
 	"polystore_database/src/go/settings"
+	"polystore_database/src/go/stats"
 )
 
 // translate.go は段階 B: クエリ AST を論理計画へ翻訳する（docs/operator_plan.md §4.2〜§4.5）。
@@ -41,9 +43,14 @@ func unsupported(format string, args ...any) error {
 	return fmt.Errorf("%w: %s", ast.ErrUnsupported, fmt.Sprintf(format, args...))
 }
 
-// Translate はクエリ AST を論理計画へ翻訳する。翻訳できない形は ast.ErrUnsupported を包んだエラー。
-func Translate(q *ast.Query) (Node, error) {
+// Translate はクエリ AST を論理計画へ翻訳する（統計を使わない規則）。翻訳できない形は ast.ErrUnsupported を包んだエラー。
+func Translate(q *ast.Query) (Node, error) { return TranslateWith(q, nil) }
+
+// TranslateWith は統計 st を使って翻訳する（起点・分割・辺の順序を推定コストで決める。st が nil なら規則）。
+func TranslateWith(q *ast.Query, st *stats.Stats) (Node, error) {
 	b := &builder{
+		st:    st,
+		est:   1,
 		q:     q,
 		scope: map[string]varInfo{},
 		avail: map[string]bool{},
@@ -76,6 +83,8 @@ type builder struct {
 	avail     map[string]bool // 行に既にある列（値列・パス列）
 	paths     map[string]pathDef
 	bound     map[string]bool // 束縛済みの変数（ノード・関係・区間・値）
+	st        *stats.Stats    // 統計（nil なら規則で決める）
+	est       float64         // 現在の計画の推定行数（統計を使うときだけ意味を持つ）
 }
 
 // ================================
@@ -561,14 +570,28 @@ func (b *builder) match(m *ast.MatchClause) error {
 		for _, v := range comp {
 			inComp[v] = true
 		}
-		if groups := b.anchorGroups(comp, vertices, bound, pending); settings.SplitAnchoredPatterns && len(groups) >= 2 {
+		groups := b.anchorGroups(comp, vertices, bound, pending)
+		split := settings.SplitAnchoredPatterns && len(groups) >= 2
+		var start string
+		if b.st != nil {
+			cp := b.planComp(g, comp, groups, inComp, bound, pending, split)
+			split, start = cp.split, cp.start
+			if !bound[cp.start] && !cp.split || cp.split && !bound[groups[0][0]] {
+				b.est *= cp.rows // 新しい成分は前の行との直積
+			} else {
+				b.est = cp.rows
+			}
+		}
+		if split {
 			pending, err = b.buildSplit(g, comp, groups, inComp, bound, pending)
 			if err != nil {
 				return err
 			}
 			continue
 		}
-		start := b.chooseStart(comp, vertices, bound, pending)
+		if start == "" {
+			start = b.chooseStart(comp, vertices, bound, pending)
+		}
 		fresh := !bound[start]
 		var sub Node
 		compBound := map[string]bool{}
@@ -631,7 +654,12 @@ func (b *builder) grow(g *growCtx, sub Node, compBound map[string]bool, pending 
 	}
 	done := map[int]bool{}
 	for {
-		e := nextEdge(g.edges, allowed, compBound, done)
+		var e *patEdge
+		if b.st != nil {
+			e = b.pickEdge(g, allowed, compBound, done, pending)
+		} else {
+			e = nextEdge(g.edges, allowed, compBound, done)
+		}
 		if e == nil {
 			break
 		}
@@ -710,43 +738,7 @@ func (b *builder) uniqueAnchor(v string, pending []ast.Expr) bool {
 // 振り分け、辺は両端の組の大きい方の側が展開する。各側を起点から伸ばし、両側で束縛される頂点をキーに
 // NodeHashJoin で合流する（束縛済みの組の側は前の計画の上に伸ばす）。
 func (b *builder) buildSplit(g *growCtx, comp []string, groups [][]string, inComp map[string]bool, bound map[string]bool, pending []ast.Expr) ([]ast.Expr, error) {
-	region := map[string]int{}
-	var queue []string
-	for gi, grp := range groups {
-		for _, v := range grp {
-			region[v] = gi
-			queue = append(queue, v)
-		}
-	}
-	for len(queue) > 0 {
-		v := queue[0]
-		queue = queue[1:]
-		for _, e := range g.edges {
-			if !inComp[e.left] {
-				continue
-			}
-			var w string
-			switch v {
-			case e.left:
-				w = e.right
-			case e.right:
-				w = e.left
-			default:
-				continue
-			}
-			if _, ok := region[w]; !ok {
-				region[w] = region[v]
-				queue = append(queue, w)
-			}
-		}
-	}
-	// 組をまたぐ辺は後の組の側が展開する（同距離の頂点は先の組に入るので、後の組がそこまで伸びて中央で合流する）。
-	side := func(e *patEdge) int {
-		if region[e.left] > region[e.right] {
-			return region[e.left]
-		}
-		return region[e.right]
-	}
+	side := b.splitSide(g, groups, inComp)
 
 	var acc Node
 	accBound := map[string]bool{}
@@ -796,6 +788,50 @@ func (b *builder) buildSplit(g *growCtx, comp []string, groups [][]string, inCom
 	return pending, err
 }
 
+// splitSide は分割したときに各辺を展開する組を返す。頂点を最寄りの起点の組へ（多始点の幅優先・同距離なら
+// 先の組）振り分ける。
+func (b *builder) splitSide(g *growCtx, groups [][]string, inComp map[string]bool) func(*patEdge) int {
+	region := map[string]int{}
+	var queue []string
+	for gi, grp := range groups {
+		for _, v := range grp {
+			region[v] = gi
+			queue = append(queue, v)
+		}
+	}
+	for len(queue) > 0 {
+		v := queue[0]
+		queue = queue[1:]
+		for _, e := range g.edges {
+			if !inComp[e.left] {
+				continue
+			}
+			var w string
+			switch v {
+			case e.left:
+				w = e.right
+			case e.right:
+				w = e.left
+			default:
+				continue
+			}
+			if _, ok := region[w]; !ok {
+				region[w] = region[v]
+				queue = append(queue, w)
+			}
+		}
+	}
+	// 組をまたぐ辺は後の組の側が展開する（同距離の頂点は先の組に入るので、後の組がそこまで伸びて中央で合流する）。
+	side := func(e *patEdge) int {
+		if region[e.left] > region[e.right] {
+			return region[e.left]
+		}
+		return region[e.right]
+	}
+
+	return side
+}
+
 // optionalMatch は OPTIONAL MATCH を左外部 apply（Optional）にする。パターンと WHERE は、外側の行が持つ
 // 束縛済みの識別列（Keys）だけを受け取る Argument の上に、通常の MATCH と同じ規則で組む（WHERE は一致の条件）。
 func (b *builder) optionalMatch(m *ast.MatchClause) error {
@@ -840,8 +876,9 @@ func (b *builder) optionalMatch(m *ast.MatchClause) error {
 		}
 	}
 
-	outer, outerBound, outerAvail := b.plan, b.bound, b.avail
+	outer, outerBound, outerAvail, outerEst := b.plan, b.bound, b.avail, b.est
 	b.plan = &Argument{Cols: keys}
+	b.est = 1 // 内側は外側の 1 行ごとに組む
 	b.bound = map[string]bool{}
 	for _, k := range keys {
 		b.bound[k] = true
@@ -861,6 +898,7 @@ func (b *builder) optionalMatch(m *ast.MatchClause) error {
 		}
 	}
 	b.plan = &Optional{Outer: outer, Inner: inner, Keys: keys, New: newVars}
+	b.est = outerEst // 左外部結合は外側の行を減らさない（増えた分は見積もらない）
 	b.bound, b.avail = outerBound, outerAvail
 	for k := range innerBound {
 		b.bound[k] = true
@@ -887,6 +925,7 @@ func (b *builder) unwind(u *ast.UnwindClause) error {
 		return err
 	}
 	b.plan = &Unwind{Input: b.plan, List: e, Var: u.Var}
+	b.est *= unwindFanout
 	info := varInfo{kind: VarValue}
 	if v, ok := u.Expr.(*ast.VarRef); ok && b.scope[v.Name].elem != nil {
 		info = *b.scope[v.Name].elem
@@ -1452,6 +1491,9 @@ func (b *builder) project(c *ast.ProjectionClause) error {
 			agg.Keys = append(agg.Keys, ProjItem{Name: it.Name, Expr: v})
 		}
 		b.plan = agg
+		if len(agg.Keys) == 0 {
+			b.est = 1
+		}
 		// 集約の出力は keys → aggs の順。項目順と違えば最後に並べ替える。
 		natural := make([]string, 0, len(c.Items))
 		for _, k := range agg.Keys {
@@ -1520,6 +1562,7 @@ func (b *builder) project(c *ast.ProjectionClause) error {
 		}
 		if c.Limit != nil {
 			l.Count = *c.Limit
+			b.est = math.Min(b.est, float64(*c.Limit))
 		}
 		b.plan = l
 	}

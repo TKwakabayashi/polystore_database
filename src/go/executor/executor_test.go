@@ -231,6 +231,7 @@ func cloneMD(t *testing.T, md *schema.MappingDictionary) *schema.MappingDictiona
 	if err := json.Unmarshal(b, &out); err != nil {
 		t.Fatal(err)
 	}
+	out.Stats = md.Stats
 	return &out
 }
 
@@ -430,6 +431,28 @@ func TestHandCheckedResults(t *testing.T) {
 		sort.Strings(c.want)
 		if strings.Join(got, "|") != strings.Join(c.want, "|") {
 			t.Errorf("%s\n got: %v\nwant: %v", c.q, got, c.want)
+		}
+	}
+}
+
+// 統計で起点・分割・辺の順序を決めた計画（settings.CostBasedPlanning）と、規則の計画が同じ結果を返す。
+func TestCostBasedEquivalence(t *testing.T) {
+	g := socialGraph()
+	pls := placementsFor(t)
+	if pls["graph"].Stats == nil {
+		t.Skip("catalog/stats.json が無い")
+	}
+	prev := settings.CostBasedPlanning
+	defer func() { settings.CostBasedPlanning = prev }()
+	for _, c := range equivalenceQueries {
+		for pname, md := range pls {
+			settings.CostBasedPlanning = false
+			rule := canon(runMem(t, g, md, c.q))
+			settings.CostBasedPlanning = true
+			cost := canon(runMem(t, g, md, c.q))
+			if strings.Join(rule, "\n") != strings.Join(cost, "\n") {
+				t.Errorf("%s/%s: cost-based differs\n--- rule ---\n%s\n--- cost ---\n%s", c.name, pname, strings.Join(rule, "\n"), strings.Join(cost, "\n"))
+			}
 		}
 	}
 }

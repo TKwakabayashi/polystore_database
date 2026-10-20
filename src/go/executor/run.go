@@ -20,6 +20,7 @@ import (
 	"polystore_database/src/go/result"
 	"polystore_database/src/go/schema"
 	"polystore_database/src/go/settings"
+	"polystore_database/src/go/stats"
 	"polystore_database/src/go/store"
 )
 
@@ -637,7 +638,11 @@ func Plan(cypher string, params map[string]string, md *schema.MappingDictionary)
 	if err != nil {
 		return nil, nil, err
 	}
-	l, err := logical.Translate(a)
+	var st *stats.Stats
+	if settings.CostBasedPlanning && md != nil {
+		st = md.Stats
+	}
+	l, err := logical.TranslateWith(a, st)
 	if err != nil {
 		return nil, nil, err
 	}

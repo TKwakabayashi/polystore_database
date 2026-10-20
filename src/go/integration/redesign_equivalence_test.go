@@ -259,6 +259,7 @@ func placeMapping(t *testing.T, base *schema.MappingDictionary, target string, m
 	if err := json.Unmarshal(b, &md); err != nil {
 		t.Fatal(err)
 	}
+	md.Stats = base.Stats
 	moved := 0
 	for _, m := range migs {
 		for _, p := range m.Properties {
