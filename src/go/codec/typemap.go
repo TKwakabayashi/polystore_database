@@ -5,18 +5,21 @@ import (
 	"strings"
 )
 
+// SQLTextCollation は文字列の列の照合順序。Cypher と同じくコードポイント順で、大文字小文字・アクセントを区別する
+// （MySQL の既定 utf8mb4_0900_ai_ci だと DISTINCT / GROUP BY / = / ORDER BY で "Müller" と "Muller" が同じになる）。
+const SQLTextCollation = "utf8mb4_bin"
+
 func MapToSQLType(t string) string {
 	switch t {
 	case "string":
-		// 255文字を超える可能性がある場合は TEXT 型を検討してください
-		return "TEXT"
+		return "TEXT COLLATE " + SQLTextCollation
 	case "int":
 		return "INT"
 	case "long":
 		return "BIGINT"
 	case "datetime":
-		// ISO 8601（時刻あり）に対応
-		return "DATETIME"
+		// ISO 8601（時刻あり）。小数秒を落とさないようマイクロ秒精度で持つ（DATETIME は秒精度）。
+		return "DATETIME(6)"
 	case "date":
 		// 時刻なしの日付のみに対応
 		return "DATE"
@@ -25,7 +28,7 @@ func MapToSQLType(t string) string {
 		return "JSON"
 	default:
 		// 未知の型は安全のために文字型として扱う
-		return "TEXT"
+		return "TEXT COLLATE " + SQLTextCollation
 	}
 }
 

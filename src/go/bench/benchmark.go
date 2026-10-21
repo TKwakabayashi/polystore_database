@@ -9,17 +9,14 @@ import (
 	"strconv"
 	"time"
 
-	"polystore_database/src/go/engine/core"
 	"polystore_database/src/go/migrator"
+	"polystore_database/src/go/result"
 	"polystore_database/src/go/settings"
 	"polystore_database/src/go/storage"
 	"polystore_database/src/go/workload"
 )
 
 // placement 名 → graph からの移行モード（コピー方向）。
-// 注: kvs(LevelDB) はネイティブ集約が無いため pushdown は常にコーディネータへフォールバックする
-//
-//	（auto≈engine）。結果は正しく得られる。
 var placementToMode = map[string]migrator.MigrationMode{
 	"rdb": migrator.ModeGraphToRdb,
 	"doc": migrator.ModeGraphToDoc,
@@ -27,11 +24,9 @@ var placementToMode = map[string]migrator.MigrationMode{
 	"kvs": migrator.ModeGraphToKvs,
 }
 
-// pushdown モード名 → settings.PushdownMode。
-var pushdownModeMap = map[string]settings.PushdownMode{
-	"auto":   settings.PushdownAuto,
-	"engine": settings.PushdownForceEngine,
-}
+// pushdownLabel は CSV の pushdown 列に入れる値。刷新版の処理系は同一ストアの演算子を常に統合する
+// （旧エンジンの pushdown on/off の切り替えは無い）ので 1 種類だけ。列は既存の CSV と形式を揃えるために残す。
+const pushdownLabel = "fused"
 
 // wide 表のカラム順（各配置での自作システムのレイテンシ）。
 var placementOrder = []string{"graph", "rdb", "doc", "col", "kvs"}
@@ -41,7 +36,7 @@ type latKey struct{ pd, place string }
 
 // RunBenchmark は各ワークロードについて次を計測し、ワイド表形式の CSV へ追記する。
 //   - baseline: Neo4j へ直接クエリを発行した場合（graph 状態）
-//   - custom  : データ配置(placement) × pushdown 方針を変えた自作システム
+//   - custom  : データ配置(placement) を変えた自作システム（刷新版の処理系）
 //
 // 出力は「1行 = (workload, pushdown)、列 = neo4j直 + 各配置(graph/rdb/doc/col/kvs)」の
 // ワイド表で、ワークロードごとに書き出す（中断しても完了済みワークロードは残る）。
@@ -50,17 +45,14 @@ type latKey struct{ pd, place string }
 // mapping を更新してから計測する。計測後は mapping を graph へ戻す（データは graph に保持）。
 // 実験終了時（異常時含む）は必ず mapping を graph 状態へ復元する＝最終的に Neo4j へ戻す。
 func RunBenchmark(ctx context.Context, cfg storage.Config, workloads []string, outPath string) error {
-	// 配置・pushdown のスイープ軸は settings から取得（旧 -placements/-pushdowns フラグ）。
+	// 配置のスイープ軸は settings から取得（旧 -placements フラグ）。
 	placements := settings.BenchPlacements
-	pushdowns := settings.BenchPushdowns
+	pushdowns := []string{pushdownLabel}
 
 	// pprof の block/mutex 記録は計測を歪めるため、bench 中は engine スコープを無効化。
 	prevProfile := settings.ProfileScopes[settings.ScopeEngine]
 	settings.ProfileScopes[settings.ScopeEngine] = false
 	defer func() { settings.ProfileScopes[settings.ScopeEngine] = prevProfile }()
-
-	prevPushdown := settings.Pushdown
-	defer func() { settings.Pushdown = prevPushdown }()
 
 	// mapping スナップショット（graph 状態）。各 placement 後と実験終了時に復元する。
 	snapshot, err := os.ReadFile(cfg.MappingPath)
@@ -127,12 +119,6 @@ func RunBenchmark(ctx context.Context, cfg storage.Config, workloads []string, o
 			}
 
 			for _, pd := range pushdowns {
-				pm, ok := pushdownModeMap[pd]
-				if !ok {
-					fmt.Printf("[%s] 未知の pushdown %q（auto/engine）\n", name, pd)
-					continue
-				}
-				settings.Pushdown = pm
 				r, err := RunEngine(ctx, cfg, settings.Engine, cypher, params)
 				if err != nil {
 					fmt.Printf("[%s|%s|%s] custom エラー: %v\n", name, place, pd, err)
@@ -193,7 +179,7 @@ func openBenchCSV(path string) (*csv.Writer, func(), error) {
 }
 
 // toMs は ExecResult の平均レイテンシをミリ秒(float)に変換する。
-func toMs(r core.Result) float64 { return float64(r.TotalLatency().Microseconds()) / 1000.0 }
+func toMs(r result.Result) float64 { return float64(r.TotalLatency().Microseconds()) / 1000.0 }
 
 // msCell は計測ありなら "%.3f"、無ければ空文字（欠測）を返す。
 func msCell(ok bool, ms float64) string {

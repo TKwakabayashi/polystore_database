@@ -1,0 +1,221 @@
+### AGG1
+MATCH (p:Person {id: 15393162799448})<-[_r0:HAS_CREATOR]-(m:Message)<-[_r1:REPLY_OF]-(comment:Comment)-[_r2:HAS_CREATOR]->(author:Person)
+RETURN author.id AS author.id, author.firstName AS author.firstName, author.lastName AS author.lastName, count(comment) AS replyCount
+  ORDER BY replyCount DESC, author.id ASC
+  LIMIT 20
+
+### AGG2
+MATCH (p:Person {id: 15393162799448})-[_r0:KNOWS]-(friend:Person)<-[_r1:HAS_CREATOR]-(m:Message)
+RETURN friend.id AS friend.id, friend.firstName AS friend.firstName, count(m) AS msgCount, avg(m.length) AS avgLen, max(m.length) AS maxLen
+  ORDER BY msgCount DESC, friend.id ASC
+  LIMIT 20
+
+### AGG3
+MATCH (p:Person {id: 15393162799448})-[_r0:KNOWS]-(friend:Person)<-[_r1:HAS_CREATOR]-(m:Message)
+RETURN count(*) AS total, count(DISTINCT friend.id) AS friends, sum(m.length) AS totLen, avg(m.length) AS avgLen, min(m.length) AS minLen, max(m.length) AS maxLen
+
+### AGG4
+MATCH (p:Person {id: 15393162799448})<-[_r0:HAS_CREATOR]-(m:Message)
+  WHERE ((m.length >= 50) AND (m.length <= 200))
+RETURN m.id AS m.id, m.length AS m.length
+  ORDER BY m.length DESC, m.id ASC
+  LIMIT 20
+
+### AGG5
+MATCH (o:Organisation)
+  WHERE ((o.id >= 100) AND (o.id <= 5000))
+RETURN count(*) AS cnt, min(o.id) AS mn, max(o.id) AS mx, sum(o.id) AS sm, avg(o.id) AS av
+
+### AGG6
+MATCH (o:Organisation)
+RETURN o.type AS o.type, count(*) AS cnt, min(o.id) AS mn, max(o.id) AS mx
+  ORDER BY cnt DESC
+
+### BI11
+UNSUPPORTED
+
+### BI12
+MATCH (person:Person)
+OPTIONAL MATCH (person)<-[_r0:HAS_CREATOR]-(message:Message)-[_r1:REPLY_OF*0..]->(post:Post)
+  WHERE ((((message.content IS NOT NULL) AND (message.length < 20)) AND (message.creationDate > "2010-07-22T00:00:00.000Z")) AND (post.language IN ["ar", "hu"]))
+WITH person AS person, count(message) AS messageCount
+RETURN messageCount AS messageCount, count(person) AS personCount
+  ORDER BY personCount DESC, messageCount DESC
+
+### BI14
+UNSUPPORTED
+
+### BI18
+UNSUPPORTED
+
+### BI3
+MATCH (country:Place {type: "Country", name: "Germany"})<-[_r0:IS_PART_OF]-(city:Place)<-[_r1:IS_LOCATED_IN]-(person:Person)<-[_r2:HAS_MODERATOR]-(forum:Forum)-[_r3:CONTAINER_OF]->(post:Post)<-[_r4:REPLY_OF*0..]-(message:Message)-[_r5:HAS_TAG]->(tag:Tag)-[_r6:HAS_TYPE]->(tagclass:TagClass {name: "MusicalArtist"})
+RETURN forum.id AS forum.id, forum.title AS forum.title, forum.creationDate AS forum.creationDate, person.id AS person.id, count(DISTINCT message.id) AS messageCount
+  ORDER BY messageCount DESC, forum.id ASC
+  LIMIT 20
+
+### BI5
+MATCH (tag:Tag {name: "Abbas_I_of_Persia"})<-[_r0:HAS_TAG]-(message:Message)-[_r1:HAS_CREATOR]->(person:Person)
+OPTIONAL MATCH (message)<-[likes:LIKES]-(_n0:Person)
+WITH person AS person, message AS message, count(likes) AS likeCount
+OPTIONAL MATCH (message)<-[_r2:REPLY_OF]-(reply:Comment)
+WITH person AS person, message AS message, likeCount AS likeCount, count(reply) AS replyCount
+WITH person AS person, count(message) AS messageCount, sum(likeCount) AS likeCount, sum(replyCount) AS replyCount
+RETURN person.id AS person.id, replyCount AS replyCount, likeCount AS likeCount, messageCount AS messageCount, (((1 * messageCount) + (2 * replyCount)) + (10 * likeCount)) AS score
+  ORDER BY score DESC, person.id ASC
+  LIMIT 100
+
+### BI6
+MATCH (tag:Tag {name: "Arnold_Schwarzenegger"})<-[_r0:HAS_TAG]-(message1:Message)-[_r1:HAS_CREATOR]->(person1:Person)
+OPTIONAL MATCH (message1)<-[_r2:LIKES]-(person2:Person)
+OPTIONAL MATCH (person2)<-[_r3:HAS_CREATOR]-(message2:Message)<-[like:LIKES]-(person3:Person)
+RETURN person1.id AS person1.id, count(DISTINCT like) AS authorityScore
+  ORDER BY authorityScore DESC, person1.id ASC
+  LIMIT 100
+
+### BI7
+UNSUPPORTED
+
+### BI8
+UNSUPPORTED
+
+### BI9
+MATCH (person:Person)<-[_r0:HAS_CREATOR]-(post:Post)<-[_r1:REPLY_OF*0..]-(reply:Message)
+  WHERE ((((post.creationDate >= "2010-01-01T00:00:00.000Z") AND (post.creationDate <= "2013-01-01T00:00:00.000Z")) AND (reply.creationDate >= "2010-01-01T00:00:00.000Z")) AND (reply.creationDate <= "2013-01-01T00:00:00.000Z"))
+RETURN person.id AS person.id, person.firstName AS person.firstName, person.lastName AS person.lastName, count(DISTINCT post.id) AS threadCount, count(DISTINCT reply.id) AS messageCount
+  ORDER BY messageCount DESC, person.id ASC
+  LIMIT 100
+
+### IC1
+UNSUPPORTED
+
+### IC12
+MATCH (tag:Tag)-[_r0:HAS_TYPE|IS_SUBCLASS_OF*0..]->(baseTagClass:TagClass)
+  WHERE ((tag.name = "Monarch") OR (baseTagClass.name = "Monarch"))
+WITH collect(tag.id) AS tags
+MATCH (_n0:Person {id: 15393162799448})-[_r1:KNOWS]-(friend:Person)<-[_r2:HAS_CREATOR]-(comment:Comment)-[_r3:REPLY_OF]->(_n1:Post)-[_r4:HAS_TAG]->(tag:Tag)
+  WHERE (tag.id IN tags)
+RETURN friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName, collect(DISTINCT tag.name) AS tagNames, count(DISTINCT comment) AS replyCount
+  ORDER BY replyCount DESC, tointeger(personId) ASC
+  LIMIT 20
+
+### IC3
+UNSUPPORTED
+
+### IC4
+UNSUPPORTED
+
+### IC6
+MATCH (knownTag:Tag {name: "Genghis_Khan"})
+WITH knownTag.id AS knownTagId
+MATCH (person:Person {id: 15393162799448})-[_r0:KNOWS*1..2]-(friend)
+  WHERE NOT((person = friend))
+WITH knownTagId AS knownTagId, collect(DISTINCT friend) AS friends
+UNWIND friends AS f
+MATCH (f)<-[_r1:HAS_CREATOR]-(post:Post), (post)-[_r2:HAS_TAG]->(t:Tag {id: knownTagId}), (post)-[_r3:HAS_TAG]->(tag:Tag)
+  WHERE NOT((t = tag))
+WITH tag.name AS tagName, count(post) AS postCount
+RETURN tagName AS tagName, postCount AS postCount
+  ORDER BY postCount DESC, tagName ASC
+  LIMIT 10
+
+### INLIST
+MATCH (o:Organisation)
+  WHERE (o.type IN ["Company", "University"])
+RETURN o.id AS o.id, o.type AS o.type
+  ORDER BY o.id ASC
+  LIMIT 20
+
+### IS1
+MATCH (p:Person {id: 21990232558284})-[_r0:IS_LOCATED_IN]->(c:City)
+RETURN p.firstName AS p.firstName, p.lastName AS p.lastName, p.birthday AS p.birthday, p.locationIP AS p.locationIP, p.browserUsed AS p.browserUsed, c.id AS c.id, p.gender AS p.gender, p.creationDate AS p.creationDate
+
+### IS2
+MATCH (p:Person {id: 21990232558284})<-[_r0:HAS_CREATOR]-(m:Message)
+RETURN m.id AS m.id, m.content AS m.content, m.imageFile AS m.imageFile, m.creationDate AS m.creationDate, p.id AS p.id, p.firstName AS p.firstName, p.lastName AS p.lastName
+  ORDER BY m.creationDate DESC
+  LIMIT 10
+
+### IS3
+MATCH (p:Person {id: 21990232558284})-[r:KNOWS]-(friend:Person)
+RETURN friend.id AS friend.id, friend.firstName AS friend.firstName, friend.lastName AS friend.lastName, r.creationDate AS r.creationDate
+  ORDER BY r.creationDate DESC, friend.id ASC
+
+### IS4
+MATCH (m:Message {id: 1030792151051})
+RETURN m.creationDate AS m.creationDate, coalesce(m.content, m.imageFile) AS coalesce(m.content, m.imageFile)
+
+### IS5
+MATCH (m:Message {id: 1030792151051})-[_r0:HAS_CREATOR]->(p:Person)
+RETURN p.id AS p.id, p.firstName AS p.firstName, p.lastName AS p.lastName
+
+### IS6
+MATCH (m:Message {id: 1030792151051})-[_r0:REPLY_OF*0..]->(_n0:Post)<-[_r1:CONTAINER_OF]-(f:Forum)-[_r2:HAS_MODERATOR]->(mod:Person)
+RETURN f.id AS f.id, f.title AS f.title, mod.id AS mod.id, mod.firstName AS mod.firstName, mod.lastName AS mod.lastName
+
+### IS7
+MATCH (m:Message {id: 1030792151051})<-[_r0:REPLY_OF]-(c:Comment)-[_r1:HAS_CREATOR]->(p:Person)
+OPTIONAL MATCH (m)-[_r2:HAS_CREATOR]->(a:Person)-[r:KNOWS]-(p)
+RETURN c.id AS commentId, c.content AS commentContent, c.creationDate AS commentCreationDate, p.id AS replyAuthorId, p.firstName AS replyAuthorFirstName, p.lastName AS replyAuthorLastName, CASE r WHEN null THEN false ELSE true END AS replyAuthorKnowsOriginalMessageAuthor
+  ORDER BY commentCreationDate DESC, replyAuthorId ASC
+
+### ISNULL
+MATCH (p:Person {id: 15393162799448})<-[_r0:HAS_CREATOR]-(m:Message)
+  WHERE (m.content IS NOT NULL)
+RETURN m.id AS m.id, m.content AS m.content
+  ORDER BY m.id ASC
+  LIMIT 20
+
+### MULTIPAT
+MATCH (p:Person {id: 15393162799448})-[_r0:KNOWS]-(friend:Person), (friend)-[_r1:IS_LOCATED_IN]->(city:Place)
+RETURN friend.id AS friend.id, friend.firstName AS friend.firstName, city.id AS city.id
+  ORDER BY friend.id ASC
+  LIMIT 20
+
+### PATHFILT
+MATCH p = (person:Person {id: 17592186049378})-[_r0:KNOWS*1..3]-(other:Person)
+  WHERE (all(r IN relationships(p) WHERE (r.creationDate > "2010-01-01T00:00:00.000Z")) AND (length(p) <= 3))
+RETURN other.id AS other.id, other.firstName AS other.firstName
+  ORDER BY other.id ASC
+  LIMIT 20
+
+### Q11
+MATCH (p:Person {id: 15393162799448})-[_r0:KNOWS*1..3]-(friend:Person)-[work:WORK_AT]->(comp:Organisation {type: "Company"})-[_r1:IS_LOCATED_IN]->(_n0:Place {type: "Country", name: "Germany"})
+  WHERE (work.workFrom < 2008)
+RETURN friend.id AS friend.id, friend.firstName AS friend.firstName, friend.lastName AS friend.lastName, comp.name AS comp.name, work.workFrom AS work.workFrom
+  ORDER BY work.workFrom ASC, friend.id ASC, comp.name DESC
+  LIMIT 10
+
+### Q2
+MATCH (_n0:Person {id: 15393162799448})-[_r0:KNOWS]-(friend:Person)<-[_r1:HAS_CREATOR]-(m:Message)
+  WHERE (m.creationDate <= "2011-06-16T00:00:00.000Z")
+RETURN friend.id AS friend.id, friend.firstName AS friend.firstName, friend.lastName AS friend.lastName, m.id AS m.id, coalesce(m.content, m.imageFile) AS coalesce(m.content, m.imageFile), m.creationDate AS m.creationDate
+  ORDER BY m.creationDate DESC, m.id ASC
+  LIMIT 20
+
+### Q8
+MATCH (p:Person {id: 15393162799448})<-[_r0:HAS_CREATOR]-(m:Message)<-[_r1:REPLY_OF]-(comment:Comment)-[_r2:HAS_CREATOR]->(author:Person)
+RETURN author.id AS author.id, author.firstName AS author.firstName, author.lastName AS author.lastName, comment.creationDate AS comment.creationDate, comment.id AS comment.id, comment.content AS comment.content
+  ORDER BY comment.creationDate DESC, comment.id ASC
+  LIMIT 20
+
+### Q9
+MATCH (p:Person {id: 17592186049378})-[_r0:KNOWS*1..2]-(other:Person)<-[_r1:HAS_CREATOR]-(m:Message)
+  WHERE (m.creationDate < "2011-06-16T00:00:00.000Z")
+RETURN other.id AS other.id, other.firstName AS other.firstName, other.lastName AS other.lastName, m.id AS m.id, coalesce(m.content, m.imageFile) AS coalesce(m.content, m.imageFile), m.creationDate AS m.creationDate
+  ORDER BY m.creationDate DESC, m.id ASC
+  LIMIT 20
+
+### TP1
+MATCH (p:Person {id: 15393162799448})<-[_r0:HAS_CREATOR]-(m:Message)<-[_r1:REPLY_OF]-(comment:Comment)-[_r2:HAS_CREATOR]->(author:Person)
+RETURN author.firstName AS author.firstName, author.lastName AS author.lastName, count(comment) AS replyCount
+  ORDER BY replyCount DESC, author.lastName ASC
+  LIMIT 20
+
+### VARCMP
+MATCH (a:Person {id: 15393162799448})-[_r0:KNOWS]-(b:Person)
+  WHERE (a.id < b.id)
+RETURN a.id AS a.id, b.id AS b.id, b.firstName AS b.firstName
+  ORDER BY b.id ASC
+  LIMIT 20
+

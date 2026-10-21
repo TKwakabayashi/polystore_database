@@ -1,0 +1,287 @@
+### all_graph_single_query
+MATCH (p:Person {id: $x})-[:KNOWS]->(f:Person) WHERE f.gender = 'male' RETURN f.firstName, f.id
+StoreQuery[graph] out=(f.firstName, f.id)
+  : Projection[f.firstName, f.id]
+  :   GetProperty(f.id) [node:Person]
+  :     GetProperty(f.firstName) [node:Person]
+  :       Filter((f.gender = "male"))
+  :         GetProperty(f.gender) [node:Person]
+  :           Expand((p)-[_r0:KNOWS]->(f:Person))
+  :             Filter((p.id = 1))
+  :               GetProperty(p.id) [node:Person]
+  :                 EntityScan(p:Person)
+
+### three_stores_chain
+MATCH (p:Person {id: $x})-[:KNOWS]->(f:Person) WHERE f.gender = 'male' RETURN f.firstName, f.id
+Coord Projection[f.firstName, f.id]
+  Fetch[graph] in=(f) out=(f, f.id)
+    : GetProperty(f.id) [node:Person]
+    :   Argument(f)
+    Fetch[relational] in=(f) out=(f, f.firstName)
+      : GetProperty(f.firstName) [node:Person]
+      :   Argument(f)
+      StoreQuery[document] in=(f) out=(f)
+        : Filter((f.gender = "male"))
+        :   GetProperty(f.gender) [node:Person]
+        :     Argument(f)
+        StoreQuery[graph] out=(f)
+          : Expand((p)-[_r0:KNOWS]->(f:Person))
+          :   Filter((p.id = 1))
+          :     GetProperty(p.id) [node:Person]
+          :       EntityScan(p:Person)
+
+### sort_limit_then_fetch
+MATCH (p:Person {id: $x})-[:KNOWS]->(f:Person) RETURN f.firstName ORDER BY f.id ASC LIMIT 10
+Coord Projection[f.firstName]
+  Fetch[relational] in=(f) out=(f, f.firstName)
+    : GetProperty(f.firstName) [node:Person]
+    :   Argument(f)
+    StoreQuery[graph] out=(f)
+      : Limit[10]
+      :   Sort[_sort0 ASC]
+      :     Projection[f.id AS _sort0, f]
+      :       GetProperty(f.id) [node:Person]
+      :         Expand((p)-[_r0:KNOWS]->(f:Person))
+      :           Filter((p.id = 1))
+      :             GetProperty(p.id) [node:Person]
+      :               EntityScan(p:Person)
+
+### scan_in_document
+MATCH (p:Person) WHERE p.gender = 'male' MATCH (p)-[:KNOWS]->(f:Person) RETURN f.id
+Coord Projection[f.id]
+  StoreQuery[graph] in=(p) out=(p, f.id)
+    : GetProperty(f.id) [node:Person]
+    :   Expand((p)-[_r0:KNOWS]->(f:Person))
+    :     Argument(p)
+    StoreQuery[document] out=(p)
+      : Filter((p.gender = "male"))
+      :   GetProperty(p.gender) [node:Person]
+      :     EntityScan(p:Person)
+
+### aggregate_single_store
+MATCH (p:Person) WHERE p.gender = 'male' RETURN p.gender, count(*) AS cnt
+StoreQuery[document] out=(p.gender, cnt)
+  : Aggregation[keys: p.gender | count(*) AS cnt]
+  :   Filter((p.gender = "male"))
+  :     GetProperty(p.gender) [node:Person]
+  :       EntityScan(p:Person)
+
+### aggregate_after_traversal
+MATCH (p:Person {id: $x})-[:KNOWS]->(f:Person) RETURN f.gender, count(*) AS cnt ORDER BY cnt DESC LIMIT 5
+Coord Limit[5]
+  Coord Sort[cnt DESC]
+    Coord Aggregation[keys: f.gender | count(*) AS cnt]
+      Fetch[document] in=(f) out=(f, f.gender)
+        : GetProperty(f.gender) [node:Person]
+        :   Argument(f)
+        StoreQuery[graph] out=(f)
+          : Expand((p)-[_r0:KNOWS]->(f:Person))
+          :   Filter((p.id = 1))
+          :     GetProperty(p.id) [node:Person]
+          :       EntityScan(p:Person)
+
+### columnar_is_null_at_coordinator
+MATCH (p:Person {id: $x})-[:KNOWS]->(f:Person) WHERE f.birthday IS NULL RETURN f.id
+Coord Projection[f.id]
+  Fetch[graph] in=(f) out=(f, f.id)
+    : GetProperty(f.id) [node:Person]
+    :   Argument(f)
+    Coord Filter((f.birthday IS NULL))
+      Fetch[columnar] in=(f) out=(f, f.birthday)
+        : GetProperty(f.birthday) [node:Person]
+        :   Argument(f)
+        StoreQuery[graph] out=(f)
+          : Expand((p)-[_r0:KNOWS]->(f:Person))
+          :   Filter((p.id = 1))
+          :     GetProperty(p.id) [node:Person]
+          :       EntityScan(p:Person)
+
+### cross_store_predicate
+MATCH (a:Person {id: $x})-[:KNOWS]-(b:Person) WHERE a.firstName = b.gender RETURN b.id
+Coord Projection[b.id]
+  Fetch[graph] in=(b) out=(b, b.id)
+    : GetProperty(b.id) [node:Person]
+    :   Argument(b)
+    Coord Filter((a.firstName = b.gender))
+      Fetch[document] in=(b) out=(b, b.gender)
+        : GetProperty(b.gender) [node:Person]
+        :   Argument(b)
+        Fetch[relational] in=(a) out=(a, a.firstName)
+          : GetProperty(a.firstName) [node:Person]
+          :   Argument(a)
+          StoreQuery[graph] out=(a, b)
+            : Expand((a)-[_r0:KNOWS]-(b:Person))
+            :   Filter((a.id = 1))
+            :     GetProperty(a.id) [node:Person]
+            :       EntityScan(a:Person)
+
+### cycle_all_graph
+MATCH (a:Person {id: $x})-[:KNOWS]->(b:Person)-[:KNOWS]->(c:Person)-[:KNOWS]->(a) RETURN b.id, c.id
+StoreQuery[graph] out=(b.id, c.id)
+  : Projection[b.id, c.id]
+  :   GetProperty(c.id) [node:Person]
+  :     GetProperty(b.id) [node:Person]
+  :       RelUniqueFilter[_r0, _r1, _r2]
+  :         ExpandInto((c)-[_r2:KNOWS]->(a))
+  :           Expand((b)-[_r1:KNOWS]->(c:Person))
+  :             Expand((a)-[_r0:KNOWS]->(b:Person))
+  :               Filter((a.id = 1))
+  :                 GetProperty(a.id) [node:Person]
+  :                   EntityScan(a:Person)
+
+### split_graph
+MATCH (a:Person {id: 1})-[:KNOWS]-(x:Person)-[:KNOWS]-(b:Person {id: 2}) RETURN x.firstName
+StoreQuery[graph] out=(x.firstName)
+  : Projection[x.firstName]
+  :   GetProperty(x.firstName) [node:Person]
+  :     RelUniqueFilter[_r0, _r1]
+  :       NodeHashJoin[x]
+  :         Expand((a)-[_r0:KNOWS]-(x:Person))
+  :           Filter((a.id = 1))
+  :             GetProperty(a.id) [node:Person]
+  :               EntityScan(a:Person)
+  :         Expand((b)-[_r1:KNOWS]-(x:Person))
+  :           Filter((b.id = 2))
+  :             GetProperty(b.id) [node:Person]
+  :               EntityScan(b:Person)
+
+### split_mixed
+MATCH (a:Person {id: 1})-[:KNOWS]-(x:Person)-[:KNOWS]-(b:Person {id: 2}) RETURN x.firstName
+Coord Projection[x.firstName]
+  Fetch[relational] in=(x) out=(x, x.firstName)
+    : GetProperty(x.firstName) [node:Person]
+    :   Argument(x)
+    StoreQuery[graph] out=(x)
+      : RelUniqueFilter[_r0, _r1]
+      :   NodeHashJoin[x]
+      :     Expand((a)-[_r0:KNOWS]-(x:Person))
+      :       Filter((a.id = 1))
+      :         GetProperty(a.id) [node:Person]
+      :           EntityScan(a:Person)
+      :     Expand((b)-[_r1:KNOWS]-(x:Person))
+      :       Filter((b.id = 2))
+      :         GetProperty(b.id) [node:Person]
+      :           EntityScan(b:Person)
+
+### varlen_between_bound_graph
+MATCH (a:Person {id: 1})-[:KNOWS]->(b:Person), (a)-[:KNOWS*1..2]-(b) RETURN b.id
+StoreQuery[graph] out=(b.id)
+  : Projection[b.id]
+  :   GetProperty(b.id) [node:Person]
+  :     RelUniqueFilter[_r0, _seg__r1]
+  :       Filter((_vl__r1 = b))
+  :         VarLengthExpand((a)-[_r1:KNOWS*1..2]-(_vl__r1:Person))
+  :           Expand((a)-[_r0:KNOWS]->(b:Person))
+  :             Filter((a.id = 1))
+  :               GetProperty(a.id) [node:Person]
+  :                 EntityScan(a:Person)
+
+### cartesian_graph
+MATCH (a:Person {id: $x}), (t:Tag {name: 'x'}) RETURN a.id, t.id
+StoreQuery[graph] out=(a.id, t.id)
+  : Projection[a.id, t.id]
+  :   GetProperty(t.id) [node:Tag]
+  :     NodeHashJoin[cartesian]
+  :       Filter((a.id = 1))
+  :         GetProperty(a.id) [node:Person]
+  :           EntityScan(a:Person)
+  :       Filter((t.name = "x"))
+  :         GetProperty(t.name) [node:Tag]
+  :           EntityScan(t:Tag)
+
+### cartesian_mixed
+MATCH (a:Person {id: $x}), (t:Tag {name: 'x'}) RETURN a.firstName, t.id
+Coord Projection[a.firstName, t.id]
+  Fetch[graph] in=(t) out=(t, t.id)
+    : GetProperty(t.id) [node:Tag]
+    :   Argument(t)
+    Fetch[relational] in=(a) out=(a, a.firstName)
+      : GetProperty(a.firstName) [node:Person]
+      :   Argument(a)
+      StoreQuery[graph] out=(a, t)
+        : NodeHashJoin[cartesian]
+        :   Filter((a.id = 1))
+        :     GetProperty(a.id) [node:Person]
+        :       EntityScan(a:Person)
+        :   Filter((t.name = "x"))
+        :     GetProperty(t.name) [node:Tag]
+        :       EntityScan(t:Tag)
+
+### path_preds_graph
+MATCH p=(a:Person {id: $x})-[:KNOWS]->(b:Person)-[:KNOWS*1..3]-(c:Person) WHERE all(n IN nodes(p) WHERE n.gender = 'male') AND length(p) <= 3 RETURN c.id
+StoreQuery[graph] out=(c.id)
+  : Projection[c.id]
+  :   GetProperty(c.id) [node:Person]
+  :     RelUniqueFilter[_r0, _seg__r1]
+  :       Filter((c.gender = "male"))
+  :         GetProperty(c.gender) [node:Person]
+  :           VarLengthExpand((b)-[_r1:KNOWS*1..2]-(c:Person)) seg[all(n IN nodes WHERE (n.gender = "male"))]
+  :             Filter((b.gender = "male"))
+  :               GetProperty(b.gender) [node:Person]
+  :                 Expand((a)-[_r0:KNOWS]->(b:Person))
+  :                   Filter((a.id = 1))
+  :                     GetProperty(a.id) [node:Person]
+  :                       Filter((a.gender = "male"))
+  :                         GetProperty(a.gender) [node:Person]
+  :                           EntityScan(a:Person)
+
+### path_preds_document
+MATCH p=(a:Person {id: $x})-[:KNOWS]->(b:Person)-[:KNOWS*1..3]-(c:Person) WHERE all(n IN nodes(p) WHERE n.gender = 'male') AND length(p) <= 3 RETURN c.id
+Coord Projection[c.id]
+  Fetch[graph] in=(c) out=(c, c.id)
+    : GetProperty(c.id) [node:Person]
+    :   Argument(c)
+    Coord RelUniqueFilter[_r0, _seg__r1]
+      StoreQuery[document] in=(c) out=(c)
+        : Filter((c.gender = "male"))
+        :   GetProperty(c.gender) [node:Person]
+        :     Argument(c)
+        Coord Filter(all(n IN nodes(_seg__r1) WHERE (n.gender = "male")))
+          ListFetch[document] _seg__r1.nodes.gender from _seg__r1 [elem:Person]
+            StoreQuery[graph] in=(b) out=(b, _seg__r1, c)
+              : VarLengthExpand((b)-[_r1:KNOWS*1..2]-(c:Person)) emit _seg__r1
+              :   Argument(b)
+              StoreQuery[document] in=(b) out=(b)
+                : Filter((b.gender = "male"))
+                :   GetProperty(b.gender) [node:Person]
+                :     Argument(b)
+                StoreQuery[graph] in=(a) out=(a, _r0, b)
+                  : Expand((a)-[_r0:KNOWS]->(b:Person))
+                  :   Filter((a.id = 1))
+                  :     GetProperty(a.id) [node:Person]
+                  :       Argument(a)
+                  StoreQuery[document] out=(a)
+                    : Filter((a.gender = "male"))
+                    :   GetProperty(a.gender) [node:Person]
+                    :     EntityScan(a:Person)
+
+### path_any_document
+MATCH p=(a:Person {id: $x})-[:KNOWS*1..2]-(c:Person) WHERE any(n IN nodes(p) WHERE n.gender = 'female') RETURN c.id
+Coord Projection[c.id]
+  Fetch[graph] in=(c) out=(c, c.id)
+    : GetProperty(c.id) [node:Person]
+    :   Argument(c)
+    Coord Filter(any(n IN nodes(p) WHERE (n.gender = "female")))
+      ListFetch[document] p.nodes.gender from p [elem:Person]
+        StoreQuery[graph] out=(c, p)
+          : ProjectPath(p = [a, _seg__r0, c])
+          :   VarLengthExpand((a)-[_r0:KNOWS*1..2]-(c:Person))
+          :     Filter((a.id = 1))
+          :       GetProperty(a.id) [node:Person]
+          :         EntityScan(a:Person)
+
+### with_stage_mixed
+MATCH (p:Person)-[:KNOWS]->(f:Person) WITH p, count(f) AS deg WHERE deg > 10 RETURN p.firstName, deg ORDER BY deg DESC LIMIT 3
+Coord Projection[p.firstName, deg]
+  Fetch[relational] in=(p) out=(p, p.firstName)
+    : GetProperty(p.firstName) [node:Person]
+    :   Argument(p)
+    StoreQuery[graph] out=(deg, p)
+      : Limit[3]
+      :   Sort[deg DESC]
+      :     Projection[deg, p]
+      :       Filter((deg > 10))
+      :         Aggregation[keys: p | count(f) AS deg]
+      :           Expand((p)-[_r0:KNOWS]->(f:Person))
+      :             EntityScan(p:Person)
+

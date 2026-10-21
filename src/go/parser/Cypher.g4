@@ -27,6 +27,9 @@ RSQUARE: ']';
 LCURLY: '{';
 RCURLY: '}';
 MINUS: '-';
+PLUS: '+';
+SLASH: '/';
+PERCENT: '%';
 SQUOTE: '\'';
 STAR: '*';
 DOUBLE_DOT: '..';
@@ -38,7 +41,7 @@ ASC: 'ASC';
 DESC: 'DESC';
 LIMIT: 'LIMIT';
 OPTIONAL: 'OPTIONAL';
-UNWIND: 'UNWIND';
+UNWIND: [uU][nN][wW][iI][nN][dD];
 FINISH: 'FINISH';
 SET: 'SET';
 
@@ -56,9 +59,14 @@ SUM: [sS][uU][mM];
 AVG: [aA][vV][gG];
 MIN: [mM][iI][nN];
 MAX: [mM][aA][xX];
+COLLECT: [cC][oO][lL][lL][eE][cC][tT];
 COALESCE: [cC][oO][aA][lL][eE][sS][cC][eE];
 
 IN: [iI][nN];
+IS: [iI][sS];
+NULL: [nN][uU][lL][lL];
+TRUE: [tT][rR][uU][eE];
+FALSE: [fF][aA][lL][sS][eE];
 
 // predicates
 ALL: [aA][lL][lL];
@@ -68,6 +76,13 @@ SINGLE: [sS][iI][nN][gG][lL][eE];
 
 // additional function
 CALL: [cC][aA][lL][lL];
+
+// CASE 式
+CASE: [cC][aA][sS][eE];
+WHEN: [wW][hH][eE][nN];
+THEN: [tT][hH][eE][nN];
+ELSE: [eE][lL][sS][eE];
+END: [eE][nN][dD];
 
 // Define last to avoid duplication
 STRING: '"' (~["\\] | '\\' .)* '"' | '\'' (~['\\] | '\\' .)* '\'';
@@ -80,8 +95,13 @@ WS: [ \t\r\n]+ -> skip;
 // parser rule
 
 cypher: statement+ EOF;
-statement: matchClause whereClause? returnClause;
-matchClause: MATCH WS* pattern;
+// statement は 1 つ以上の reading 節（MATCH[WHERE] / WITH）に続く RETURN。
+// 単段クエリ（MATCH [WHERE] RETURN）は readingClause 1 個 + returnClause として後方互換。
+statement: readingClause+ returnClause;
+readingClause: OPTIONAL? matchClause whereClause? | withClause | unwindClause;
+unwindClause: UNWIND valueExpr AS variable;
+withClause: WITH DISTINCT? returnItems orderItems? limitNum? whereClause?;
+matchClause: MATCH WS* pattern (COMMA WS* pattern)*;
 returnClause: RETURN WS* returnItems orderItems? limitNum?;
 whereClause: WHERE WS* condition;
 
@@ -98,19 +118,38 @@ relationship:
 returnItems: returnItem (COMMA returnItem)*;
 returnItem:
       aggregateFunc (AS variable)?
-    | expression (AS variable)?
+    | caseExpr (AS variable)?
+    | valueExpr (AS variable)?
     | COALESCE LPAREN expression (COMMA expression)* RPAREN (AS variable)?;
-aggregateFunc: (COUNT | SUM | AVG | MIN | MAX) LPAREN (STAR | DISTINCT? aggArg) RPAREN;
+caseExpr:
+      CASE (WHEN condition THEN caseResult)+ (ELSE caseResult)? END              #caseSearched
+    | CASE valueExpr (WHEN caseKey THEN caseResult)+ (ELSE caseResult)? END    #caseSimple;
+// 単純 CASE の比較値（Neo4j と同じく `=` で比べるので WHEN null は一致しない）。
+caseKey: value | NULL | TRUE | FALSE | expression;
+caseResult: value | NULL | TRUE | FALSE | expression;
+
+// valueExpr は RETURN 項目の汎用計算式（算術・関数呼び・list リテラル）。
+// 単純なプロパティ参照（a.b）は従来どおり材料化列として扱い、複合式のみ Expr として評価する。
+valueExpr:
+      MINUS valueExpr                                            #veNeg
+    | valueExpr op=(STAR|SLASH|PERCENT) valueExpr                #veMulDiv
+    | valueExpr op=(PLUS|MINUS) valueExpr                        #veAddSub
+    | IDENTIFIER LPAREN (valueExpr (COMMA valueExpr)*)? RPAREN   #veCall
+    | IDENTIFIER (DOT IDENTIFIER)*                               #vePropRef
+    | LSQUARE (valueExpr (COMMA valueExpr)*)? RSQUARE            #veList
+    | (STRING | NUMBER)                                          #veLit
+    | LPAREN valueExpr RPAREN                                    #veParen;
+aggregateFunc: (COUNT | SUM | AVG | MIN | MAX | COLLECT) LPAREN (STAR | DISTINCT? aggArg) RPAREN;
 aggArg: IDENTIFIER (DOT IDENTIFIER)?;
 
 orderItems: ORDER_BY orderItem (COMMA orderItem)*;
-orderItem: expression (ASC|DESC);
+orderItem: expression (ASC|DESC)?;
 limitNum: LIMIT NUMBER;
 
 labels: COLON label+;
 label: IDENTIFIER;
 properties: LCURLY property (COMMA property)* RCURLY;
-property: IDENTIFIER COLON value;
+property: IDENTIFIER COLON (value | expression);
 
 condition:
     LPAREN condition RPAREN #conditionParen
@@ -121,12 +160,24 @@ condition:
     | ANY LPAREN variable IN expression WHERE condition RPAREN    #ConditionAny
     | NONE LPAREN variable IN expression WHERE condition RPAREN   #ConditionNone
     | SINGLE LPAREN variable IN expression WHERE condition RPAREN #ConditionSingle
-    | expression EQ value # ConditionEquality 
-    | expression NEQ value # ConditionNotEquality 
+    | expression IS NULL #ConditionIsNull
+    | expression IS NOT NULL #ConditionIsNotNull
+    | expression IN list #ConditionIn
+    | expression IN expression #ConditionInExpr
+    | expression EQ value # ConditionEquality
+    | expression NEQ value # ConditionNotEquality
     | expression RANGLE value # ConditionGreater
     | expression LANGLE value # ConditionLess
     | expression GE value # ConditionGreaterEqual
-    | expression LE value # ConditionLessEqual;
+    | expression LE value # ConditionLessEqual
+    | expression EQ expression # ConditionVarEq
+    | expression NEQ expression # ConditionVarNeq
+    | expression RANGLE expression # ConditionVarGreater
+    | expression LANGLE expression # ConditionVarLess
+    | expression GE expression # ConditionVarGreaterEqual
+    | expression LE expression # ConditionVarLessEqual;
+
+list: LSQUARE value (COMMA value)* RSQUARE;
 
 
 variable: IDENTIFIER;

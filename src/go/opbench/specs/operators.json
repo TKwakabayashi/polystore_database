@@ -1,0 +1,43 @@
+{
+  "name": "operators",
+  "warmup": 1,
+  "repeat": 3,
+  "timeout": "120s",
+  "experiments": [
+    {
+      "name": "KNOWS 1 hop",
+      "op": "Expand", "label": "Person", "rel": "KNOWS", "dir": "both", "to": "Person",
+      "sweep": { "rows": [10, 100, 1000, 10000], "model": ["bulk", "stream", "vectorized"] }
+    },
+    {
+      "name": "KNOWS 1..2 hops",
+      "op": "VarLengthExpand", "label": "Person", "rel": "KNOWS", "dir": "both", "min": 1, "max": 2, "to": "Person",
+      "sweep": { "rows": [10, 100, 1000] }
+    },
+    {
+      "name": "gender = female: store vs coordinator",
+      "op": "Filter", "label": "Person", "prop": "gender", "cmp": "=", "value": "female",
+      "sweep": { "placement": ["graph", "relational", "columnar", "document", "kvs"], "at": ["store", "coordinator"], "rows": [100, 10000] }
+    },
+    {
+      "name": "scan Person where gender = female",
+      "op": "EntityScan", "label": "Person", "prop": "gender", "cmp": "=", "value": "female",
+      "sweep": { "placement": ["graph", "relational", "columnar", "document", "kvs"] }
+    },
+    {
+      "name": "count by gender: absorbed vs coordinator",
+      "op": "Aggregation", "label": "Person", "prop": "gender", "agg": "count",
+      "sweep": { "placement": ["graph", "relational", "document"], "input": ["ids", "scan"], "at": ["store", "coordinator"], "rows": [10000] }
+    },
+    {
+      "name": "sort by birthday",
+      "op": "Sort", "label": "Person", "prop": "birthday", "desc": true,
+      "sweep": { "placement": ["graph", "relational", "document"], "input": ["ids", "scan"], "at": ["store", "coordinator"], "rows": [10000] }
+    },
+    {
+      "name": "distinct lastName",
+      "op": "Distinct", "label": "Person", "prop": "lastName",
+      "sweep": { "placement": ["graph", "relational", "document"], "input": ["ids", "scan"], "at": ["store", "coordinator"], "rows": [10000] }
+    }
+  ]
+}

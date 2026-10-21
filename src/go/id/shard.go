@@ -5,18 +5,18 @@ import (
 	"math/big"
 )
 
-// ShardBounds は shardIdx/shardTotal に対応する UUID の [lo, hi) 境界を返す。
-// lo.Empty() は下限なし、hi.Empty() は上限なし。先頭バイト空間を等分するため、
-// 全シャードで UUID 空間を過不足なく分割する（順序は Compare＝Bytes() の順序に依存）。
-func ShardBounds(shardIdx, shardTotal int) (lo, hi UUID) {
+// ShardBounds は shardIdx/shardTotal に対応する、保存値（文字列表現・バイナリどちらでも）の先頭 1 バイトでの
+// [lo, hi) 境界を返す。nil は下限なし / 上限なし。先頭バイト空間を等分するので、全シャードでキー空間を
+// 過不足なく分割する（保存値のバイト順に依存。文字列表現では先頭が種別文字なので偏る）。
+func ShardBounds(shardIdx, shardTotal int) (lo, hi []byte) {
 	if shardTotal <= 1 {
-		return "", ""
+		return nil, nil
 	}
 	if shardIdx > 0 {
-		lo = UUID([]byte{byte(shardIdx * 256 / shardTotal)})
+		lo = []byte{byte(shardIdx * 256 / shardTotal)}
 	}
 	if shardIdx < shardTotal-1 {
-		hi = UUID([]byte{byte((shardIdx + 1) * 256 / shardTotal)})
+		hi = []byte{byte((shardIdx + 1) * 256 / shardTotal)}
 	}
 	return lo, hi
 }

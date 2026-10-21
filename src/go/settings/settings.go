@@ -17,22 +17,61 @@ const (
 	EngineBulk       EngineKind = "bulk"
 	EngineVolcano    EngineKind = "volcano"
 	EngineVectorized EngineKind = "vectorized"
+	EngineVecStream  EngineKind = "vecstream" // push × 列 Batch × parallel
 )
 
 var (
-	Engine     = EngineStream // ★ -mode run の実行モデル（P4 で有効化）
+	Engine     = EngineStream // ★ -mode run の実行モデル（刷新版 executor の反復モデル）
 	VectorSize = 1024         // vectorized のベクトル長
 )
 
-// ===== プランナ：集約 pushdown 方針 =====
-type PushdownMode int
+// MaterializeChunkSize は ID 材料化で 1 クエリへ載せる識別子数の希望値（0 = ストア既定を使う）。
+// 実測スイープ用の全体上書きノブ。実効値は executor の chunkSize が
+// min(この値 or ストア既定, ストアの物理上限 store.LimitsOf(k).MaxInList) で clamp する。
+var MaterializeChunkSize = 0
+
+// UniqueKeyProps は「等値条件で 1 件に絞れる」とみなすプロパティ名（エンティティの一意キー）。
+// 刷新版の翻訳（logical.Translate）が、パターンの起点を選ぶときに統計の代わりに使う。
+var UniqueKeyProps = []string{"id"}
+
+// UUIDFormat は uuid を各ストアへ保存する形式。
+type UUIDFormat int
 
 const (
-	PushdownAuto        PushdownMode = iota // 単一ストアに解決できれば委譲、散在ならエンジン
-	PushdownForceEngine                     // 常にコーディネータ（自作エンジン）
+	// UUIDText は文字列 "N-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"（38 文字）で保存する。
+	UUIDText UUIDFormat = iota
+	// UUIDBinary は 17 バイト（種別 1 バイト＋UUID 16 バイト）で保存する
+	// （Neo4j byte[] / MySQL BINARY(17) / Cassandra blob / Mongo BinData / LevelDB キーの生バイト）。
+	UUIDBinary
 )
 
-var Pushdown = PushdownAuto // ★ pushdown 方針（旧 planner.SelectedPushdown）
+// UUIDStorage は全ストア共通の uuid の保存形式。既存データの形式と一致させること
+// （切り替えたら `-mode uuid-format` で Neo4j の uuid を書き換え、非 graph への移行を作り直す）。
+// 読み取り側（id.FromAny）はどちらの形式も受け付ける。
+var UUIDStorage = UUIDText
+
+// CostBasedPlanning は、統計（mapping.json の隣の stats.json。`-mode stats` で収集）があるとき、
+// 翻訳が成分の起点・分割するか・辺をたどる順序を推定コスト（中間行数の和）で決めるか（刷新版）。
+// 統計が無い・false なら規則（一意キーの等値 > 等値・IN > 述語の数、出現順）で決める。
+var CostBasedPlanning = true
+
+// SplitAnchoredPatterns は、連結したパターンに起点になれる頂点（前の節で束縛済み・一意キーの等値）が
+// 2 つ以上あるとき、頂点を最寄りの起点へ振り分けて起点ごとに展開し、共有する頂点で NodeHashJoin する
+// （両側から探索して中央で合流する）か（刷新版）。全 graph なら 1 本の Cypher に戻るので Neo4j の計画は変わらない。
+var SplitAnchoredPatterns = true
+
+// StoreFetchParallelism は、1 つの演算子が IN-list をチャンクに分けて同じストアへ投げるときの
+// 同時発行数（刷新版の executor）。1 なら直列。
+var StoreFetchParallelism = 4
+
+// WeightedRows は、可変長の展開を含む graph のクエリの結果を、同じ出力の組ごとに件数（重み）付きの
+// 1 行へまとめて返させるか（刷新版）。経路ごとの重複で中間行が爆発する形（Q11 など）を抑える。結果は不変。
+var WeightedRows = true
+
+// GraphFetchParallelism は graph（Neo4j）へのチャンクの同時発行数。graph のチャンクは 5 万件の起点から
+// 可変長トラバーサルを走らせることがあり、並列にすると Neo4j がメモリ不足で落ちる（ldbc_sf1 の BI9 で
+// heap 4G / pagecache 1G の構成が OOM-kill された）ので既定は直列。
+var GraphFetchParallelism = 1
 
 // ===== 計測（bench） =====
 const (
@@ -41,13 +80,21 @@ const (
 )
 
 var (
-	// ★ bench / bench-models のスイープ軸（旧 -placements/-pushdowns/-models フラグ）。
+	// ★ bench / bench-models のスイープ軸（旧 -placements/-models フラグ）。
 	// BenchPlacements は P3b で []store.Kind へ型付け予定（現状は文字列）。
 	BenchPlacements = []string{"graph", "rdb", "doc", "col", "kvs"}
-	BenchPushdowns  = []string{"auto", "engine"}
-	BenchModels     = []string{"stream", "bulk", "volcano", "vectorized"}
+	BenchModels     = []string{"stream", "bulk", "volcano", "vectorized", "vecstream"}
 
 	MigrationDeleteSource = true // ★ 移行成功後にソース側を削除する（旧 -delete フラグ）
+)
+
+// ===== verify（-mode verify：配置×pushdown×エンジン×バッチの性能検証マトリクス）=====
+var (
+	// VerifyEngines は verify マトリクスで横断計測する自作エンジン（Neo4j 直接は別途基準として測る）。
+	VerifyEngines = []string{"stream", "bulk", "vecstream"}
+	// VerifyBatchSizes は VectorSize を振るスイープ点。stream/vecstream のバッチ幅に効く
+	// （bulk はバッチ非依存のため 1 回のみ計測）。
+	VerifyBatchSizes = []int{256, 1024, 4096}
 )
 
 // ===== 出力 =====

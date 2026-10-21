@@ -1,0 +1,19 @@
+### BI9
+Limit[100]
+  Sort[messageCount DESC, person.id ASC]
+    Aggregation[keys: person.id, person.firstName, person.lastName | count(DISTINCT post.id) AS threadCount, count(DISTINCT reply.id) AS messageCount]
+      GetProperty(reply.id) [node:Message]
+        GetProperty(post.id) [node:Post]
+          GetProperty(person.lastName) [node:Person]
+            GetProperty(person.firstName) [node:Person]
+              GetProperty(person.id) [node:Person]
+                Expand((post)-[_r0:HAS_CREATOR]->(person:Person))
+                  Filter((reply.creationDate <= "2013-01-01T00:00:00.000Z"))
+                    Filter((reply.creationDate >= "2010-01-01T00:00:00.000Z"))
+                      GetProperty(reply.creationDate) [node:Message]
+                        VarLengthExpand((post)<-[_r1:REPLY_OF*0..]-(reply:Message))
+                          Filter((post.creationDate <= "2013-01-01T00:00:00.000Z"))
+                            Filter((post.creationDate >= "2010-01-01T00:00:00.000Z"))
+                              GetProperty(post.creationDate) [node:Post]
+                                EntityScan(post:Post)
+

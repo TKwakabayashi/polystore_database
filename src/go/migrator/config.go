@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"polystore_database/src/go/id"
-	"polystore_database/src/go/plan"
+	"polystore_database/src/go/schema"
 	"polystore_database/src/go/storage"
 )
 
@@ -38,7 +38,7 @@ const (
 )
 
 type MigrationConfig struct {
-	ObjType     plan.ObjectType
+	ObjType     schema.ObjectType
 	Entity      string
 	Properties  []string
 	Mode        MigrationMode

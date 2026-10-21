@@ -67,7 +67,9 @@
     },
     "Message": {
       "labels": [
-        "Message"
+        "Message",
+        "Post",
+        "Comment"
       ],
       "properties": {
         "browserUsed": {

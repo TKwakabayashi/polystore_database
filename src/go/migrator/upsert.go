@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"polystore_database/src/go/codec"
 	"polystore_database/src/go/id"
-	"polystore_database/src/go/plan"
 	"polystore_database/src/go/storage"
 	"sort"
 	"strings"
@@ -21,6 +20,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/sync/errgroup"
+	"polystore_database/src/go/schema"
 )
 
 // upsertDataStream は inCh から受け取った行をバッチで移行先へ書き込む。
@@ -91,12 +91,12 @@ func upsertGraph(ctx context.Context, cfg MigrationConfig, reg *storage.Registry
 				cleanPayload[p] = finalVal
 			}
 		}
-		// 境界変換: id.UUID -> string（neo4j packstream は名前付き型を扱えない）
-		unwindParams[i] = map[string]interface{}{"uuid": row.UUID.String(), "payload": cleanPayload}
+		// 境界変換: id.UUID -> 保存値（string か []byte。neo4j packstream は名前付き型を扱えない）
+		unwindParams[i] = map[string]interface{}{"uuid": id.Stored(row.UUID), "payload": cleanPayload}
 	}
 
 	var query string
-	if cfg.ObjType == plan.Relationship {
+	if cfg.ObjType == schema.ObjRelationship {
 		query = fmt.Sprintf("UNWIND $batch AS row MATCH ()-[r:%s {uuid: row.uuid}]-() SET r += row.payload", cfg.Entity)
 	} else {
 		query = fmt.Sprintf("UNWIND $batch AS row MERGE (n:Entity:%s {uuid: row.uuid}) SET n += row.payload", cfg.Entity)
@@ -170,7 +170,7 @@ func upsertDoc(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, 
 			finalPayload[p] = finalVal
 		}
 		models[i] = mongo.NewUpdateOneModel().
-			SetFilter(bson.M{"uuid": row.UUID.String()}).
+			SetFilter(bson.M{"uuid": id.Stored(row.UUID)}).
 			SetUpdate(bson.M{"$set": finalPayload}).
 			SetUpsert(true)
 	}
@@ -201,7 +201,7 @@ func upsertCol(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, 
 	for _, r := range rows {
 		r := r
 		eg.Go(func() error {
-			args := []interface{}{r.UUID.String()}
+			args := []interface{}{id.Stored(r.UUID)}
 			for _, p := range cfg.Properties {
 				finalVal, _ := codec.PrepareForDB(r.Payload[p], typeMap[p], "columnar")
 				args = append(args, finalVal)
@@ -233,7 +233,7 @@ func upsertRdb(ctx context.Context, cfg MigrationConfig, reg *storage.Registry, 
 
 	for i, r := range rows {
 		batchPlaceholders[i] = placeholderGroup
-		args = append(args, r.UUID.String())
+		args = append(args, id.Stored(r.UUID))
 		for _, p := range cfg.Properties {
 			finalVal, err := codec.PrepareForDB(r.Payload[p], typeMap[p], "relational")
 			if err != nil {

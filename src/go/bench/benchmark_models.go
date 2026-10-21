@@ -16,7 +16,7 @@ import (
 )
 
 // modelOrder は計測する実行モデルの既定順。
-var modelOrder = []string{"stream", "bulk", "volcano", "vectorized"}
+var modelOrder = []string{"stream", "bulk", "volcano", "vectorized", "vecstream"}
 
 // RunModelBenchmark は 1 つ以上のワークロードについて次を計測し、long 形式 CSV へ追記する。
 //   - baseline: Neo4j へ直接クエリを発行した場合（system=neo4j, model=-, placement=graph）
@@ -34,7 +34,6 @@ var modelOrder = []string{"stream", "bulk", "volcano", "vectorized"}
 // 計測公平性:
 //   - stream は RunCustom（Warmup=%d, Trials=%d を内部で実施）。
 //   - bulk/volcano/vectorized は Warmup 回を捨ててから Trials 回の平均を測る。
-//   - pushdown は engine に固定（Q9 等の非集約クエリでは元々 no-op だが明示）。
 //   - pprof（block/mutex 記録）は計測歪みを避けるため無効化。
 func RunModelBenchmark(ctx context.Context, cfg storage.Config, workloads []string, out string) (err error) {
 	// 配置・実行モデル・ベクトル長は settings から取得（旧 -placements/-models/-vector フラグ）。
@@ -49,11 +48,6 @@ func RunModelBenchmark(ctx context.Context, cfg storage.Config, workloads []stri
 	prevProfile := settings.ProfileScopes[settings.ScopeEngine]
 	settings.ProfileScopes[settings.ScopeEngine] = false
 	defer func() { settings.ProfileScopes[settings.ScopeEngine] = prevProfile }()
-
-	// pushdown は engine に固定（非集約クエリでは no-op だが実験の再現性のため明示）。
-	prevPushdown := settings.Pushdown
-	settings.Pushdown = settings.PushdownForceEngine
-	defer func() { settings.Pushdown = prevPushdown }()
 
 	// mapping スナップショット（graph 状態）。各 placement 後と実験終了時に復元する。
 	snapshot, rerr := os.ReadFile(cfg.MappingPath)
@@ -144,7 +138,7 @@ func RunModelBenchmark(ctx context.Context, cfg storage.Config, workloads []stri
 }
 
 // runModelOnce は指定モデル（＝EngineKind）で 1 ワークロードを計測し、(行数, レイテンシms) を返す。
-// 全モデルが統一エンジンレジストリ経由で Warmup+Trials を回す（RunEngine）。
+// 全モデルが刷新版の executor（RunEngine → executor.RunModel）で Warmup+Trials を回す。
 // レイテンシは TotalLatency()（parse+実行）で統一（vectorized のベクトル長は settings.VectorSize）。
 func runModelOnce(ctx context.Context, cfg storage.Config, model, cypher string, params map[string]string) (int, float64, error) {
 	r, err := RunEngine(ctx, cfg, settings.EngineKind(model), cypher, params)

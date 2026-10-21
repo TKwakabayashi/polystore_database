@@ -11,6 +11,9 @@ import (
 	"time"
 )
 
+// KVSDatetimeLayout は KVS に datetime を保存する固定幅の UTC 表記（ナノ秒まで）。
+const KVSDatetimeLayout = "2006-01-02T15:04:05.000000000Z"
+
 func EncodeForKVS(val interface{}, targetType string) ([]byte, error) {
 	if val == nil {
 		return nil, nil
@@ -43,7 +46,9 @@ func EncodeForKVS(val interface{}, targetType string) ([]byte, error) {
 		}
 	case "datetime":
 		if v, ok := val.(time.Time); ok {
-			return []byte(v.Format(time.RFC3339)), nil
+			// 小数秒を保ち、かつ索引キーの辞書順が時刻順になるよう固定幅の UTC 表記にする
+			// （RFC3339Nano は末尾の 0 を省くので "…13Z" が "…13.234Z" より後ろに並んでしまう）。
+			return []byte(v.UTC().Format(KVSDatetimeLayout)), nil
 		}
 
 	case "string", "text":
@@ -258,8 +263,8 @@ func PrepareForDB(val interface{}, targetType string, destType string) (interfac
 
 	case "graph": // Neo4j
 		if t, ok := val.(time.Time); ok {
-			// "Local" タイムゾーンエラーを避けるため、UTCに変換した上でRFC3339文字列として渡す
-			return t.UTC().Format(time.RFC3339), nil
+			// "Local" タイムゾーンエラーを避けるため、UTCに変換した上で RFC3339（小数秒付き）文字列として渡す
+			return t.UTC().Format(time.RFC3339Nano), nil
 		}
 
 	case "relational": // MySQL等
@@ -267,7 +272,7 @@ func PrepareForDB(val interface{}, targetType string, destType string) (interfac
 			if targetType == "date" {
 				return t.Format("2006-01-02"), nil
 			}
-			return t.Format("2006-01-02 15:04:05"), nil
+			return t.UTC().Format("2006-01-02 15:04:05.000000"), nil // DATETIME(6)
 		}
 	case "columnar": // Cassandra (重要)
 		switch targetType {

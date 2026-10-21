@@ -1,0 +1,27 @@
+{
+  "name": "getproperty",
+  "warmup": 1,
+  "repeat": 5,
+  "timeout": "120s",
+  "experiments": [
+    {
+      "name": "fetch Person.firstName",
+      "op": "GetProperty", "label": "Person", "prop": "firstName",
+      "sweep": {
+        "placement": ["graph", "relational", "columnar", "document", "kvs"],
+        "rows": [10, 100, 1000, 10000],
+        "model": ["bulk", "stream"]
+      }
+    },
+    {
+      "name": "fetch Message.creationDate: chunk x parallelism",
+      "op": "GetProperty", "label": "Message", "prop": "creationDate",
+      "sweep": {
+        "placement": ["relational", "columnar", "document"],
+        "rows": [100000],
+        "chunk": [1000, 5000, 20000],
+        "parallelism": [1, 4, 8]
+      }
+    }
+  ]
+}

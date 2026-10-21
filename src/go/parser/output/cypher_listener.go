@@ -13,6 +13,15 @@ type CypherListener interface {
 	// EnterStatement is called when entering the statement production.
 	EnterStatement(c *StatementContext)
 
+	// EnterReadingClause is called when entering the readingClause production.
+	EnterReadingClause(c *ReadingClauseContext)
+
+	// EnterUnwindClause is called when entering the unwindClause production.
+	EnterUnwindClause(c *UnwindClauseContext)
+
+	// EnterWithClause is called when entering the withClause production.
+	EnterWithClause(c *WithClauseContext)
+
 	// EnterMatchClause is called when entering the matchClause production.
 	EnterMatchClause(c *MatchClauseContext)
 
@@ -42,6 +51,42 @@ type CypherListener interface {
 
 	// EnterReturnItem is called when entering the returnItem production.
 	EnterReturnItem(c *ReturnItemContext)
+
+	// EnterCaseSearched is called when entering the caseSearched production.
+	EnterCaseSearched(c *CaseSearchedContext)
+
+	// EnterCaseSimple is called when entering the caseSimple production.
+	EnterCaseSimple(c *CaseSimpleContext)
+
+	// EnterCaseKey is called when entering the caseKey production.
+	EnterCaseKey(c *CaseKeyContext)
+
+	// EnterCaseResult is called when entering the caseResult production.
+	EnterCaseResult(c *CaseResultContext)
+
+	// EnterVeList is called when entering the veList production.
+	EnterVeList(c *VeListContext)
+
+	// EnterVeMulDiv is called when entering the veMulDiv production.
+	EnterVeMulDiv(c *VeMulDivContext)
+
+	// EnterVeAddSub is called when entering the veAddSub production.
+	EnterVeAddSub(c *VeAddSubContext)
+
+	// EnterVeLit is called when entering the veLit production.
+	EnterVeLit(c *VeLitContext)
+
+	// EnterVeCall is called when entering the veCall production.
+	EnterVeCall(c *VeCallContext)
+
+	// EnterVeParen is called when entering the veParen production.
+	EnterVeParen(c *VeParenContext)
+
+	// EnterVeNeg is called when entering the veNeg production.
+	EnterVeNeg(c *VeNegContext)
+
+	// EnterVePropRef is called when entering the vePropRef production.
+	EnterVePropRef(c *VePropRefContext)
 
 	// EnterAggregateFunc is called when entering the aggregateFunc production.
 	EnterAggregateFunc(c *AggregateFuncContext)
@@ -76,14 +121,38 @@ type CypherListener interface {
 	// EnterConditionNot is called when entering the ConditionNot production.
 	EnterConditionNot(c *ConditionNotContext)
 
+	// EnterConditionVarNeq is called when entering the ConditionVarNeq production.
+	EnterConditionVarNeq(c *ConditionVarNeqContext)
+
+	// EnterConditionVarGreaterEqual is called when entering the ConditionVarGreaterEqual production.
+	EnterConditionVarGreaterEqual(c *ConditionVarGreaterEqualContext)
+
+	// EnterConditionIsNull is called when entering the ConditionIsNull production.
+	EnterConditionIsNull(c *ConditionIsNullContext)
+
+	// EnterConditionInExpr is called when entering the ConditionInExpr production.
+	EnterConditionInExpr(c *ConditionInExprContext)
+
 	// EnterConditionGreater is called when entering the ConditionGreater production.
 	EnterConditionGreater(c *ConditionGreaterContext)
+
+	// EnterConditionIn is called when entering the ConditionIn production.
+	EnterConditionIn(c *ConditionInContext)
 
 	// EnterConditionAny is called when entering the ConditionAny production.
 	EnterConditionAny(c *ConditionAnyContext)
 
+	// EnterConditionVarEq is called when entering the ConditionVarEq production.
+	EnterConditionVarEq(c *ConditionVarEqContext)
+
+	// EnterConditionVarLessEqual is called when entering the ConditionVarLessEqual production.
+	EnterConditionVarLessEqual(c *ConditionVarLessEqualContext)
+
 	// EnterConditionOr is called when entering the ConditionOr production.
 	EnterConditionOr(c *ConditionOrContext)
+
+	// EnterConditionIsNotNull is called when entering the ConditionIsNotNull production.
+	EnterConditionIsNotNull(c *ConditionIsNotNullContext)
 
 	// EnterConditionParen is called when entering the conditionParen production.
 	EnterConditionParen(c *ConditionParenContext)
@@ -97,8 +166,14 @@ type CypherListener interface {
 	// EnterConditionGreaterEqual is called when entering the ConditionGreaterEqual production.
 	EnterConditionGreaterEqual(c *ConditionGreaterEqualContext)
 
+	// EnterConditionVarGreater is called when entering the ConditionVarGreater production.
+	EnterConditionVarGreater(c *ConditionVarGreaterContext)
+
 	// EnterConditionAll is called when entering the ConditionAll production.
 	EnterConditionAll(c *ConditionAllContext)
+
+	// EnterConditionVarLess is called when entering the ConditionVarLess production.
+	EnterConditionVarLess(c *ConditionVarLessContext)
 
 	// EnterConditionNotEquality is called when entering the ConditionNotEquality production.
 	EnterConditionNotEquality(c *ConditionNotEqualityContext)
@@ -111,6 +186,9 @@ type CypherListener interface {
 
 	// EnterConditionEquality is called when entering the ConditionEquality production.
 	EnterConditionEquality(c *ConditionEqualityContext)
+
+	// EnterList is called when entering the list production.
+	EnterList(c *ListContext)
 
 	// EnterVariable is called when entering the variable production.
 	EnterVariable(c *VariableContext)
@@ -135,6 +213,15 @@ type CypherListener interface {
 
 	// ExitStatement is called when exiting the statement production.
 	ExitStatement(c *StatementContext)
+
+	// ExitReadingClause is called when exiting the readingClause production.
+	ExitReadingClause(c *ReadingClauseContext)
+
+	// ExitUnwindClause is called when exiting the unwindClause production.
+	ExitUnwindClause(c *UnwindClauseContext)
+
+	// ExitWithClause is called when exiting the withClause production.
+	ExitWithClause(c *WithClauseContext)
 
 	// ExitMatchClause is called when exiting the matchClause production.
 	ExitMatchClause(c *MatchClauseContext)
@@ -165,6 +252,42 @@ type CypherListener interface {
 
 	// ExitReturnItem is called when exiting the returnItem production.
 	ExitReturnItem(c *ReturnItemContext)
+
+	// ExitCaseSearched is called when exiting the caseSearched production.
+	ExitCaseSearched(c *CaseSearchedContext)
+
+	// ExitCaseSimple is called when exiting the caseSimple production.
+	ExitCaseSimple(c *CaseSimpleContext)
+
+	// ExitCaseKey is called when exiting the caseKey production.
+	ExitCaseKey(c *CaseKeyContext)
+
+	// ExitCaseResult is called when exiting the caseResult production.
+	ExitCaseResult(c *CaseResultContext)
+
+	// ExitVeList is called when exiting the veList production.
+	ExitVeList(c *VeListContext)
+
+	// ExitVeMulDiv is called when exiting the veMulDiv production.
+	ExitVeMulDiv(c *VeMulDivContext)
+
+	// ExitVeAddSub is called when exiting the veAddSub production.
+	ExitVeAddSub(c *VeAddSubContext)
+
+	// ExitVeLit is called when exiting the veLit production.
+	ExitVeLit(c *VeLitContext)
+
+	// ExitVeCall is called when exiting the veCall production.
+	ExitVeCall(c *VeCallContext)
+
+	// ExitVeParen is called when exiting the veParen production.
+	ExitVeParen(c *VeParenContext)
+
+	// ExitVeNeg is called when exiting the veNeg production.
+	ExitVeNeg(c *VeNegContext)
+
+	// ExitVePropRef is called when exiting the vePropRef production.
+	ExitVePropRef(c *VePropRefContext)
 
 	// ExitAggregateFunc is called when exiting the aggregateFunc production.
 	ExitAggregateFunc(c *AggregateFuncContext)
@@ -199,14 +322,38 @@ type CypherListener interface {
 	// ExitConditionNot is called when exiting the ConditionNot production.
 	ExitConditionNot(c *ConditionNotContext)
 
+	// ExitConditionVarNeq is called when exiting the ConditionVarNeq production.
+	ExitConditionVarNeq(c *ConditionVarNeqContext)
+
+	// ExitConditionVarGreaterEqual is called when exiting the ConditionVarGreaterEqual production.
+	ExitConditionVarGreaterEqual(c *ConditionVarGreaterEqualContext)
+
+	// ExitConditionIsNull is called when exiting the ConditionIsNull production.
+	ExitConditionIsNull(c *ConditionIsNullContext)
+
+	// ExitConditionInExpr is called when exiting the ConditionInExpr production.
+	ExitConditionInExpr(c *ConditionInExprContext)
+
 	// ExitConditionGreater is called when exiting the ConditionGreater production.
 	ExitConditionGreater(c *ConditionGreaterContext)
+
+	// ExitConditionIn is called when exiting the ConditionIn production.
+	ExitConditionIn(c *ConditionInContext)
 
 	// ExitConditionAny is called when exiting the ConditionAny production.
 	ExitConditionAny(c *ConditionAnyContext)
 
+	// ExitConditionVarEq is called when exiting the ConditionVarEq production.
+	ExitConditionVarEq(c *ConditionVarEqContext)
+
+	// ExitConditionVarLessEqual is called when exiting the ConditionVarLessEqual production.
+	ExitConditionVarLessEqual(c *ConditionVarLessEqualContext)
+
 	// ExitConditionOr is called when exiting the ConditionOr production.
 	ExitConditionOr(c *ConditionOrContext)
+
+	// ExitConditionIsNotNull is called when exiting the ConditionIsNotNull production.
+	ExitConditionIsNotNull(c *ConditionIsNotNullContext)
 
 	// ExitConditionParen is called when exiting the conditionParen production.
 	ExitConditionParen(c *ConditionParenContext)
@@ -220,8 +367,14 @@ type CypherListener interface {
 	// ExitConditionGreaterEqual is called when exiting the ConditionGreaterEqual production.
 	ExitConditionGreaterEqual(c *ConditionGreaterEqualContext)
 
+	// ExitConditionVarGreater is called when exiting the ConditionVarGreater production.
+	ExitConditionVarGreater(c *ConditionVarGreaterContext)
+
 	// ExitConditionAll is called when exiting the ConditionAll production.
 	ExitConditionAll(c *ConditionAllContext)
+
+	// ExitConditionVarLess is called when exiting the ConditionVarLess production.
+	ExitConditionVarLess(c *ConditionVarLessContext)
 
 	// ExitConditionNotEquality is called when exiting the ConditionNotEquality production.
 	ExitConditionNotEquality(c *ConditionNotEqualityContext)
@@ -234,6 +387,9 @@ type CypherListener interface {
 
 	// ExitConditionEquality is called when exiting the ConditionEquality production.
 	ExitConditionEquality(c *ConditionEqualityContext)
+
+	// ExitList is called when exiting the list production.
+	ExitList(c *ListContext)
 
 	// ExitVariable is called when exiting the variable production.
 	ExitVariable(c *VariableContext)

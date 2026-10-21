@@ -1,0 +1,150 @@
+{
+  "nodes": 2997352,
+  "labels": {
+    "Comment": 1739438,
+    "Entity": 2997352,
+    "Forum": 100827,
+    "Message": 2860664,
+    "Organisation": 7955,
+    "Person": 10295,
+    "Place": 1460,
+    "Post": 1121226,
+    "Tag": 16080,
+    "TagClass": 71
+  },
+  "relTypes": {
+    "CONTAINER_OF": 1121226,
+    "HAS_CREATOR": 2860664,
+    "HAS_INTEREST": 238052,
+    "HAS_MEMBER": 2909768,
+    "HAS_MODERATOR": 100827,
+    "HAS_TAG": 3256648,
+    "HAS_TYPE": 16080,
+    "IS_LOCATED_IN": 2878914,
+    "IS_PART_OF": 1454,
+    "IS_SUBCLASS_OF": 70,
+    "KNOWS": 173014,
+    "LIKES": 1870268,
+    "REPLY_OF": 1739438,
+    "STUDY_AT": 8309,
+    "WORK_AT": 22044
+  },
+  "out": {
+    "Comment": {
+      "HAS_CREATOR": 1739438,
+      "HAS_TAG": 2176131,
+      "IS_LOCATED_IN": 1739438,
+      "REPLY_OF": 1739438
+    },
+    "Entity": {
+      "CONTAINER_OF": 1121226,
+      "HAS_CREATOR": 2860664,
+      "HAS_INTEREST": 238052,
+      "HAS_MEMBER": 2909768,
+      "HAS_MODERATOR": 100827,
+      "HAS_TAG": 3256648,
+      "HAS_TYPE": 16080,
+      "IS_LOCATED_IN": 2878914,
+      "IS_PART_OF": 1454,
+      "IS_SUBCLASS_OF": 70,
+      "KNOWS": 173014,
+      "LIKES": 1870268,
+      "REPLY_OF": 1739438,
+      "STUDY_AT": 8309,
+      "WORK_AT": 22044
+    },
+    "Forum": {
+      "CONTAINER_OF": 1121226,
+      "HAS_MEMBER": 2909768,
+      "HAS_MODERATOR": 100827,
+      "HAS_TAG": 328584
+    },
+    "Message": {
+      "HAS_CREATOR": 2860664,
+      "HAS_TAG": 2928064,
+      "IS_LOCATED_IN": 2860664,
+      "REPLY_OF": 1739438
+    },
+    "Organisation": {
+      "IS_LOCATED_IN": 7955
+    },
+    "Person": {
+      "HAS_INTEREST": 238052,
+      "IS_LOCATED_IN": 10295,
+      "KNOWS": 173014,
+      "LIKES": 1870268,
+      "STUDY_AT": 8309,
+      "WORK_AT": 22044
+    },
+    "Place": {
+      "IS_PART_OF": 1454
+    },
+    "Post": {
+      "HAS_CREATOR": 1121226,
+      "HAS_TAG": 751933,
+      "IS_LOCATED_IN": 1121226
+    },
+    "Tag": {
+      "HAS_TYPE": 16080
+    },
+    "TagClass": {
+      "IS_SUBCLASS_OF": 70
+    }
+  },
+  "in": {
+    "Comment": {
+      "LIKES": 1109813,
+      "REPLY_OF": 789020
+    },
+    "Entity": {
+      "CONTAINER_OF": 1121226,
+      "HAS_CREATOR": 2860664,
+      "HAS_INTEREST": 238052,
+      "HAS_MEMBER": 2909768,
+      "HAS_MODERATOR": 100827,
+      "HAS_TAG": 3256648,
+      "HAS_TYPE": 16080,
+      "IS_LOCATED_IN": 2878914,
+      "IS_PART_OF": 1454,
+      "IS_SUBCLASS_OF": 70,
+      "KNOWS": 173014,
+      "LIKES": 1870268,
+      "REPLY_OF": 1739438,
+      "STUDY_AT": 8309,
+      "WORK_AT": 22044
+    },
+    "Forum": {},
+    "Message": {
+      "CONTAINER_OF": 1121226,
+      "LIKES": 1870268,
+      "REPLY_OF": 1739438
+    },
+    "Organisation": {
+      "STUDY_AT": 8309,
+      "WORK_AT": 22044
+    },
+    "Person": {
+      "HAS_CREATOR": 2860664,
+      "HAS_MEMBER": 2909768,
+      "HAS_MODERATOR": 100827,
+      "KNOWS": 173014
+    },
+    "Place": {
+      "IS_LOCATED_IN": 2878914,
+      "IS_PART_OF": 1454
+    },
+    "Post": {
+      "CONTAINER_OF": 1121226,
+      "LIKES": 760455,
+      "REPLY_OF": 950418
+    },
+    "Tag": {
+      "HAS_INTEREST": 238052,
+      "HAS_TAG": 3256648
+    },
+    "TagClass": {
+      "HAS_TYPE": 16080,
+      "IS_SUBCLASS_OF": 70
+    }
+  }
+}
