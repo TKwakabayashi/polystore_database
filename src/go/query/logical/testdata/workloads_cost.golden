@@ -1,0 +1,38 @@
+### BI3
+Limit[20]
+  Sort[messageCount DESC, forum.id ASC]
+    Aggregation[keys: forum.id, forum.title, forum.creationDate, person.id | count(DISTINCT message) AS messageCount]
+      GetProperty(person.id) [node:Person]
+        GetProperty(forum.creationDate) [node:Forum]
+          GetProperty(forum.title) [node:Forum]
+            GetProperty(forum.id) [node:Forum]
+              Filter((_n3.name = "MusicalArtist"))
+                GetProperty(_n3.name) [node:TagClass]
+                  Expand((_n2)-[_r6:HAS_TYPE]->(_n3:TagClass))
+                    Expand((message)-[_r5:HAS_TAG]->(_n2:Tag))
+                      VarLengthExpand((post)<-[_r4:REPLY_OF*0..]-(message:Message))
+                        Expand((forum)-[_r3:CONTAINER_OF]->(post:Post))
+                          Expand((person)<-[_r2:HAS_MODERATOR]-(forum:Forum))
+                            Filter((_n0.name = "Germany"))
+                              GetProperty(_n0.name) [node:Country]
+                                Expand((_n1)-[_r0:IS_PART_OF]->(_n0:Country))
+                                  Expand((person)-[_r1:IS_LOCATED_IN]->(_n1:City))
+                                    EntityScan(person:Person)
+
+### BI9
+Limit[100]
+  Sort[messageCount DESC, person.id ASC]
+    Aggregation[keys: person.id, person.firstName, person.lastName | count(DISTINCT post) AS threadCount, count(DISTINCT reply) AS messageCount]
+      GetProperty(person.lastName) [node:Person]
+        GetProperty(person.firstName) [node:Person]
+          GetProperty(person.id) [node:Person]
+            Expand((post)-[_r0:HAS_CREATOR]->(person:Person))
+              Filter((reply.creationDate <= "2013-01-01T00:00:00.000Z"))
+                Filter((reply.creationDate >= "2010-01-01T00:00:00.000Z"))
+                  GetProperty(reply.creationDate) [node:Message]
+                    VarLengthExpand((post)<-[_r1:REPLY_OF*0..]-(reply:Message))
+                      Filter((post.creationDate <= "2013-01-01T00:00:00.000Z"))
+                        Filter((post.creationDate >= "2010-01-01T00:00:00.000Z"))
+                          GetProperty(post.creationDate) [node:Post]
+                            EntityScan(post:Post)
+

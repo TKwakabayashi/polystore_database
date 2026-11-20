@@ -1,0 +1,371 @@
+## OA1 — Two hops of citations with a large fan-out: placing the middle condition at the largest scale
+traits: start=filtered scan hops=2 fan-out=explosive aggregate Top-20 | R1 start: w.year, w.cited_by_count | R3 middle: m.year | R6 aggregate / sort: o.title
+
+### OA1 @graph
+StoreQuery[neo4j] out=(o.title, c)
+  : Limit[20]
+  :   Sort[c DESC, o.title ASC]
+  :     Aggregation[keys: o.title | count(*) AS c]
+  :       GetProperty(o.title) [node:Work]
+  :         RelUniqueFilter[_r0, _r1]
+  :           Expand((m)-[_r1:CITES]->(o:Work))
+  :             Filter((m.year >= 2015))
+  :               GetProperty(m.year) [node:Work]
+  :                 Expand((w)-[_r0:CITES]->(m:Work))
+  :                   Filter((w.cited_by_count >= 1000))
+  :                     GetProperty(w.cited_by_count) [node:Work]
+  :                       Filter((w.year = 2020))
+  :                         GetProperty(w.year) [node:Work]
+  :                           EntityScan(w:Work)
+
+### OA1 @relational
+Coord Limit[20]
+  Coord Sort[c DESC, o.title ASC]
+    Coord Aggregation[keys: o.title | count(*) AS c]
+      Fetch[mysql] in=(o) out=(o, o.title)
+        : GetProperty(o.title) [node:Work]
+        :   Argument(o)
+        StoreQuery[mysql] in=(m) out=(m)
+          : Filter((m.year >= 2015))
+          :   GetProperty(m.year) [node:Work]
+          :     Argument(m)
+          StoreQuery[neo4j] in=(w) out=(w, m, o)
+            : RelUniqueFilter[_r0, _r1]
+            :   Expand((m)-[_r1:CITES]->(o:Work))
+            :     Expand((w)-[_r0:CITES]->(m:Work))
+            :       Argument(w)
+            StoreQuery[mysql] out=(w)
+              : Filter((w.cited_by_count >= 1000))
+              :   GetProperty(w.cited_by_count) [node:Work]
+              :     Filter((w.year = 2020))
+              :       GetProperty(w.year) [node:Work]
+              :         EntityScan(w:Work)
+
+### OA1 @document
+Coord Limit[20]
+  Coord Sort[c DESC, o.title ASC]
+    Coord Aggregation[keys: o.title | count(*) AS c]
+      Fetch[mongo] in=(o) out=(o, o.title)
+        : GetProperty(o.title) [node:Work]
+        :   Argument(o)
+        StoreQuery[mongo] in=(m) out=(m)
+          : Filter((m.year >= 2015))
+          :   GetProperty(m.year) [node:Work]
+          :     Argument(m)
+          StoreQuery[neo4j] in=(w) out=(w, m, o)
+            : RelUniqueFilter[_r0, _r1]
+            :   Expand((m)-[_r1:CITES]->(o:Work))
+            :     Expand((w)-[_r0:CITES]->(m:Work))
+            :       Argument(w)
+            StoreQuery[mongo] out=(w)
+              : Filter((w.cited_by_count >= 1000))
+              :   GetProperty(w.cited_by_count) [node:Work]
+              :     Filter((w.year = 2020))
+              :       GetProperty(w.year) [node:Work]
+              :         EntityScan(w:Work)
+
+### OA1 @columnar
+Coord Limit[20]
+  Coord Sort[c DESC, o.title ASC]
+    Coord Aggregation[keys: o.title | count(*) AS c]
+      Fetch[clickhouse] in=(o) out=(o, o.title)
+        : GetProperty(o.title) [node:Work]
+        :   Argument(o)
+        StoreQuery[clickhouse] in=(m) out=(m)
+          : Filter((m.year >= 2015))
+          :   GetProperty(m.year) [node:Work]
+          :     Argument(m)
+          StoreQuery[neo4j] in=(w) out=(w, m, o)
+            : RelUniqueFilter[_r0, _r1]
+            :   Expand((m)-[_r1:CITES]->(o:Work))
+            :     Expand((w)-[_r0:CITES]->(m:Work))
+            :       Argument(w)
+            StoreQuery[clickhouse] out=(w)
+              : Filter((w.cited_by_count >= 1000))
+              :   GetProperty(w.cited_by_count) [node:Work]
+              :     Filter((w.year = 2020))
+              :       GetProperty(w.year) [node:Work]
+              :         EntityScan(w:Work)
+
+### OA1 @widecolumn
+Coord Limit[20]
+  Coord Sort[c DESC, o.title ASC]
+    Coord Aggregation[keys: o.title | count(*) AS c]
+      Fetch[cassandra] in=(o) out=(o, o.title)
+        : GetProperty(o.title) [node:Work]
+        :   Argument(o)
+        StoreQuery[cassandra] in=(m) out=(m)
+          : Filter((m.year >= 2015))
+          :   GetProperty(m.year) [node:Work]
+          :     Argument(m)
+          StoreQuery[neo4j] in=(w) out=(w, m, o)
+            : RelUniqueFilter[_r0, _r1]
+            :   Expand((m)-[_r1:CITES]->(o:Work))
+            :     Expand((w)-[_r0:CITES]->(m:Work))
+            :       Argument(w)
+            StoreQuery[cassandra] out=(w)
+              : Filter((w.cited_by_count >= 1000))
+              :   GetProperty(w.cited_by_count) [node:Work]
+              :     Filter((w.year = 2020))
+              :       GetProperty(w.year) [node:Work]
+              :         EntityScan(w:Work)
+
+### OA1 @kvs
+Coord Limit[20]
+  Coord Sort[c DESC, o.title ASC]
+    Coord Aggregation[keys: o.title | count(*) AS c]
+      Fetch[leveldb] in=(o) out=(o, o.title)
+        : GetProperty(o.title) [node:Work]
+        :   Argument(o)
+        StoreQuery[leveldb] in=(m) out=(m)
+          : Filter((m.year >= 2015))
+          :   GetProperty(m.year) [node:Work]
+          :     Argument(m)
+          StoreQuery[neo4j] in=(w) out=(w, m, o)
+            : RelUniqueFilter[_r0, _r1]
+            :   Expand((m)-[_r1:CITES]->(o:Work))
+            :     Expand((w)-[_r0:CITES]->(m:Work))
+            :       Argument(w)
+            StoreQuery[leveldb] out=(w)
+              : Filter((w.cited_by_count >= 1000))
+              :   GetProperty(w.cited_by_count) [node:Work]
+              :     Filter((w.year = 2020))
+              :       GetProperty(w.year) [node:Work]
+              :         EntityScan(w:Work)
+
+## OA2 — A whole-path condition on citation chains (many branches): the cost of extracting many paths
+traits: start=filtered scan hops=1..3 fan-out=explosive variable-length aggregate Top-20 | R1 start: w.cited_by_count | R4 path: x.year | R6 aggregate / sort: o.venue
+
+### OA2 @graph
+StoreQuery[neo4j] out=(o.venue, paths)
+  : Limit[20]
+  :   Sort[paths DESC, o.venue ASC]
+  :     Aggregation[keys: o.venue | count(*) AS paths]
+  :       GetProperty(o.venue) [node:Work]
+  :         Filter((o.year >= 2010))
+  :           GetProperty(o.year) [node:Work]
+  :             VarLengthExpand((w)-[_r0:CITES*1..3]->(o:Work)) seg[all(x IN nodes WHERE (x.year >= 2010))]
+  :               Filter((w.year >= 2010))
+  :                 GetProperty(w.year) [node:Work]
+  :                   Filter((w.cited_by_count >= 20000))
+  :                     GetProperty(w.cited_by_count) [node:Work]
+  :                       EntityScan(w:Work)
+
+### OA2 @relational
+Coord Limit[20]
+  Coord Sort[paths DESC, o.venue ASC]
+    Coord Aggregation[keys: o.venue | count(*) AS paths]
+      StoreQuery[mysql] in=(o) out=(o, o.venue)
+        : GetProperty(o.venue) [node:Work]
+        :   Filter((o.year >= 2010))
+        :     GetProperty(o.year) [node:Work]
+        :       Argument(o)
+        Coord Filter(all(x IN nodes(_seg__r0) WHERE (x.year >= 2010)))
+          ListFetch[mysql] _seg__r0.nodes.year from _seg__r0 [elem:Work]
+            StoreQuery[neo4j] in=(w) out=(w, _seg__r0, o)
+              : VarLengthExpand((w)-[_r0:CITES*1..3]->(o:Work)) emit _seg__r0
+              :   Argument(w)
+              StoreQuery[mysql] out=(w)
+                : Filter((w.year >= 2010))
+                :   GetProperty(w.year) [node:Work]
+                :     Filter((w.cited_by_count >= 20000))
+                :       GetProperty(w.cited_by_count) [node:Work]
+                :         EntityScan(w:Work)
+
+### OA2 @document
+Coord Limit[20]
+  Coord Sort[paths DESC, o.venue ASC]
+    Coord Aggregation[keys: o.venue | count(*) AS paths]
+      StoreQuery[mongo] in=(o) out=(o, o.venue)
+        : GetProperty(o.venue) [node:Work]
+        :   Filter((o.year >= 2010))
+        :     GetProperty(o.year) [node:Work]
+        :       Argument(o)
+        Coord Filter(all(x IN nodes(_seg__r0) WHERE (x.year >= 2010)))
+          ListFetch[mongo] _seg__r0.nodes.year from _seg__r0 [elem:Work]
+            StoreQuery[neo4j] in=(w) out=(w, _seg__r0, o)
+              : VarLengthExpand((w)-[_r0:CITES*1..3]->(o:Work)) emit _seg__r0
+              :   Argument(w)
+              StoreQuery[mongo] out=(w)
+                : Filter((w.year >= 2010))
+                :   GetProperty(w.year) [node:Work]
+                :     Filter((w.cited_by_count >= 20000))
+                :       GetProperty(w.cited_by_count) [node:Work]
+                :         EntityScan(w:Work)
+
+### OA2 @columnar
+Coord Limit[20]
+  Coord Sort[paths DESC, o.venue ASC]
+    Coord Aggregation[keys: o.venue | count(*) AS paths]
+      StoreQuery[clickhouse] in=(o) out=(o, o.venue)
+        : GetProperty(o.venue) [node:Work]
+        :   Filter((o.year >= 2010))
+        :     GetProperty(o.year) [node:Work]
+        :       Argument(o)
+        Coord Filter(all(x IN nodes(_seg__r0) WHERE (x.year >= 2010)))
+          ListFetch[clickhouse] _seg__r0.nodes.year from _seg__r0 [elem:Work]
+            StoreQuery[neo4j] in=(w) out=(w, _seg__r0, o)
+              : VarLengthExpand((w)-[_r0:CITES*1..3]->(o:Work)) emit _seg__r0
+              :   Argument(w)
+              StoreQuery[clickhouse] out=(w)
+                : Filter((w.year >= 2010))
+                :   GetProperty(w.year) [node:Work]
+                :     Filter((w.cited_by_count >= 20000))
+                :       GetProperty(w.cited_by_count) [node:Work]
+                :         EntityScan(w:Work)
+
+### OA2 @widecolumn
+Coord Limit[20]
+  Coord Sort[paths DESC, o.venue ASC]
+    Coord Aggregation[keys: o.venue | count(*) AS paths]
+      StoreQuery[cassandra] in=(o) out=(o, o.venue)
+        : GetProperty(o.venue) [node:Work]
+        :   Filter((o.year >= 2010))
+        :     GetProperty(o.year) [node:Work]
+        :       Argument(o)
+        Coord Filter(all(x IN nodes(_seg__r0) WHERE (x.year >= 2010)))
+          ListFetch[cassandra] _seg__r0.nodes.year from _seg__r0 [elem:Work]
+            StoreQuery[neo4j] in=(w) out=(w, _seg__r0, o)
+              : VarLengthExpand((w)-[_r0:CITES*1..3]->(o:Work)) emit _seg__r0
+              :   Argument(w)
+              StoreQuery[cassandra] out=(w)
+                : Filter((w.year >= 2010))
+                :   GetProperty(w.year) [node:Work]
+                :     Filter((w.cited_by_count >= 20000))
+                :       GetProperty(w.cited_by_count) [node:Work]
+                :         EntityScan(w:Work)
+
+### OA2 @kvs
+Coord Limit[20]
+  Coord Sort[paths DESC, o.venue ASC]
+    Coord Aggregation[keys: o.venue | count(*) AS paths]
+      StoreQuery[leveldb] in=(o) out=(o, o.venue)
+        : GetProperty(o.venue) [node:Work]
+        :   Filter((o.year >= 2010))
+        :     GetProperty(o.year) [node:Work]
+        :       Argument(o)
+        Coord Filter(all(x IN nodes(_seg__r0) WHERE (x.year >= 2010)))
+          ListFetch[leveldb] _seg__r0.nodes.year from _seg__r0 [elem:Work]
+            StoreQuery[neo4j] in=(w) out=(w, _seg__r0, o)
+              : VarLengthExpand((w)-[_r0:CITES*1..3]->(o:Work)) emit _seg__r0
+              :   Argument(w)
+              StoreQuery[leveldb] out=(w)
+                : Filter((w.year >= 2010))
+                :   GetProperty(w.year) [node:Work]
+                :     Filter((w.cited_by_count >= 20000))
+                :       GetProperty(w.cited_by_count) [node:Work]
+                :         EntityScan(w:Work)
+
+## OA3 — Two hops of co-authorship narrowed only by a middle paper, at the largest scale
+traits: start=narrowed in the middle hops=2 fan-out=medium aggregate Top-20 | R3 middle: w.year, w.cited_by_count | R6 aggregate / sort: b.author_id
+
+### OA3 @graph
+StoreQuery[neo4j] out=(b.author_id, c)
+  : Limit[20]
+  :   Sort[c DESC, b.author_id ASC]
+  :     Aggregation[keys: b.author_id | count(*) AS c]
+  :       GetProperty(b.author_id) [node:Author]
+  :         RelUniqueFilter[_r0, _r1]
+  :           Expand((w)<-[_r1:AUTHORED]-(b:Author))
+  :             Expand((w)<-[_r0:AUTHORED]-(a:Author))
+  :               Filter((w.cited_by_count >= 500))
+  :                 GetProperty(w.cited_by_count) [node:Work]
+  :                   Filter((w.year = 2020))
+  :                     GetProperty(w.year) [node:Work]
+  :                       EntityScan(w:Work)
+
+### OA3 @relational
+Coord Limit[20]
+  Coord Sort[c DESC, b.author_id ASC]
+    Coord Aggregation[keys: b.author_id | count(*) AS c]
+      Fetch[mysql] in=(b) out=(b, b.author_id)
+        : GetProperty(b.author_id) [node:Author]
+        :   Argument(b)
+        StoreQuery[neo4j] in=(w) out=(w, b)
+          : RelUniqueFilter[_r0, _r1]
+          :   Expand((w)<-[_r1:AUTHORED]-(b:Author))
+          :     Expand((w)<-[_r0:AUTHORED]-(a:Author))
+          :       Argument(w)
+          StoreQuery[mysql] out=(w)
+            : Filter((w.cited_by_count >= 500))
+            :   GetProperty(w.cited_by_count) [node:Work]
+            :     Filter((w.year = 2020))
+            :       GetProperty(w.year) [node:Work]
+            :         EntityScan(w:Work)
+
+### OA3 @document
+Coord Limit[20]
+  Coord Sort[c DESC, b.author_id ASC]
+    Coord Aggregation[keys: b.author_id | count(*) AS c]
+      Fetch[mongo] in=(b) out=(b, b.author_id)
+        : GetProperty(b.author_id) [node:Author]
+        :   Argument(b)
+        StoreQuery[neo4j] in=(w) out=(w, b)
+          : RelUniqueFilter[_r0, _r1]
+          :   Expand((w)<-[_r1:AUTHORED]-(b:Author))
+          :     Expand((w)<-[_r0:AUTHORED]-(a:Author))
+          :       Argument(w)
+          StoreQuery[mongo] out=(w)
+            : Filter((w.cited_by_count >= 500))
+            :   GetProperty(w.cited_by_count) [node:Work]
+            :     Filter((w.year = 2020))
+            :       GetProperty(w.year) [node:Work]
+            :         EntityScan(w:Work)
+
+### OA3 @columnar
+Coord Limit[20]
+  Coord Sort[c DESC, b.author_id ASC]
+    Coord Aggregation[keys: b.author_id | count(*) AS c]
+      Fetch[clickhouse] in=(b) out=(b, b.author_id)
+        : GetProperty(b.author_id) [node:Author]
+        :   Argument(b)
+        StoreQuery[neo4j] in=(w) out=(w, b)
+          : RelUniqueFilter[_r0, _r1]
+          :   Expand((w)<-[_r1:AUTHORED]-(b:Author))
+          :     Expand((w)<-[_r0:AUTHORED]-(a:Author))
+          :       Argument(w)
+          StoreQuery[clickhouse] out=(w)
+            : Filter((w.cited_by_count >= 500))
+            :   GetProperty(w.cited_by_count) [node:Work]
+            :     Filter((w.year = 2020))
+            :       GetProperty(w.year) [node:Work]
+            :         EntityScan(w:Work)
+
+### OA3 @widecolumn
+Coord Limit[20]
+  Coord Sort[c DESC, b.author_id ASC]
+    Coord Aggregation[keys: b.author_id | count(*) AS c]
+      Fetch[cassandra] in=(b) out=(b, b.author_id)
+        : GetProperty(b.author_id) [node:Author]
+        :   Argument(b)
+        StoreQuery[neo4j] in=(w) out=(w, b)
+          : RelUniqueFilter[_r0, _r1]
+          :   Expand((w)<-[_r1:AUTHORED]-(b:Author))
+          :     Expand((w)<-[_r0:AUTHORED]-(a:Author))
+          :       Argument(w)
+          StoreQuery[cassandra] out=(w)
+            : Filter((w.cited_by_count >= 500))
+            :   GetProperty(w.cited_by_count) [node:Work]
+            :     Filter((w.year = 2020))
+            :       GetProperty(w.year) [node:Work]
+            :         EntityScan(w:Work)
+
+### OA3 @kvs
+Coord Limit[20]
+  Coord Sort[c DESC, b.author_id ASC]
+    Coord Aggregation[keys: b.author_id | count(*) AS c]
+      Fetch[leveldb] in=(b) out=(b, b.author_id)
+        : GetProperty(b.author_id) [node:Author]
+        :   Argument(b)
+        StoreQuery[neo4j] in=(w) out=(w, b)
+          : RelUniqueFilter[_r0, _r1]
+          :   Expand((w)<-[_r1:AUTHORED]-(b:Author))
+          :     Expand((w)<-[_r0:AUTHORED]-(a:Author))
+          :       Argument(w)
+          StoreQuery[leveldb] out=(w)
+            : Filter((w.cited_by_count >= 500))
+            :   GetProperty(w.cited_by_count) [node:Work]
+            :     Filter((w.year = 2020))
+            :       GetProperty(w.year) [node:Work]
+            :         EntityScan(w:Work)
+

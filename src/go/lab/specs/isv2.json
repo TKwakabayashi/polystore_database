@@ -1,0 +1,43 @@
+{
+  "name": "isv2",
+  "workloads": [
+    "ISV2"
+  ],
+  "queries": [
+    "current"
+  ],
+  "cases": [
+    {
+      "label": "Deepak",
+      "params": {
+        "name": "Deepak"
+      }
+    },
+    {
+      "label": "Jun",
+      "params": {
+        "name": "Jun"
+      }
+    },
+    {
+      "label": "John",
+      "params": {
+        "name": "John"
+      }
+    }
+  ],
+  "placements": [
+    "graph",
+    "rdb",
+    "doc",
+    "col",
+    "kvs"
+  ],
+  "models": [
+    "vecstream"
+  ],
+  "warmup": 1,
+  "trials": 3,
+  "timeout": "120s",
+  "verify": true
+}

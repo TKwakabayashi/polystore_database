@@ -1,0 +1,500 @@
+## GIT1 — Short walks on deep chains: the cost when the sort key and output-only columns are off graph
+traits: start=filtered scan hops=1..3 fan-out=low variable-length Top-20 | R0 output: c.sha, a.subject | R1 start: c.files_changed | R6 aggregate / sort: a.committed_date, a.sha
+
+### GIT1 @graph
+StoreQuery[neo4j] out=(c.sha, a.sha, a.subject)
+  : Projection[c.sha, a.sha, a.subject]
+  :   GetProperty(a.subject) [node:Commit]
+  :     GetProperty(c.sha) [node:Commit]
+  :       Limit[20]
+  :         Sort[_sort0 DESC, a.sha ASC]
+  :           Projection[a.sha, a.committed_date AS _sort0, a, c]
+  :             GetProperty(a.committed_date) [node:Commit]
+  :               GetProperty(a.sha) [node:Commit]
+  :                 VarLengthExpand((c)-[_r0:PARENT*1..3]->(a:Commit))
+  :                   Filter((c.files_changed >= 200))
+  :                     GetProperty(c.files_changed) [node:Commit]
+  :                       EntityScan(c:Commit)
+
+### GIT1 @relational
+Coord Projection[c.sha, a.sha, a.subject]
+  Fetch[mysql] in=(a) out=(a, a.subject)
+    : GetProperty(a.subject) [node:Commit]
+    :   Argument(a)
+    Fetch[mysql] in=(c) out=(c, c.sha)
+      : GetProperty(c.sha) [node:Commit]
+      :   Argument(c)
+      Coord Limit[20]
+        Coord Sort[_sort0 DESC, a.sha ASC]
+          Coord Projection[a.sha, a.committed_date AS _sort0, a, c]
+            Fetch[mysql] in=(a) out=(a, a.committed_date, a.sha)
+              : GetProperty(a.committed_date) [node:Commit]
+              :   GetProperty(a.sha) [node:Commit]
+              :     Argument(a)
+              StoreQuery[neo4j] in=(c) out=(c, a) weighted
+                : VarLengthExpand((c)-[_r0:PARENT*1..3]->(a:Commit))
+                :   Argument(c)
+                StoreQuery[mysql] out=(c)
+                  : Filter((c.files_changed >= 200))
+                  :   GetProperty(c.files_changed) [node:Commit]
+                  :     EntityScan(c:Commit)
+
+### GIT1 @document
+Coord Projection[c.sha, a.sha, a.subject]
+  Fetch[mongo] in=(a) out=(a, a.subject)
+    : GetProperty(a.subject) [node:Commit]
+    :   Argument(a)
+    Fetch[mongo] in=(c) out=(c, c.sha)
+      : GetProperty(c.sha) [node:Commit]
+      :   Argument(c)
+      Coord Limit[20]
+        Coord Sort[_sort0 DESC, a.sha ASC]
+          Coord Projection[a.sha, a.committed_date AS _sort0, a, c]
+            Fetch[mongo] in=(a) out=(a, a.committed_date, a.sha)
+              : GetProperty(a.committed_date) [node:Commit]
+              :   GetProperty(a.sha) [node:Commit]
+              :     Argument(a)
+              StoreQuery[neo4j] in=(c) out=(c, a) weighted
+                : VarLengthExpand((c)-[_r0:PARENT*1..3]->(a:Commit))
+                :   Argument(c)
+                StoreQuery[mongo] out=(c)
+                  : Filter((c.files_changed >= 200))
+                  :   GetProperty(c.files_changed) [node:Commit]
+                  :     EntityScan(c:Commit)
+
+### GIT1 @columnar
+Coord Projection[c.sha, a.sha, a.subject]
+  Fetch[clickhouse] in=(a) out=(a, a.subject)
+    : GetProperty(a.subject) [node:Commit]
+    :   Argument(a)
+    Fetch[clickhouse] in=(c) out=(c, c.sha)
+      : GetProperty(c.sha) [node:Commit]
+      :   Argument(c)
+      Coord Limit[20]
+        Coord Sort[_sort0 DESC, a.sha ASC]
+          Coord Projection[a.sha, a.committed_date AS _sort0, a, c]
+            Fetch[clickhouse] in=(a) out=(a, a.committed_date, a.sha)
+              : GetProperty(a.committed_date) [node:Commit]
+              :   GetProperty(a.sha) [node:Commit]
+              :     Argument(a)
+              StoreQuery[neo4j] in=(c) out=(c, a) weighted
+                : VarLengthExpand((c)-[_r0:PARENT*1..3]->(a:Commit))
+                :   Argument(c)
+                StoreQuery[clickhouse] out=(c)
+                  : Filter((c.files_changed >= 200))
+                  :   GetProperty(c.files_changed) [node:Commit]
+                  :     EntityScan(c:Commit)
+
+### GIT1 @widecolumn
+Coord Projection[c.sha, a.sha, a.subject]
+  Fetch[cassandra] in=(a) out=(a, a.subject)
+    : GetProperty(a.subject) [node:Commit]
+    :   Argument(a)
+    Fetch[cassandra] in=(c) out=(c, c.sha)
+      : GetProperty(c.sha) [node:Commit]
+      :   Argument(c)
+      Coord Limit[20]
+        Coord Sort[_sort0 DESC, a.sha ASC]
+          Coord Projection[a.sha, a.committed_date AS _sort0, a, c]
+            Fetch[cassandra] in=(a) out=(a, a.committed_date, a.sha)
+              : GetProperty(a.committed_date) [node:Commit]
+              :   GetProperty(a.sha) [node:Commit]
+              :     Argument(a)
+              StoreQuery[neo4j] in=(c) out=(c, a) weighted
+                : VarLengthExpand((c)-[_r0:PARENT*1..3]->(a:Commit))
+                :   Argument(c)
+                StoreQuery[cassandra] out=(c)
+                  : Filter((c.files_changed >= 200))
+                  :   GetProperty(c.files_changed) [node:Commit]
+                  :     EntityScan(c:Commit)
+
+### GIT1 @kvs
+Coord Projection[c.sha, a.sha, a.subject]
+  Fetch[leveldb] in=(a) out=(a, a.subject)
+    : GetProperty(a.subject) [node:Commit]
+    :   Argument(a)
+    Fetch[leveldb] in=(c) out=(c, c.sha)
+      : GetProperty(c.sha) [node:Commit]
+      :   Argument(c)
+      Coord Limit[20]
+        Coord Sort[_sort0 DESC, a.sha ASC]
+          Coord Projection[a.sha, a.committed_date AS _sort0, a, c]
+            Fetch[leveldb] in=(a) out=(a, a.committed_date, a.sha)
+              : GetProperty(a.committed_date) [node:Commit]
+              :   GetProperty(a.sha) [node:Commit]
+              :     Argument(a)
+              StoreQuery[neo4j] in=(c) out=(c, a) weighted
+                : VarLengthExpand((c)-[_r0:PARENT*1..3]->(a:Commit))
+                :   Argument(c)
+                StoreQuery[leveldb] out=(c)
+                  : Filter((c.files_changed >= 200))
+                  :   GetProperty(c.files_changed) [node:Commit]
+                  :     EntityScan(c:Commit)
+
+## GIT2 — The cost of extracting paths (paths x length) when a whole-path condition is off graph
+traits: start=filtered scan hops=1..5 fan-out=low variable-length aggregate Top-20 | R1 start: c.files_changed | R4 path: x.deletions | R6 aggregate / sort: a.sha
+
+### GIT2 @graph
+StoreQuery[neo4j] out=(a.sha, paths)
+  : Limit[20]
+  :   Sort[paths DESC, a.sha ASC]
+  :     Aggregation[keys: a.sha | count(*) AS paths]
+  :       GetProperty(a.sha) [node:Commit]
+  :         Filter((a.deletions < 1000))
+  :           GetProperty(a.deletions) [node:Commit]
+  :             VarLengthExpand((c)-[_r0:PARENT*1..5]->(a:Commit)) seg[all(x IN nodes WHERE (x.deletions < 1000))]
+  :               Filter((c.deletions < 1000))
+  :                 GetProperty(c.deletions) [node:Commit]
+  :                   Filter((c.files_changed >= 200))
+  :                     GetProperty(c.files_changed) [node:Commit]
+  :                       EntityScan(c:Commit)
+
+### GIT2 @relational
+Coord Limit[20]
+  Coord Sort[paths DESC, a.sha ASC]
+    Coord Aggregation[keys: a.sha | count(*) AS paths]
+      StoreQuery[mysql] in=(a) out=(a, a.sha)
+        : GetProperty(a.sha) [node:Commit]
+        :   Filter((a.deletions < 1000))
+        :     GetProperty(a.deletions) [node:Commit]
+        :       Argument(a)
+        Coord Filter(all(x IN nodes(_seg__r0) WHERE (x.deletions < 1000)))
+          ListFetch[mysql] _seg__r0.nodes.deletions from _seg__r0 [elem:Commit]
+            StoreQuery[neo4j] in=(c) out=(c, _seg__r0, a)
+              : VarLengthExpand((c)-[_r0:PARENT*1..5]->(a:Commit)) emit _seg__r0
+              :   Argument(c)
+              StoreQuery[mysql] out=(c)
+                : Filter((c.deletions < 1000))
+                :   GetProperty(c.deletions) [node:Commit]
+                :     Filter((c.files_changed >= 200))
+                :       GetProperty(c.files_changed) [node:Commit]
+                :         EntityScan(c:Commit)
+
+### GIT2 @document
+Coord Limit[20]
+  Coord Sort[paths DESC, a.sha ASC]
+    Coord Aggregation[keys: a.sha | count(*) AS paths]
+      StoreQuery[mongo] in=(a) out=(a, a.sha)
+        : GetProperty(a.sha) [node:Commit]
+        :   Filter((a.deletions < 1000))
+        :     GetProperty(a.deletions) [node:Commit]
+        :       Argument(a)
+        Coord Filter(all(x IN nodes(_seg__r0) WHERE (x.deletions < 1000)))
+          ListFetch[mongo] _seg__r0.nodes.deletions from _seg__r0 [elem:Commit]
+            StoreQuery[neo4j] in=(c) out=(c, _seg__r0, a)
+              : VarLengthExpand((c)-[_r0:PARENT*1..5]->(a:Commit)) emit _seg__r0
+              :   Argument(c)
+              StoreQuery[mongo] out=(c)
+                : Filter((c.deletions < 1000))
+                :   GetProperty(c.deletions) [node:Commit]
+                :     Filter((c.files_changed >= 200))
+                :       GetProperty(c.files_changed) [node:Commit]
+                :         EntityScan(c:Commit)
+
+### GIT2 @columnar
+Coord Limit[20]
+  Coord Sort[paths DESC, a.sha ASC]
+    Coord Aggregation[keys: a.sha | count(*) AS paths]
+      StoreQuery[clickhouse] in=(a) out=(a, a.sha)
+        : GetProperty(a.sha) [node:Commit]
+        :   Filter((a.deletions < 1000))
+        :     GetProperty(a.deletions) [node:Commit]
+        :       Argument(a)
+        Coord Filter(all(x IN nodes(_seg__r0) WHERE (x.deletions < 1000)))
+          ListFetch[clickhouse] _seg__r0.nodes.deletions from _seg__r0 [elem:Commit]
+            StoreQuery[neo4j] in=(c) out=(c, _seg__r0, a)
+              : VarLengthExpand((c)-[_r0:PARENT*1..5]->(a:Commit)) emit _seg__r0
+              :   Argument(c)
+              StoreQuery[clickhouse] out=(c)
+                : Filter((c.deletions < 1000))
+                :   GetProperty(c.deletions) [node:Commit]
+                :     Filter((c.files_changed >= 200))
+                :       GetProperty(c.files_changed) [node:Commit]
+                :         EntityScan(c:Commit)
+
+### GIT2 @widecolumn
+Coord Limit[20]
+  Coord Sort[paths DESC, a.sha ASC]
+    Coord Aggregation[keys: a.sha | count(*) AS paths]
+      StoreQuery[cassandra] in=(a) out=(a, a.sha)
+        : GetProperty(a.sha) [node:Commit]
+        :   Filter((a.deletions < 1000))
+        :     GetProperty(a.deletions) [node:Commit]
+        :       Argument(a)
+        Coord Filter(all(x IN nodes(_seg__r0) WHERE (x.deletions < 1000)))
+          ListFetch[cassandra] _seg__r0.nodes.deletions from _seg__r0 [elem:Commit]
+            StoreQuery[neo4j] in=(c) out=(c, _seg__r0, a)
+              : VarLengthExpand((c)-[_r0:PARENT*1..5]->(a:Commit)) emit _seg__r0
+              :   Argument(c)
+              StoreQuery[cassandra] out=(c)
+                : Filter((c.deletions < 1000))
+                :   GetProperty(c.deletions) [node:Commit]
+                :     Filter((c.files_changed >= 200))
+                :       GetProperty(c.files_changed) [node:Commit]
+                :         EntityScan(c:Commit)
+
+### GIT2 @kvs
+Coord Limit[20]
+  Coord Sort[paths DESC, a.sha ASC]
+    Coord Aggregation[keys: a.sha | count(*) AS paths]
+      StoreQuery[leveldb] in=(a) out=(a, a.sha)
+        : GetProperty(a.sha) [node:Commit]
+        :   Filter((a.deletions < 1000))
+        :     GetProperty(a.deletions) [node:Commit]
+        :       Argument(a)
+        Coord Filter(all(x IN nodes(_seg__r0) WHERE (x.deletions < 1000)))
+          ListFetch[leveldb] _seg__r0.nodes.deletions from _seg__r0 [elem:Commit]
+            StoreQuery[neo4j] in=(c) out=(c, _seg__r0, a)
+              : VarLengthExpand((c)-[_r0:PARENT*1..5]->(a:Commit)) emit _seg__r0
+              :   Argument(c)
+              StoreQuery[leveldb] out=(c)
+                : Filter((c.deletions < 1000))
+                :   GetProperty(c.deletions) [node:Commit]
+                :     Filter((c.files_changed >= 200))
+                :       GetProperty(c.files_changed) [node:Commit]
+                :         EntityScan(c:Commit)
+
+## GIT3 — The cost of splitting the graph query on middle vertex and edge conditions, and aggregation absorption
+traits: start=narrowed in the middle hops=2 fan-out=medium aggregate Top-20 | R3 middle: c.committed_date | R5 edge: t.insertions | R6 aggregate / sort: au.name, f.path
+
+### GIT3 @graph
+StoreQuery[neo4j] out=(au.name, files)
+  : Limit[20]
+  :   Sort[files DESC, au.name ASC]
+  :     Aggregation[keys: au.name | count(DISTINCT f.path) AS files]
+  :       GetProperty(f.path) [node:File]
+  :         GetProperty(au.name) [node:Author]
+  :           Filter((t.insertions >= 100))
+  :             GetProperty(t.insertions) [rel:TOUCHED]
+  :               Expand((c)-[t:TOUCHED]->(f:File))
+  :                 Expand((c)<-[_r0:AUTHORED]-(au:Author))
+  :                   Filter((c.committed_date >= "2024-01-01"))
+  :                     GetProperty(c.committed_date) [node:Commit]
+  :                       EntityScan(c:Commit)
+
+### GIT3 @relational
+Coord Limit[20]
+  Coord Sort[files DESC, au.name ASC]
+    Coord Aggregation[keys: au.name | count(DISTINCT f.path) AS files]
+      Fetch[mysql] in=(f) out=(f, f.path)
+        : GetProperty(f.path) [node:File]
+        :   Argument(f)
+        Fetch[mysql] in=(au) out=(au, au.name)
+          : GetProperty(au.name) [node:Author]
+          :   Argument(au)
+          StoreQuery[mysql] in=(t) out=(t)
+            : Filter((t.insertions >= 100))
+            :   GetProperty(t.insertions) [rel:TOUCHED]
+            :     Argument(t)
+            StoreQuery[neo4j] in=(c) out=(c, au, f, t)
+              : Expand((c)-[t:TOUCHED]->(f:File))
+              :   Expand((c)<-[_r0:AUTHORED]-(au:Author))
+              :     Argument(c)
+              StoreQuery[mysql] out=(c)
+                : Filter((c.committed_date >= "2024-01-01"))
+                :   GetProperty(c.committed_date) [node:Commit]
+                :     EntityScan(c:Commit)
+
+### GIT3 @document
+Coord Limit[20]
+  Coord Sort[files DESC, au.name ASC]
+    Coord Aggregation[keys: au.name | count(DISTINCT f.path) AS files]
+      Fetch[mongo] in=(f) out=(f, f.path)
+        : GetProperty(f.path) [node:File]
+        :   Argument(f)
+        Fetch[mongo] in=(au) out=(au, au.name)
+          : GetProperty(au.name) [node:Author]
+          :   Argument(au)
+          StoreQuery[mongo] in=(t) out=(t)
+            : Filter((t.insertions >= 100))
+            :   GetProperty(t.insertions) [rel:TOUCHED]
+            :     Argument(t)
+            StoreQuery[neo4j] in=(c) out=(c, au, f, t)
+              : Expand((c)-[t:TOUCHED]->(f:File))
+              :   Expand((c)<-[_r0:AUTHORED]-(au:Author))
+              :     Argument(c)
+              StoreQuery[mongo] out=(c)
+                : Filter((c.committed_date >= "2024-01-01"))
+                :   GetProperty(c.committed_date) [node:Commit]
+                :     EntityScan(c:Commit)
+
+### GIT3 @columnar
+Coord Limit[20]
+  Coord Sort[files DESC, au.name ASC]
+    Coord Aggregation[keys: au.name | count(DISTINCT f.path) AS files]
+      Fetch[clickhouse] in=(f) out=(f, f.path)
+        : GetProperty(f.path) [node:File]
+        :   Argument(f)
+        Fetch[clickhouse] in=(au) out=(au, au.name)
+          : GetProperty(au.name) [node:Author]
+          :   Argument(au)
+          StoreQuery[clickhouse] in=(t) out=(t)
+            : Filter((t.insertions >= 100))
+            :   GetProperty(t.insertions) [rel:TOUCHED]
+            :     Argument(t)
+            StoreQuery[neo4j] in=(c) out=(c, au, f, t)
+              : Expand((c)-[t:TOUCHED]->(f:File))
+              :   Expand((c)<-[_r0:AUTHORED]-(au:Author))
+              :     Argument(c)
+              StoreQuery[clickhouse] out=(c)
+                : Filter((c.committed_date >= "2024-01-01"))
+                :   GetProperty(c.committed_date) [node:Commit]
+                :     EntityScan(c:Commit)
+
+### GIT3 @widecolumn
+Coord Limit[20]
+  Coord Sort[files DESC, au.name ASC]
+    Coord Aggregation[keys: au.name | count(DISTINCT f.path) AS files]
+      Fetch[cassandra] in=(f) out=(f, f.path)
+        : GetProperty(f.path) [node:File]
+        :   Argument(f)
+        Fetch[cassandra] in=(au) out=(au, au.name)
+          : GetProperty(au.name) [node:Author]
+          :   Argument(au)
+          StoreQuery[cassandra] in=(t) out=(t)
+            : Filter((t.insertions >= 100))
+            :   GetProperty(t.insertions) [rel:TOUCHED]
+            :     Argument(t)
+            StoreQuery[neo4j] in=(c) out=(c, au, f, t)
+              : Expand((c)-[t:TOUCHED]->(f:File))
+              :   Expand((c)<-[_r0:AUTHORED]-(au:Author))
+              :     Argument(c)
+              StoreQuery[cassandra] out=(c)
+                : Filter((c.committed_date >= "2024-01-01"))
+                :   GetProperty(c.committed_date) [node:Commit]
+                :     EntityScan(c:Commit)
+
+### GIT3 @kvs
+Coord Limit[20]
+  Coord Sort[files DESC, au.name ASC]
+    Coord Aggregation[keys: au.name | count(DISTINCT f.path) AS files]
+      Fetch[leveldb] in=(f) out=(f, f.path)
+        : GetProperty(f.path) [node:File]
+        :   Argument(f)
+        Fetch[leveldb] in=(au) out=(au, au.name)
+          : GetProperty(au.name) [node:Author]
+          :   Argument(au)
+          StoreQuery[leveldb] in=(t) out=(t)
+            : Filter((t.insertions >= 100))
+            :   GetProperty(t.insertions) [rel:TOUCHED]
+            :     Argument(t)
+            StoreQuery[neo4j] in=(c) out=(c, au, f, t)
+              : Expand((c)-[t:TOUCHED]->(f:File))
+              :   Expand((c)<-[_r0:AUTHORED]-(au:Author))
+              :     Argument(c)
+              StoreQuery[leveldb] out=(c)
+                : Filter((c.committed_date >= "2024-01-01"))
+                :   GetProperty(c.committed_date) [node:Commit]
+                :     EntityScan(c:Commit)
+
+## GIT4 — Deferred materialization (fetching only message after Top-k) at a small scale
+traits: start=filtered scan hops=1 fan-out=low Top-10 | R1 start: c.insertions | R6 aggregate / sort: c.insertions, c.sha | R7 text: p.message
+
+### GIT4 @graph
+StoreQuery[neo4j] out=(c.sha, c.insertions, p.message)
+  : Projection[c.sha, c.insertions, p.message]
+  :   GetProperty(p.message) [node:Commit]
+  :     Limit[10]
+  :       Sort[c.insertions DESC, c.sha ASC]
+  :         Projection[c.sha, c.insertions, p]
+  :           GetProperty(c.sha) [node:Commit]
+  :             Expand((c)-[_r0:PARENT]->(p:Commit))
+  :               Filter((c.insertions >= 5000))
+  :                 GetProperty(c.insertions) [node:Commit]
+  :                   EntityScan(c:Commit)
+
+### GIT4 @relational
+Coord Projection[c.sha, c.insertions, p.message]
+  Fetch[mysql] in=(p) out=(p, p.message)
+    : GetProperty(p.message) [node:Commit]
+    :   Argument(p)
+    Coord Limit[10]
+      Coord Sort[c.insertions DESC, c.sha ASC]
+        Coord Projection[c.sha, c.insertions, p]
+          Fetch[mysql] in=(c) out=(c, c.sha)
+            : GetProperty(c.sha) [node:Commit]
+            :   Argument(c)
+            StoreQuery[neo4j] in=(c) out=(c, p)
+              : Expand((c)-[_r0:PARENT]->(p:Commit))
+              :   Argument(c)
+              StoreQuery[mysql] out=(c, c.insertions)
+                : Filter((c.insertions >= 5000))
+                :   GetProperty(c.insertions) [node:Commit]
+                :     EntityScan(c:Commit)
+
+### GIT4 @document
+Coord Projection[c.sha, c.insertions, p.message]
+  Fetch[mongo] in=(p) out=(p, p.message)
+    : GetProperty(p.message) [node:Commit]
+    :   Argument(p)
+    Coord Limit[10]
+      Coord Sort[c.insertions DESC, c.sha ASC]
+        Coord Projection[c.sha, c.insertions, p]
+          Fetch[mongo] in=(c) out=(c, c.sha)
+            : GetProperty(c.sha) [node:Commit]
+            :   Argument(c)
+            StoreQuery[neo4j] in=(c) out=(c, p)
+              : Expand((c)-[_r0:PARENT]->(p:Commit))
+              :   Argument(c)
+              StoreQuery[mongo] out=(c, c.insertions)
+                : Filter((c.insertions >= 5000))
+                :   GetProperty(c.insertions) [node:Commit]
+                :     EntityScan(c:Commit)
+
+### GIT4 @columnar
+Coord Projection[c.sha, c.insertions, p.message]
+  Fetch[clickhouse] in=(p) out=(p, p.message)
+    : GetProperty(p.message) [node:Commit]
+    :   Argument(p)
+    Coord Limit[10]
+      Coord Sort[c.insertions DESC, c.sha ASC]
+        Coord Projection[c.sha, c.insertions, p]
+          Fetch[clickhouse] in=(c) out=(c, c.sha)
+            : GetProperty(c.sha) [node:Commit]
+            :   Argument(c)
+            StoreQuery[neo4j] in=(c) out=(c, p)
+              : Expand((c)-[_r0:PARENT]->(p:Commit))
+              :   Argument(c)
+              StoreQuery[clickhouse] out=(c, c.insertions)
+                : Filter((c.insertions >= 5000))
+                :   GetProperty(c.insertions) [node:Commit]
+                :     EntityScan(c:Commit)
+
+### GIT4 @widecolumn
+Coord Projection[c.sha, c.insertions, p.message]
+  Fetch[cassandra] in=(p) out=(p, p.message)
+    : GetProperty(p.message) [node:Commit]
+    :   Argument(p)
+    Coord Limit[10]
+      Coord Sort[c.insertions DESC, c.sha ASC]
+        Coord Projection[c.sha, c.insertions, p]
+          Fetch[cassandra] in=(c) out=(c, c.sha)
+            : GetProperty(c.sha) [node:Commit]
+            :   Argument(c)
+            StoreQuery[neo4j] in=(c) out=(c, p)
+              : Expand((c)-[_r0:PARENT]->(p:Commit))
+              :   Argument(c)
+              StoreQuery[cassandra] out=(c, c.insertions)
+                : Filter((c.insertions >= 5000))
+                :   GetProperty(c.insertions) [node:Commit]
+                :     EntityScan(c:Commit)
+
+### GIT4 @kvs
+Coord Projection[c.sha, c.insertions, p.message]
+  Fetch[leveldb] in=(p) out=(p, p.message)
+    : GetProperty(p.message) [node:Commit]
+    :   Argument(p)
+    Coord Limit[10]
+      Coord Sort[c.insertions DESC, c.sha ASC]
+        Coord Projection[c.sha, c.insertions, p]
+          Fetch[leveldb] in=(c) out=(c, c.sha)
+            : GetProperty(c.sha) [node:Commit]
+            :   Argument(c)
+            StoreQuery[neo4j] in=(c) out=(c, p)
+              : Expand((c)-[_r0:PARENT]->(p:Commit))
+              :   Argument(c)
+              StoreQuery[leveldb] out=(c, c.insertions)
+                : Filter((c.insertions >= 5000))
+                :   GetProperty(c.insertions) [node:Commit]
+                :     EntityScan(c:Commit)
+

@@ -1,37 +1,35 @@
-# Ignore database actual data
+# The user's settings (template: config/config.example.json)
 config/config.json
-src/go/storage/config.go
 
-# datastore/ のうち実データだけを無視する。
-# compose.yaml / env / scripts は環境再現に必要なので追跡する。
-# （env のパスワードは開発用ローカル固定値）
-datastore/snapshots/
+# Of datastore/, ignore data, instance state and machine-tuned env values; docker/compose.yaml,
+# scripts/ and each dataset's mapping.json, stats.json and README.md are tracked to reproduce the
+# environment. The per-environment env files are machine-dependent (heap sizes, published ports,
+# volume names), so they are ignored and only their templates are tracked (*.env.example).
+datastore/datasets/*/dumps/
 datastore/runtime/
+datastore/docker/.env
+datastore/datasets/*/dataset.env
+# the uuid lease ledger (template: datastore/shared/uuid_leases.example.json; also .lock / .tmp)
+datastore/shared/uuid_leases.json*
 
-# Ignore dump files
 *.dump
 .DS_Store
 *.prof
 
-#ignore meta folder
+# local folders and immature local-only files
 docs/
 .vscode/
-catalog/library
+results/
+.claude/
+CLAUDE.md
+analysis/
 
 # Rust build artifacts
 target/
-# benchmark output
-bench_results.csv
-src/go/bench_results.csv
-bench_results_wide.csv
-src/go/bench_results_wide.csv
-
-# generated outputs (bench CSV / pprof / trace / baseline) — kept local, not tracked
-results/
 
 # ANTLR generated artifacts
-# .antlr/ は VS Code ANTLR 拡張のキャッシュ。output/ の .interp/.tokens はビルドに不要。
-# output/*.go はビルドに必要なので追跡を続ける（再生成は /regen-parser）。
-src/go/parser/.antlr/
-src/go/parser/output/*.interp
-src/go/parser/output/*.tokens
+# .antlr/ is the VS Code ANTLR extension's cache; output/*.interp and *.tokens are not needed to build.
+# output/*.go is needed to build and stays tracked (regenerate with /regen-parser).
+src/go/query/cypher/parser/.antlr/
+src/go/query/cypher/parser/output/*.interp
+src/go/query/cypher/parser/output/*.tokens

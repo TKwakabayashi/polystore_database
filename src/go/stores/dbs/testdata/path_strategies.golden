@@ -1,0 +1,237 @@
+### all_nodes @prefilter
+MATCH p=(a:Person {id: $x})-[:KNOWS*1..3]-(c:Person) WHERE all(n IN nodes(p) WHERE n.gender = 'male') RETURN c.id
+[mongo] columns=(_set0)
+  db.Person.aggregate([
+    {$match: {gender: {$eq: "male"}}}
+    {$project: {_id: 0(int), v0: "$uuid", uuid: 1(int), v1: "$gender"}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[mongo] columns=(a)
+  db.Person.aggregate([
+    {$match: {gender: {$eq: "male"}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(a, c, _w) in=(a)
+  MATCH (a:Person) WHERE a.uuid IN $in AND (a.id = $p0) MATCH _sp_r0 = (a)-[:KNOWS*1..3]-(c:Person) WHERE all(n IN nodes(_sp_r0)[1..-1] WHERE (n.uuid IN $p1)) RETURN a.uuid AS c0, c.uuid AS c1, count(*) AS c2
+  params: p0=1(int64), p1=[]([]string)
+[mongo] columns=(c) in=(c)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}, gender: {$eq: "male"}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(c, c.id) in=(c)
+  MATCH (c:Person) WHERE c.uuid IN $in RETURN c.uuid AS c0, c.id AS c1
+[coordinator] Projection[c.id]
+
+### all_nodes @stepwise
+MATCH p=(a:Person {id: $x})-[:KNOWS*1..3]-(c:Person) WHERE all(n IN nodes(p) WHERE n.gender = 'male') RETURN c.id
+[mongo] columns=(a)
+  db.Person.aggregate([
+    {$match: {gender: {$eq: "male"}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(a) in=(a)
+  MATCH (a:Person) WHERE a.uuid IN $in AND (a.id = $p0) RETURN a.uuid AS c0
+  params: p0=1(int64)
+(hop) [neo4j] columns=(_hf, _hr, _ht) in=(_hf)
+  MATCH (_hf:Person) WHERE _hf.uuid IN $in MATCH (_hf)-[_hr:KNOWS]-(_ht) RETURN _hf.uuid AS c0, _hr.uuid AS c1, _ht.uuid AS c2
+(step fetch) [mongo] columns=(_e, _e.gender) in=(_e)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$gender"}}
+  ])
+[coordinator] StepExpand((a)-[_r0:KNOWS*1..3]-(c:Person)) seg[all(n IN nodes WHERE (n.gender = "male"))] weighted
+[mongo] columns=(c) in=(c)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}, gender: {$eq: "male"}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(c, c.id) in=(c)
+  MATCH (c:Person) WHERE c.uuid IN $in RETURN c.uuid AS c0, c.id AS c1
+[coordinator] Projection[c.id]
+
+### none_two_stores @prefilter
+MATCH p=(a:Person {id: $x})-[:KNOWS*1..3]-(c:Person) WHERE none(n IN nodes(p) WHERE n.gender = 'male' AND n.lastName = 'Lee') RETURN c.id
+[mongo] columns=(_set0, _set0.gender)
+  db.Person.aggregate([
+    {$match: {}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$gender"}}
+  ])
+[mysql] columns=(_set0, _set0.lastName) in=(_set0)
+  SELECT `uuid` AS c0, `lastName` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Filter(NOT(((_set0.gender = "male") AND (_set0.lastName = "Lee"))))
+[coordinator] Projection[_set0]
+[mongo] columns=(a, a.gender)
+  db.Person.aggregate([
+    {$match: {}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$gender"}}
+  ])
+[mysql] columns=(a, a.lastName) in=(a)
+  SELECT `uuid` AS c0, `lastName` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Filter(NOT(((a.gender = "male") AND (a.lastName = "Lee"))))
+[neo4j] columns=(a, c, _w) in=(a)
+  MATCH (a:Person) WHERE a.uuid IN $in AND (a.id = $p0) MATCH _sp_r0 = (a)-[:KNOWS*1..3]-(c:Person) WHERE all(n IN nodes(_sp_r0)[1..-1] WHERE (n.uuid IN $p1)) RETURN a.uuid AS c0, c.uuid AS c1, count(*) AS c2
+  params: p0=1(int64), p1=[]([]string)
+[mongo] columns=(c, c.gender) in=(c)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$gender"}}
+  ])
+[mysql] columns=(c, c.lastName) in=(c)
+  SELECT `uuid` AS c0, `lastName` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Filter(NOT(((c.gender = "male") AND (c.lastName = "Lee"))))
+[neo4j] columns=(c, c.id) in=(c)
+  MATCH (c:Person) WHERE c.uuid IN $in RETURN c.uuid AS c0, c.id AS c1
+[coordinator] Projection[c.id]
+
+### none_two_stores @stepwise
+MATCH p=(a:Person {id: $x})-[:KNOWS*1..3]-(c:Person) WHERE none(n IN nodes(p) WHERE n.gender = 'male' AND n.lastName = 'Lee') RETURN c.id
+[mongo] columns=(a, a.gender)
+  db.Person.aggregate([
+    {$match: {}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$gender"}}
+  ])
+[mysql] columns=(a, a.lastName) in=(a)
+  SELECT `uuid` AS c0, `lastName` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Filter(NOT(((a.gender = "male") AND (a.lastName = "Lee"))))
+[neo4j] columns=(a) in=(a)
+  MATCH (a:Person) WHERE a.uuid IN $in AND (a.id = $p0) RETURN a.uuid AS c0
+  params: p0=1(int64)
+(hop) [neo4j] columns=(_hf, _hr, _ht) in=(_hf)
+  MATCH (_hf:Person) WHERE _hf.uuid IN $in MATCH (_hf)-[_hr:KNOWS]-(_ht) RETURN _hf.uuid AS c0, _hr.uuid AS c1, _ht.uuid AS c2
+(step fetch) [mongo] columns=(_e, _e.gender) in=(_e)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$gender"}}
+  ])
+(step fetch) [mysql] columns=(_e, _e.lastName) in=(_e)
+  SELECT `uuid` AS c0, `lastName` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] StepExpand((a)-[_r0:KNOWS*1..3]-(c:Person)) seg[all(n IN nodes WHERE NOT(((n.gender = "male") AND (n.lastName = "Lee"))))] weighted
+[mongo] columns=(c, c.gender) in=(c)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$gender"}}
+  ])
+[mysql] columns=(c, c.lastName) in=(c)
+  SELECT `uuid` AS c0, `lastName` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Filter(NOT(((c.gender = "male") AND (c.lastName = "Lee"))))
+[neo4j] columns=(c, c.id) in=(c)
+  MATCH (c:Person) WHERE c.uuid IN $in RETURN c.uuid AS c0, c.id AS c1
+[coordinator] Projection[c.id]
+
+### any_point @prefilter
+MATCH p=(a:Person {id: $x})-[:KNOWS*1..3]-(c:Person) WHERE any(n IN nodes(p) WHERE n.firstName = 'Dee') RETURN c.id
+[mysql] columns=(_set0)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`firstName` = ?)
+  args: "Dee"
+[neo4j] columns=(c.id)
+  MATCH (a:Person) WHERE (a.id = $p0) MATCH _sp_r0 = (a)-[:KNOWS*1..3]-(c:Person) WHERE any(n IN [a] + nodes(_sp_r0)[1..-1] + [c] WHERE (n.uuid IN $p1)) WITH c.id AS v0 RETURN v0 AS c0
+  params: p0=1(int64), p1=[]([]string)
+
+### any_point @stepwise
+MATCH p=(a:Person {id: $x})-[:KNOWS*1..3]-(c:Person) WHERE any(n IN nodes(p) WHERE n.firstName = 'Dee') RETURN c.id
+[neo4j] columns=(c, p)
+  MATCH (a:Person) WHERE (a.id = $p0) MATCH _sp_r0 = (a)-[:KNOWS*1..3]-(c:Person) RETURN c.uuid AS c0, {nodes: [_x IN [a] + nodes(_sp_r0)[1..-1] + [c] | _x.uuid], rels: [_x IN relationships(_sp_r0) | _x.uuid]} AS c1
+  params: p0=1(int64)
+(list) [mysql] columns=(_e, _e.firstName) in=(_e)
+  SELECT `uuid` AS c0, `firstName` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Filter(any(n IN nodes(p) WHERE (n.firstName = "Dee")))
+[neo4j] columns=(c, c.id) in=(c)
+  MATCH (c:Person) WHERE c.uuid IN $in RETURN c.uuid AS c0, c.id AS c1
+[coordinator] Projection[c.id]
+
+### nodes_and_rels @prefilter
+MATCH p=(a:Person {id: $x})-[:KNOWS*1..3]-(c:Person) WHERE all(n IN nodes(p) WHERE n.firstName <> 'Dee') AND all(r IN relationships(p) WHERE r.creationDate > '2012-01-01T00:00:00Z') RETURN c.id
+[mysql] columns=(_set0)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`firstName` <> ?)
+  args: "Dee"
+[mysql] columns=(a)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`firstName` <> ?)
+  args: "Dee"
+[neo4j] columns=(a, _seg__r0, c) in=(a)
+  MATCH (a:Person) WHERE a.uuid IN $in AND (a.id = $p0) MATCH _sp_r0 = (a)-[:KNOWS*1..3]-(c:Person) WHERE all(n IN nodes(_sp_r0)[1..-1] WHERE (n.uuid IN $p1)) RETURN a.uuid AS c0, {nodes: [_x IN nodes(_sp_r0)[1..-1] | _x.uuid], rels: [_x IN relationships(_sp_r0) | _x.uuid]} AS c1, c.uuid AS c2
+  params: p0=1(int64), p1=[]([]string)
+(list) [mysql] columns=(_e, _e.creationDate) in=(_e)
+  SELECT `uuid` AS c0, `creationDate` AS c1 FROM `KNOWS` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Filter(all(r IN relationships(_seg__r0) WHERE (r.creationDate > 2012-01-01 00:00:00 +0000 UTC)))
+[mysql] columns=(c) in=(c)
+  SELECT `uuid` AS c0 FROM `Person` WHERE `uuid` IN (?) AND (`firstName` <> ?)
+  args: <in>, "Dee"
+[neo4j] columns=(c, c.id) in=(c)
+  MATCH (c:Person) WHERE c.uuid IN $in RETURN c.uuid AS c0, c.id AS c1
+[coordinator] Projection[c.id]
+
+### nodes_and_rels @stepwise
+MATCH p=(a:Person {id: $x})-[:KNOWS*1..3]-(c:Person) WHERE all(n IN nodes(p) WHERE n.firstName <> 'Dee') AND all(r IN relationships(p) WHERE r.creationDate > '2012-01-01T00:00:00Z') RETURN c.id
+[mysql] columns=(a)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`firstName` <> ?)
+  args: "Dee"
+[neo4j] columns=(a) in=(a)
+  MATCH (a:Person) WHERE a.uuid IN $in AND (a.id = $p0) RETURN a.uuid AS c0
+  params: p0=1(int64)
+(hop) [neo4j] columns=(_hf, _hr, _ht) in=(_hf)
+  MATCH (_hf:Person) WHERE _hf.uuid IN $in MATCH (_hf)-[_hr:KNOWS]-(_ht) RETURN _hf.uuid AS c0, _hr.uuid AS c1, _ht.uuid AS c2
+(step fetch) [mysql] columns=(_e, _e.firstName) in=(_e)
+  SELECT `uuid` AS c0, `firstName` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+(step fetch) [mysql] columns=(_e, _e.creationDate) in=(_e)
+  SELECT `uuid` AS c0, `creationDate` AS c1 FROM `KNOWS` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] StepExpand((a)-[_r0:KNOWS*1..3]-(c:Person)) seg[all(n IN nodes WHERE (n.firstName <> "Dee")) AND all(r IN rels WHERE (r.creationDate > 2012-01-01 00:00:00 +0000 UTC))] weighted
+[mysql] columns=(c) in=(c)
+  SELECT `uuid` AS c0 FROM `Person` WHERE `uuid` IN (?) AND (`firstName` <> ?)
+  args: <in>, "Dee"
+[neo4j] columns=(c, c.id) in=(c)
+  MATCH (c:Person) WHERE c.uuid IN $in RETURN c.uuid AS c0, c.id AS c1
+[coordinator] Projection[c.id]
+
+### quantified_nodes @prefilter
+MATCH (a:Person {id: $x}) ((n:Person)-[:KNOWS]-(m:Person) WHERE m.gender = 'male'){1,3} (c) RETURN c.id
+[mongo] columns=(_set0)
+  db.Person.aggregate([
+    {$match: {gender: {$eq: "male"}}}
+    {$project: {_id: 0(int), v0: "$uuid", uuid: 1(int), v1: "$gender"}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(c, _w)
+  MATCH (a:Person) WHERE (a.id = $p0) MATCH _sp_q0 = (a)-[:KNOWS*1..3]-(c:Person) WHERE all(n IN nodes(_sp_q0)[1..-1] WHERE (n.uuid IN $p1)) AND all(_l IN nodes(_sp_q0)[1..-1] WHERE _l:Person) RETURN c.uuid AS c0, count(*) AS c1
+  params: p0=1(int64), p1=[]([]string)
+[mongo] columns=(c) in=(c)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}, gender: {$eq: "male"}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(c, c.id) in=(c)
+  MATCH (c:Person) WHERE c.uuid IN $in RETURN c.uuid AS c0, c.id AS c1
+[coordinator] Projection[c.id]
+
+### quantified_nodes @stepwise
+MATCH (a:Person {id: $x}) ((n:Person)-[:KNOWS]-(m:Person) WHERE m.gender = 'male'){1,3} (c) RETURN c.id
+[neo4j] columns=(a)
+  MATCH (a:Person) WHERE (a.id = $p0) RETURN a.uuid AS c0
+  params: p0=1(int64)
+(hop) [neo4j] columns=(_hf, _hr, _ht) in=(_hf)
+  MATCH (_hf:Person) WHERE _hf.uuid IN $in MATCH (_hf)-[_hr:KNOWS]-(_ht) RETURN _hf.uuid AS c0, _hr.uuid AS c1, _ht.uuid AS c2
+(step fetch) [mongo] columns=(_e, _e.gender) in=(_e)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$gender"}}
+  ])
+[coordinator] StepExpand((a)-[_q0:KNOWS*1..3]-(c:Person)) seg[all(n IN nodes WHERE (n.gender = "male"))] inner:Person weighted
+[mongo] columns=(c) in=(c)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}, gender: {$eq: "male"}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(c, c.id) in=(c)
+  MATCH (c:Person) WHERE c.uuid IN $in RETURN c.uuid AS c0, c.id AS c1
+[coordinator] Projection[c.id]
+

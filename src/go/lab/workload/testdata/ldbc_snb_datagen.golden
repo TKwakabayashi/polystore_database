@@ -1,0 +1,568 @@
+## SNB1 — A mixed query with start, middle and end conditions and a text output, run at several scales (sf1 to sf30)
+traits: start=filtered scan hops=2 fan-out=medium Top-20 | R0 output: f.person_id | R1 start: p.first_name | R2 end: m.creation_date | R3 middle: f.browser | R6 aggregate / sort: m.creation_date, m.post_id | R7 text: m.content
+
+### SNB1 @graph
+StoreQuery[neo4j] out=(f.person_id, m.post_id, m.content)
+  : Projection[f.person_id, m.post_id, m.content]
+  :   GetProperty(m.content) [node:Post]
+  :     GetProperty(f.person_id) [node:Person]
+  :       Limit[20]
+  :         Sort[_sort0 DESC, m.post_id ASC]
+  :           Projection[m.post_id, m.creation_date AS _sort0, m, f]
+  :             GetProperty(m.post_id) [node:Post]
+  :               Filter((m.creation_date >= "2012-01-01"))
+  :                 GetProperty(m.creation_date) [node:Post]
+  :                   Expand((f)-[_r1:POSTED]->(m:Post))
+  :                     Filter((f.browser = "Firefox"))
+  :                       GetProperty(f.browser) [node:Person]
+  :                         Expand((p)-[_r0:KNOWS]-(f:Person))
+  :                           Filter((p.first_name = "Jun"))
+  :                             GetProperty(p.first_name) [node:Person]
+  :                               EntityScan(p:Person)
+
+### SNB1 @relational
+Coord Projection[f.person_id, m.post_id, m.content]
+  Fetch[mysql] in=(m) out=(m, m.content)
+    : GetProperty(m.content) [node:Post]
+    :   Argument(m)
+    Fetch[mysql] in=(f) out=(f, f.person_id)
+      : GetProperty(f.person_id) [node:Person]
+      :   Argument(f)
+      Coord Limit[20]
+        Coord Sort[_sort0 DESC, m.post_id ASC]
+          Coord Projection[m.post_id, m.creation_date AS _sort0, m, f]
+            StoreQuery[mysql] in=(m) out=(m, m.creation_date, m.post_id)
+              : GetProperty(m.post_id) [node:Post]
+              :   Filter((m.creation_date >= "2012-01-01"))
+              :     GetProperty(m.creation_date) [node:Post]
+              :       Argument(m)
+              StoreQuery[mysql] in=(f) out=(f)
+                : Filter((f.browser = "Firefox"))
+                :   GetProperty(f.browser) [node:Person]
+                :     Argument(f)
+                StoreQuery[neo4j] in=(p) out=(p, f, m)
+                  : Expand((f)-[_r1:POSTED]->(m:Post))
+                  :   Expand((p)-[_r0:KNOWS]-(f:Person))
+                  :     Argument(p)
+                  StoreQuery[mysql] out=(p)
+                    : Filter((p.first_name = "Jun"))
+                    :   GetProperty(p.first_name) [node:Person]
+                    :     EntityScan(p:Person)
+
+### SNB1 @document
+Coord Projection[f.person_id, m.post_id, m.content]
+  Fetch[mongo] in=(m) out=(m, m.content)
+    : GetProperty(m.content) [node:Post]
+    :   Argument(m)
+    Fetch[mongo] in=(f) out=(f, f.person_id)
+      : GetProperty(f.person_id) [node:Person]
+      :   Argument(f)
+      Coord Limit[20]
+        Coord Sort[_sort0 DESC, m.post_id ASC]
+          Coord Projection[m.post_id, m.creation_date AS _sort0, m, f]
+            StoreQuery[mongo] in=(m) out=(m, m.creation_date, m.post_id)
+              : GetProperty(m.post_id) [node:Post]
+              :   Filter((m.creation_date >= "2012-01-01"))
+              :     GetProperty(m.creation_date) [node:Post]
+              :       Argument(m)
+              StoreQuery[mongo] in=(f) out=(f)
+                : Filter((f.browser = "Firefox"))
+                :   GetProperty(f.browser) [node:Person]
+                :     Argument(f)
+                StoreQuery[neo4j] in=(p) out=(p, f, m)
+                  : Expand((f)-[_r1:POSTED]->(m:Post))
+                  :   Expand((p)-[_r0:KNOWS]-(f:Person))
+                  :     Argument(p)
+                  StoreQuery[mongo] out=(p)
+                    : Filter((p.first_name = "Jun"))
+                    :   GetProperty(p.first_name) [node:Person]
+                    :     EntityScan(p:Person)
+
+### SNB1 @columnar
+Coord Projection[f.person_id, m.post_id, m.content]
+  Fetch[clickhouse] in=(m) out=(m, m.content)
+    : GetProperty(m.content) [node:Post]
+    :   Argument(m)
+    Fetch[clickhouse] in=(f) out=(f, f.person_id)
+      : GetProperty(f.person_id) [node:Person]
+      :   Argument(f)
+      Coord Limit[20]
+        Coord Sort[_sort0 DESC, m.post_id ASC]
+          Coord Projection[m.post_id, m.creation_date AS _sort0, m, f]
+            StoreQuery[clickhouse] in=(m) out=(m, m.creation_date, m.post_id)
+              : GetProperty(m.post_id) [node:Post]
+              :   Filter((m.creation_date >= "2012-01-01"))
+              :     GetProperty(m.creation_date) [node:Post]
+              :       Argument(m)
+              StoreQuery[clickhouse] in=(f) out=(f)
+                : Filter((f.browser = "Firefox"))
+                :   GetProperty(f.browser) [node:Person]
+                :     Argument(f)
+                StoreQuery[neo4j] in=(p) out=(p, f, m)
+                  : Expand((f)-[_r1:POSTED]->(m:Post))
+                  :   Expand((p)-[_r0:KNOWS]-(f:Person))
+                  :     Argument(p)
+                  StoreQuery[clickhouse] out=(p)
+                    : Filter((p.first_name = "Jun"))
+                    :   GetProperty(p.first_name) [node:Person]
+                    :     EntityScan(p:Person)
+
+### SNB1 @widecolumn
+Coord Projection[f.person_id, m.post_id, m.content]
+  Fetch[cassandra] in=(m) out=(m, m.content)
+    : GetProperty(m.content) [node:Post]
+    :   Argument(m)
+    Fetch[cassandra] in=(f) out=(f, f.person_id)
+      : GetProperty(f.person_id) [node:Person]
+      :   Argument(f)
+      Coord Limit[20]
+        Coord Sort[_sort0 DESC, m.post_id ASC]
+          Coord Projection[m.post_id, m.creation_date AS _sort0, m, f]
+            StoreQuery[cassandra] in=(m) out=(m, m.creation_date, m.post_id)
+              : GetProperty(m.post_id) [node:Post]
+              :   Filter((m.creation_date >= "2012-01-01"))
+              :     GetProperty(m.creation_date) [node:Post]
+              :       Argument(m)
+              StoreQuery[cassandra] in=(f) out=(f)
+                : Filter((f.browser = "Firefox"))
+                :   GetProperty(f.browser) [node:Person]
+                :     Argument(f)
+                StoreQuery[neo4j] in=(p) out=(p, f, m)
+                  : Expand((f)-[_r1:POSTED]->(m:Post))
+                  :   Expand((p)-[_r0:KNOWS]-(f:Person))
+                  :     Argument(p)
+                  StoreQuery[cassandra] out=(p)
+                    : Filter((p.first_name = "Jun"))
+                    :   GetProperty(p.first_name) [node:Person]
+                    :     EntityScan(p:Person)
+
+### SNB1 @kvs
+Coord Projection[f.person_id, m.post_id, m.content]
+  Fetch[leveldb] in=(m) out=(m, m.content)
+    : GetProperty(m.content) [node:Post]
+    :   Argument(m)
+    Fetch[leveldb] in=(f) out=(f, f.person_id)
+      : GetProperty(f.person_id) [node:Person]
+      :   Argument(f)
+      Coord Limit[20]
+        Coord Sort[_sort0 DESC, m.post_id ASC]
+          Coord Projection[m.post_id, m.creation_date AS _sort0, m, f]
+            StoreQuery[leveldb] in=(m) out=(m, m.creation_date, m.post_id)
+              : GetProperty(m.post_id) [node:Post]
+              :   Filter((m.creation_date >= "2012-01-01"))
+              :     GetProperty(m.creation_date) [node:Post]
+              :       Argument(m)
+              StoreQuery[leveldb] in=(f) out=(f)
+                : Filter((f.browser = "Firefox"))
+                :   GetProperty(f.browser) [node:Person]
+                :     Argument(f)
+                StoreQuery[neo4j] in=(p) out=(p, f, m)
+                  : Expand((f)-[_r1:POSTED]->(m:Post))
+                  :   Expand((p)-[_r0:KNOWS]-(f:Person))
+                  :     Argument(p)
+                  StoreQuery[leveldb] out=(p)
+                    : Filter((p.first_name = "Jun"))
+                    :   GetProperty(p.first_name) [node:Person]
+                    :     EntityScan(p:Person)
+
+## SNB2 — A whole-path condition on reply chains: how the cost of extracting paths grows with scale
+traits: start=filtered scan hops=1..4 fan-out=low variable-length aggregate Top-20 | R1 start: c.creation_date | R4 path: x.length | R6 aggregate / sort: root.comment_id
+
+### SNB2 @graph
+StoreQuery[neo4j] out=(root.comment_id, replies)
+  : Limit[20]
+  :   Sort[replies DESC, root.comment_id ASC]
+  :     Aggregation[keys: root.comment_id | count(*) AS replies]
+  :       GetProperty(root.comment_id) [node:Comment]
+  :         Filter((root.length >= 50))
+  :           GetProperty(root.length) [node:Comment]
+  :             VarLengthExpand((c)-[_r0:REPLY_TO_COMMENT*1..4]->(root:Comment)) seg[all(x IN nodes WHERE (x.length >= 50))]
+  :               Filter((c.length >= 50))
+  :                 GetProperty(c.length) [node:Comment]
+  :                   Filter((c.creation_date >= "2012-12-01"))
+  :                     GetProperty(c.creation_date) [node:Comment]
+  :                       EntityScan(c:Comment)
+
+### SNB2 @relational
+Coord Limit[20]
+  Coord Sort[replies DESC, root.comment_id ASC]
+    Coord Aggregation[keys: root.comment_id | count(*) AS replies]
+      StoreQuery[mysql] in=(root) out=(root, root.comment_id)
+        : GetProperty(root.comment_id) [node:Comment]
+        :   Filter((root.length >= 50))
+        :     GetProperty(root.length) [node:Comment]
+        :       Argument(root)
+        Coord Filter(all(x IN nodes(_seg__r0) WHERE (x.length >= 50)))
+          ListFetch[mysql] _seg__r0.nodes.length from _seg__r0 [elem:Comment]
+            StoreQuery[neo4j] in=(c) out=(c, _seg__r0, root)
+              : VarLengthExpand((c)-[_r0:REPLY_TO_COMMENT*1..4]->(root:Comment)) emit _seg__r0
+              :   Argument(c)
+              StoreQuery[mysql] out=(c)
+                : Filter((c.length >= 50))
+                :   GetProperty(c.length) [node:Comment]
+                :     Filter((c.creation_date >= "2012-12-01"))
+                :       GetProperty(c.creation_date) [node:Comment]
+                :         EntityScan(c:Comment)
+
+### SNB2 @document
+Coord Limit[20]
+  Coord Sort[replies DESC, root.comment_id ASC]
+    Coord Aggregation[keys: root.comment_id | count(*) AS replies]
+      StoreQuery[mongo] in=(root) out=(root, root.comment_id)
+        : GetProperty(root.comment_id) [node:Comment]
+        :   Filter((root.length >= 50))
+        :     GetProperty(root.length) [node:Comment]
+        :       Argument(root)
+        Coord Filter(all(x IN nodes(_seg__r0) WHERE (x.length >= 50)))
+          ListFetch[mongo] _seg__r0.nodes.length from _seg__r0 [elem:Comment]
+            StoreQuery[neo4j] in=(c) out=(c, _seg__r0, root)
+              : VarLengthExpand((c)-[_r0:REPLY_TO_COMMENT*1..4]->(root:Comment)) emit _seg__r0
+              :   Argument(c)
+              StoreQuery[mongo] out=(c)
+                : Filter((c.length >= 50))
+                :   GetProperty(c.length) [node:Comment]
+                :     Filter((c.creation_date >= "2012-12-01"))
+                :       GetProperty(c.creation_date) [node:Comment]
+                :         EntityScan(c:Comment)
+
+### SNB2 @columnar
+Coord Limit[20]
+  Coord Sort[replies DESC, root.comment_id ASC]
+    Coord Aggregation[keys: root.comment_id | count(*) AS replies]
+      StoreQuery[clickhouse] in=(root) out=(root, root.comment_id)
+        : GetProperty(root.comment_id) [node:Comment]
+        :   Filter((root.length >= 50))
+        :     GetProperty(root.length) [node:Comment]
+        :       Argument(root)
+        Coord Filter(all(x IN nodes(_seg__r0) WHERE (x.length >= 50)))
+          ListFetch[clickhouse] _seg__r0.nodes.length from _seg__r0 [elem:Comment]
+            StoreQuery[neo4j] in=(c) out=(c, _seg__r0, root)
+              : VarLengthExpand((c)-[_r0:REPLY_TO_COMMENT*1..4]->(root:Comment)) emit _seg__r0
+              :   Argument(c)
+              StoreQuery[clickhouse] out=(c)
+                : Filter((c.length >= 50))
+                :   GetProperty(c.length) [node:Comment]
+                :     Filter((c.creation_date >= "2012-12-01"))
+                :       GetProperty(c.creation_date) [node:Comment]
+                :         EntityScan(c:Comment)
+
+### SNB2 @widecolumn
+Coord Limit[20]
+  Coord Sort[replies DESC, root.comment_id ASC]
+    Coord Aggregation[keys: root.comment_id | count(*) AS replies]
+      StoreQuery[cassandra] in=(root) out=(root, root.comment_id)
+        : GetProperty(root.comment_id) [node:Comment]
+        :   Filter((root.length >= 50))
+        :     GetProperty(root.length) [node:Comment]
+        :       Argument(root)
+        Coord Filter(all(x IN nodes(_seg__r0) WHERE (x.length >= 50)))
+          ListFetch[cassandra] _seg__r0.nodes.length from _seg__r0 [elem:Comment]
+            StoreQuery[neo4j] in=(c) out=(c, _seg__r0, root)
+              : VarLengthExpand((c)-[_r0:REPLY_TO_COMMENT*1..4]->(root:Comment)) emit _seg__r0
+              :   Argument(c)
+              StoreQuery[cassandra] out=(c)
+                : Filter((c.length >= 50))
+                :   GetProperty(c.length) [node:Comment]
+                :     Filter((c.creation_date >= "2012-12-01"))
+                :       GetProperty(c.creation_date) [node:Comment]
+                :         EntityScan(c:Comment)
+
+### SNB2 @kvs
+Coord Limit[20]
+  Coord Sort[replies DESC, root.comment_id ASC]
+    Coord Aggregation[keys: root.comment_id | count(*) AS replies]
+      StoreQuery[leveldb] in=(root) out=(root, root.comment_id)
+        : GetProperty(root.comment_id) [node:Comment]
+        :   Filter((root.length >= 50))
+        :     GetProperty(root.length) [node:Comment]
+        :       Argument(root)
+        Coord Filter(all(x IN nodes(_seg__r0) WHERE (x.length >= 50)))
+          ListFetch[leveldb] _seg__r0.nodes.length from _seg__r0 [elem:Comment]
+            StoreQuery[neo4j] in=(c) out=(c, _seg__r0, root)
+              : VarLengthExpand((c)-[_r0:REPLY_TO_COMMENT*1..4]->(root:Comment)) emit _seg__r0
+              :   Argument(c)
+              StoreQuery[leveldb] out=(c)
+                : Filter((c.length >= 50))
+                :   GetProperty(c.length) [node:Comment]
+                :     Filter((c.creation_date >= "2012-12-01"))
+                :       GetProperty(c.creation_date) [node:Comment]
+                :         EntityScan(c:Comment)
+
+## SNB3 — Two hops plus an aggregation: where to place the end condition and the aggregated value, across scales
+traits: start=filtered scan hops=2 fan-out=medium aggregate Top-20 | R1 start: fo.creation_date | R2 end: c.length | R6 aggregate / sort: fo.title, m.length
+
+### SNB3 @graph
+StoreQuery[neo4j] out=(fo.title, comments, avgPostLength)
+  : Limit[20]
+  :   Sort[comments DESC, fo.title ASC]
+  :     Aggregation[keys: fo.title | count(*) AS comments, avg(m.length) AS avgPostLength]
+  :       GetProperty(m.length) [node:Post]
+  :         GetProperty(fo.title) [node:Forum]
+  :           Filter((c.length >= 100))
+  :             GetProperty(c.length) [node:Comment]
+  :               Expand((m)<-[_r1:REPLY_TO_POST]-(c:Comment))
+  :                 Expand((fo)<-[_r0:IN_FORUM]-(m:Post))
+  :                   Filter((fo.creation_date >= "2012-11-01"))
+  :                     GetProperty(fo.creation_date) [node:Forum]
+  :                       EntityScan(fo:Forum)
+
+### SNB3 @relational
+Coord Limit[20]
+  Coord Sort[comments DESC, fo.title ASC]
+    Coord Aggregation[keys: fo.title | count(*) AS comments, avg(m.length) AS avgPostLength]
+      Fetch[mysql] in=(m) out=(m, m.length)
+        : GetProperty(m.length) [node:Post]
+        :   Argument(m)
+        Fetch[mysql] in=(fo) out=(fo, fo.title)
+          : GetProperty(fo.title) [node:Forum]
+          :   Argument(fo)
+          StoreQuery[mysql] in=(c) out=(c)
+            : Filter((c.length >= 100))
+            :   GetProperty(c.length) [node:Comment]
+            :     Argument(c)
+            StoreQuery[neo4j] in=(fo) out=(fo, c, m)
+              : Expand((m)<-[_r1:REPLY_TO_POST]-(c:Comment))
+              :   Expand((fo)<-[_r0:IN_FORUM]-(m:Post))
+              :     Argument(fo)
+              StoreQuery[mysql] out=(fo)
+                : Filter((fo.creation_date >= "2012-11-01"))
+                :   GetProperty(fo.creation_date) [node:Forum]
+                :     EntityScan(fo:Forum)
+
+### SNB3 @document
+Coord Limit[20]
+  Coord Sort[comments DESC, fo.title ASC]
+    Coord Aggregation[keys: fo.title | count(*) AS comments, avg(m.length) AS avgPostLength]
+      Fetch[mongo] in=(m) out=(m, m.length)
+        : GetProperty(m.length) [node:Post]
+        :   Argument(m)
+        Fetch[mongo] in=(fo) out=(fo, fo.title)
+          : GetProperty(fo.title) [node:Forum]
+          :   Argument(fo)
+          StoreQuery[mongo] in=(c) out=(c)
+            : Filter((c.length >= 100))
+            :   GetProperty(c.length) [node:Comment]
+            :     Argument(c)
+            StoreQuery[neo4j] in=(fo) out=(fo, c, m)
+              : Expand((m)<-[_r1:REPLY_TO_POST]-(c:Comment))
+              :   Expand((fo)<-[_r0:IN_FORUM]-(m:Post))
+              :     Argument(fo)
+              StoreQuery[mongo] out=(fo)
+                : Filter((fo.creation_date >= "2012-11-01"))
+                :   GetProperty(fo.creation_date) [node:Forum]
+                :     EntityScan(fo:Forum)
+
+### SNB3 @columnar
+Coord Limit[20]
+  Coord Sort[comments DESC, fo.title ASC]
+    Coord Aggregation[keys: fo.title | count(*) AS comments, avg(m.length) AS avgPostLength]
+      Fetch[clickhouse] in=(m) out=(m, m.length)
+        : GetProperty(m.length) [node:Post]
+        :   Argument(m)
+        Fetch[clickhouse] in=(fo) out=(fo, fo.title)
+          : GetProperty(fo.title) [node:Forum]
+          :   Argument(fo)
+          StoreQuery[clickhouse] in=(c) out=(c)
+            : Filter((c.length >= 100))
+            :   GetProperty(c.length) [node:Comment]
+            :     Argument(c)
+            StoreQuery[neo4j] in=(fo) out=(fo, c, m)
+              : Expand((m)<-[_r1:REPLY_TO_POST]-(c:Comment))
+              :   Expand((fo)<-[_r0:IN_FORUM]-(m:Post))
+              :     Argument(fo)
+              StoreQuery[clickhouse] out=(fo)
+                : Filter((fo.creation_date >= "2012-11-01"))
+                :   GetProperty(fo.creation_date) [node:Forum]
+                :     EntityScan(fo:Forum)
+
+### SNB3 @widecolumn
+Coord Limit[20]
+  Coord Sort[comments DESC, fo.title ASC]
+    Coord Aggregation[keys: fo.title | count(*) AS comments, avg(m.length) AS avgPostLength]
+      Fetch[cassandra] in=(m) out=(m, m.length)
+        : GetProperty(m.length) [node:Post]
+        :   Argument(m)
+        Fetch[cassandra] in=(fo) out=(fo, fo.title)
+          : GetProperty(fo.title) [node:Forum]
+          :   Argument(fo)
+          StoreQuery[cassandra] in=(c) out=(c)
+            : Filter((c.length >= 100))
+            :   GetProperty(c.length) [node:Comment]
+            :     Argument(c)
+            StoreQuery[neo4j] in=(fo) out=(fo, c, m)
+              : Expand((m)<-[_r1:REPLY_TO_POST]-(c:Comment))
+              :   Expand((fo)<-[_r0:IN_FORUM]-(m:Post))
+              :     Argument(fo)
+              StoreQuery[cassandra] out=(fo)
+                : Filter((fo.creation_date >= "2012-11-01"))
+                :   GetProperty(fo.creation_date) [node:Forum]
+                :     EntityScan(fo:Forum)
+
+### SNB3 @kvs
+Coord Limit[20]
+  Coord Sort[comments DESC, fo.title ASC]
+    Coord Aggregation[keys: fo.title | count(*) AS comments, avg(m.length) AS avgPostLength]
+      Fetch[leveldb] in=(m) out=(m, m.length)
+        : GetProperty(m.length) [node:Post]
+        :   Argument(m)
+        Fetch[leveldb] in=(fo) out=(fo, fo.title)
+          : GetProperty(fo.title) [node:Forum]
+          :   Argument(fo)
+          StoreQuery[leveldb] in=(c) out=(c)
+            : Filter((c.length >= 100))
+            :   GetProperty(c.length) [node:Comment]
+            :     Argument(c)
+            StoreQuery[neo4j] in=(fo) out=(fo, c, m)
+              : Expand((m)<-[_r1:REPLY_TO_POST]-(c:Comment))
+              :   Expand((fo)<-[_r0:IN_FORUM]-(m:Post))
+              :     Argument(fo)
+              StoreQuery[leveldb] out=(fo)
+                : Filter((fo.creation_date >= "2012-11-01"))
+                :   GetProperty(fo.creation_date) [node:Forum]
+                :     EntityScan(fo:Forum)
+
+## SNB4 — Two hops through high-degree forum members: the trade-off of placing the middle condition, across scales
+traits: start=filtered scan hops=2 fan-out=high aggregate Top-20 | R1 start: a.gender, a.birthday | R3 middle: fo.creation_date | R6 aggregate / sort: mod.person_id, a.person_id
+
+### SNB4 @graph
+StoreQuery[neo4j] out=(mod.person_id, members)
+  : Limit[20]
+  :   Sort[members DESC, mod.person_id ASC]
+  :     Aggregation[keys: mod.person_id | count(DISTINCT a.person_id) AS members]
+  :       GetProperty(a.person_id) [node:Person]
+  :         GetProperty(mod.person_id) [node:Person]
+  :           Expand((fo)<-[_r1:MODERATES]-(mod:Person))
+  :             Filter((fo.creation_date >= "2012-06-01"))
+  :               GetProperty(fo.creation_date) [node:Forum]
+  :                 Expand((a)-[_r0:MEMBER_OF]->(fo:Forum))
+  :                   Filter((a.birthday >= "1995-01-01"))
+  :                     GetProperty(a.birthday) [node:Person]
+  :                       Filter((a.gender = "female"))
+  :                         GetProperty(a.gender) [node:Person]
+  :                           EntityScan(a:Person)
+
+### SNB4 @relational
+Coord Limit[20]
+  Coord Sort[members DESC, mod.person_id ASC]
+    Coord Aggregation[keys: mod.person_id | count(DISTINCT a.person_id) AS members]
+      Fetch[mysql] in=(a) out=(a, a.person_id)
+        : GetProperty(a.person_id) [node:Person]
+        :   Argument(a)
+        Fetch[mysql] in=(mod) out=(mod, mod.person_id)
+          : GetProperty(mod.person_id) [node:Person]
+          :   Argument(mod)
+          StoreQuery[mysql] in=(fo) out=(fo)
+            : Filter((fo.creation_date >= "2012-06-01"))
+            :   GetProperty(fo.creation_date) [node:Forum]
+            :     Argument(fo)
+            StoreQuery[neo4j] in=(a) out=(a, fo, mod)
+              : Expand((fo)<-[_r1:MODERATES]-(mod:Person))
+              :   Expand((a)-[_r0:MEMBER_OF]->(fo:Forum))
+              :     Argument(a)
+              StoreQuery[mysql] out=(a)
+                : Filter((a.birthday >= "1995-01-01"))
+                :   GetProperty(a.birthday) [node:Person]
+                :     Filter((a.gender = "female"))
+                :       GetProperty(a.gender) [node:Person]
+                :         EntityScan(a:Person)
+
+### SNB4 @document
+Coord Limit[20]
+  Coord Sort[members DESC, mod.person_id ASC]
+    Coord Aggregation[keys: mod.person_id | count(DISTINCT a.person_id) AS members]
+      Fetch[mongo] in=(a) out=(a, a.person_id)
+        : GetProperty(a.person_id) [node:Person]
+        :   Argument(a)
+        Fetch[mongo] in=(mod) out=(mod, mod.person_id)
+          : GetProperty(mod.person_id) [node:Person]
+          :   Argument(mod)
+          StoreQuery[mongo] in=(fo) out=(fo)
+            : Filter((fo.creation_date >= "2012-06-01"))
+            :   GetProperty(fo.creation_date) [node:Forum]
+            :     Argument(fo)
+            StoreQuery[neo4j] in=(a) out=(a, fo, mod)
+              : Expand((fo)<-[_r1:MODERATES]-(mod:Person))
+              :   Expand((a)-[_r0:MEMBER_OF]->(fo:Forum))
+              :     Argument(a)
+              StoreQuery[mongo] out=(a)
+                : Filter((a.birthday >= "1995-01-01"))
+                :   GetProperty(a.birthday) [node:Person]
+                :     Filter((a.gender = "female"))
+                :       GetProperty(a.gender) [node:Person]
+                :         EntityScan(a:Person)
+
+### SNB4 @columnar
+Coord Limit[20]
+  Coord Sort[members DESC, mod.person_id ASC]
+    Coord Aggregation[keys: mod.person_id | count(DISTINCT a.person_id) AS members]
+      Fetch[clickhouse] in=(a) out=(a, a.person_id)
+        : GetProperty(a.person_id) [node:Person]
+        :   Argument(a)
+        Fetch[clickhouse] in=(mod) out=(mod, mod.person_id)
+          : GetProperty(mod.person_id) [node:Person]
+          :   Argument(mod)
+          StoreQuery[clickhouse] in=(fo) out=(fo)
+            : Filter((fo.creation_date >= "2012-06-01"))
+            :   GetProperty(fo.creation_date) [node:Forum]
+            :     Argument(fo)
+            StoreQuery[neo4j] in=(a) out=(a, fo, mod)
+              : Expand((fo)<-[_r1:MODERATES]-(mod:Person))
+              :   Expand((a)-[_r0:MEMBER_OF]->(fo:Forum))
+              :     Argument(a)
+              StoreQuery[clickhouse] out=(a)
+                : Filter((a.birthday >= "1995-01-01"))
+                :   GetProperty(a.birthday) [node:Person]
+                :     Filter((a.gender = "female"))
+                :       GetProperty(a.gender) [node:Person]
+                :         EntityScan(a:Person)
+
+### SNB4 @widecolumn
+Coord Limit[20]
+  Coord Sort[members DESC, mod.person_id ASC]
+    Coord Aggregation[keys: mod.person_id | count(DISTINCT a.person_id) AS members]
+      Fetch[cassandra] in=(a) out=(a, a.person_id)
+        : GetProperty(a.person_id) [node:Person]
+        :   Argument(a)
+        Fetch[cassandra] in=(mod) out=(mod, mod.person_id)
+          : GetProperty(mod.person_id) [node:Person]
+          :   Argument(mod)
+          StoreQuery[cassandra] in=(fo) out=(fo)
+            : Filter((fo.creation_date >= "2012-06-01"))
+            :   GetProperty(fo.creation_date) [node:Forum]
+            :     Argument(fo)
+            StoreQuery[neo4j] in=(a) out=(a, fo, mod)
+              : Expand((fo)<-[_r1:MODERATES]-(mod:Person))
+              :   Expand((a)-[_r0:MEMBER_OF]->(fo:Forum))
+              :     Argument(a)
+              StoreQuery[cassandra] out=(a)
+                : Filter((a.birthday >= "1995-01-01"))
+                :   GetProperty(a.birthday) [node:Person]
+                :     Filter((a.gender = "female"))
+                :       GetProperty(a.gender) [node:Person]
+                :         EntityScan(a:Person)
+
+### SNB4 @kvs
+Coord Limit[20]
+  Coord Sort[members DESC, mod.person_id ASC]
+    Coord Aggregation[keys: mod.person_id | count(DISTINCT a.person_id) AS members]
+      Fetch[leveldb] in=(a) out=(a, a.person_id)
+        : GetProperty(a.person_id) [node:Person]
+        :   Argument(a)
+        Fetch[leveldb] in=(mod) out=(mod, mod.person_id)
+          : GetProperty(mod.person_id) [node:Person]
+          :   Argument(mod)
+          StoreQuery[leveldb] in=(fo) out=(fo)
+            : Filter((fo.creation_date >= "2012-06-01"))
+            :   GetProperty(fo.creation_date) [node:Forum]
+            :     Argument(fo)
+            StoreQuery[neo4j] in=(a) out=(a, fo, mod)
+              : Expand((fo)<-[_r1:MODERATES]-(mod:Person))
+              :   Expand((a)-[_r0:MEMBER_OF]->(fo:Forum))
+              :     Argument(a)
+              StoreQuery[leveldb] out=(a)
+                : Filter((a.birthday >= "1995-01-01"))
+                :   GetProperty(a.birthday) [node:Person]
+                :     Filter((a.gender = "female"))
+                :       GetProperty(a.gender) [node:Person]
+                :         EntityScan(a:Person)
+

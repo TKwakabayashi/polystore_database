@@ -1,0 +1,1923 @@
+{
+ "mode": "opbench",
+ "name": "ldbc_ops_small",
+ "warmup": 1,
+ "repeat": 5,
+ "timeout": "120s",
+ "listsFile": "lists/ldbc.json",
+ "experiments": [
+  {
+   "name": "mid get Person.firstName",
+   "op": "GetProperty",
+   "label": "Person",
+   "role": "mid",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "person_knows",
+     "person_creator",
+     "uniform_person"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "firstName"
+  },
+  {
+   "name": "mid get Person.lastName",
+   "op": "GetProperty",
+   "label": "Person",
+   "role": "mid",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "person_knows",
+     "person_creator",
+     "uniform_person"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "lastName"
+  },
+  {
+   "name": "mid get Person.birthday",
+   "op": "GetProperty",
+   "label": "Person",
+   "role": "mid",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "person_knows",
+     "person_creator",
+     "uniform_person"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "birthday"
+  },
+  {
+   "name": "mid distinct Person.firstName",
+   "op": "Distinct",
+   "label": "Person",
+   "role": "mid",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "person_knows",
+     "person_creator",
+     "uniform_person"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "firstName"
+  },
+  {
+   "name": "mid count by Person.firstName",
+   "op": "Aggregation",
+   "label": "Person",
+   "role": "mid",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "person_knows",
+     "person_creator",
+     "uniform_person"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "firstName",
+   "agg": "count"
+  },
+  {
+   "name": "mid distinct Person.lastName",
+   "op": "Distinct",
+   "label": "Person",
+   "role": "mid",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "person_knows",
+     "person_creator",
+     "uniform_person"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "lastName"
+  },
+  {
+   "name": "mid count by Person.lastName",
+   "op": "Aggregation",
+   "label": "Person",
+   "role": "mid",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "person_knows",
+     "person_creator",
+     "uniform_person"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "lastName",
+   "agg": "count"
+  },
+  {
+   "name": "mid sort Person.firstName",
+   "op": "Sort",
+   "label": "Person",
+   "role": "mid",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "person_knows",
+     "person_creator",
+     "uniform_person"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "firstName"
+  },
+  {
+   "name": "mid filter Person.firstName",
+   "op": "Filter",
+   "label": "Person",
+   "role": "mid",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "person_knows",
+     "person_creator",
+     "uniform_person"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ],
+    "at": [
+     "store",
+     "coordinator"
+    ]
+   },
+   "prop": "firstName",
+   "cmp": "=",
+   "value": "Wei"
+  },
+  {
+   "name": "mid filter Person.birthday",
+   "op": "Filter",
+   "label": "Person",
+   "role": "mid",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "person_knows",
+     "person_creator",
+     "uniform_person"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ],
+    "at": [
+     "store",
+     "coordinator"
+    ]
+   },
+   "prop": "birthday",
+   "cmp": "<",
+   "value": "1985-07-01"
+  },
+  {
+   "name": "mid get Message.creationDate",
+   "op": "GetProperty",
+   "label": "Message",
+   "role": "mid",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "message_creator",
+     "message_knows",
+     "message_tag",
+     "uniform_message"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "creationDate"
+  },
+  {
+   "name": "mid get Message.length",
+   "op": "GetProperty",
+   "label": "Message",
+   "role": "mid",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "message_creator",
+     "message_knows",
+     "message_tag",
+     "uniform_message"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "length"
+  },
+  {
+   "name": "mid get Message.language",
+   "op": "GetProperty",
+   "label": "Message",
+   "role": "mid",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "message_creator",
+     "message_knows",
+     "message_tag",
+     "uniform_message"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "language"
+  },
+  {
+   "name": "mid filter Message.creationDate",
+   "op": "Filter",
+   "label": "Message",
+   "role": "mid",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "message_creator",
+     "message_knows",
+     "message_tag",
+     "uniform_message"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ],
+    "at": [
+     "store",
+     "coordinator"
+    ]
+   },
+   "prop": "creationDate",
+   "cmp": "<",
+   "value": "2011-04-29T16:48:10Z"
+  },
+  {
+   "name": "mid filter Message.language",
+   "op": "Filter",
+   "label": "Message",
+   "role": "mid",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "message_creator",
+     "message_knows",
+     "message_tag",
+     "uniform_message"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ],
+    "at": [
+     "store",
+     "coordinator"
+    ]
+   },
+   "prop": "language",
+   "cmp": "=",
+   "value": "en"
+  },
+  {
+   "name": "mid sort Message.creationDate",
+   "op": "Sort",
+   "label": "Message",
+   "role": "mid",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "message_creator",
+     "message_knows",
+     "message_tag",
+     "uniform_message"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "creationDate"
+  },
+  {
+   "name": "mid distinct Message.creationDate",
+   "op": "Distinct",
+   "label": "Message",
+   "role": "mid",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "message_creator",
+     "message_knows",
+     "message_tag",
+     "uniform_message"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "creationDate"
+  },
+  {
+   "name": "mid count by Message.creationDate",
+   "op": "Aggregation",
+   "label": "Message",
+   "role": "mid",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "message_creator",
+     "message_knows",
+     "message_tag",
+     "uniform_message"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "creationDate",
+   "agg": "count"
+  },
+  {
+   "name": "mid distinct Message.language",
+   "op": "Distinct",
+   "label": "Message",
+   "role": "mid",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "message_creator",
+     "message_knows",
+     "message_tag",
+     "uniform_message"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "language"
+  },
+  {
+   "name": "mid count by Message.language",
+   "op": "Aggregation",
+   "label": "Message",
+   "role": "mid",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "message_creator",
+     "message_knows",
+     "message_tag",
+     "uniform_message"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "language",
+   "agg": "count"
+  },
+  {
+   "name": "start get Person.firstName",
+   "op": "GetProperty",
+   "label": "Person",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "start_person_key",
+     "start_person_date"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "firstName"
+  },
+  {
+   "name": "start get Person.lastName",
+   "op": "GetProperty",
+   "label": "Person",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "start_person_key",
+     "start_person_date"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "lastName"
+  },
+  {
+   "name": "start get Person.birthday",
+   "op": "GetProperty",
+   "label": "Person",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "start_person_key",
+     "start_person_date"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "birthday"
+  },
+  {
+   "name": "start distinct Person.firstName",
+   "op": "Distinct",
+   "label": "Person",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "start_person_key",
+     "start_person_date"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "firstName"
+  },
+  {
+   "name": "start count by Person.firstName",
+   "op": "Aggregation",
+   "label": "Person",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "start_person_key",
+     "start_person_date"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "firstName",
+   "agg": "count"
+  },
+  {
+   "name": "start distinct Person.lastName",
+   "op": "Distinct",
+   "label": "Person",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "start_person_key",
+     "start_person_date"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "lastName"
+  },
+  {
+   "name": "start count by Person.lastName",
+   "op": "Aggregation",
+   "label": "Person",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "start_person_key",
+     "start_person_date"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "lastName",
+   "agg": "count"
+  },
+  {
+   "name": "start sort Person.firstName",
+   "op": "Sort",
+   "label": "Person",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "start_person_key",
+     "start_person_date"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "firstName"
+  },
+  {
+   "name": "start filter Person.firstName",
+   "op": "Filter",
+   "label": "Person",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "start_person_key",
+     "start_person_date"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ],
+    "at": [
+     "store",
+     "coordinator"
+    ]
+   },
+   "prop": "firstName",
+   "cmp": "=",
+   "value": "Wei"
+  },
+  {
+   "name": "start filter Person.birthday",
+   "op": "Filter",
+   "label": "Person",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "start_person_key",
+     "start_person_date"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ],
+    "at": [
+     "store",
+     "coordinator"
+    ]
+   },
+   "prop": "birthday",
+   "cmp": "<",
+   "value": "1985-07-01"
+  },
+  {
+   "name": "start get Message.creationDate",
+   "op": "GetProperty",
+   "label": "Message",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "start_message_key",
+     "start_message_date"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "creationDate"
+  },
+  {
+   "name": "start get Message.length",
+   "op": "GetProperty",
+   "label": "Message",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "start_message_key",
+     "start_message_date"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "length"
+  },
+  {
+   "name": "start get Message.language",
+   "op": "GetProperty",
+   "label": "Message",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "start_message_key",
+     "start_message_date"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "language"
+  },
+  {
+   "name": "start filter Message.creationDate",
+   "op": "Filter",
+   "label": "Message",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "start_message_key",
+     "start_message_date"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ],
+    "at": [
+     "store",
+     "coordinator"
+    ]
+   },
+   "prop": "creationDate",
+   "cmp": "<",
+   "value": "2011-04-29T16:48:10Z"
+  },
+  {
+   "name": "start filter Message.language",
+   "op": "Filter",
+   "label": "Message",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "start_message_key",
+     "start_message_date"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ],
+    "at": [
+     "store",
+     "coordinator"
+    ]
+   },
+   "prop": "language",
+   "cmp": "=",
+   "value": "en"
+  },
+  {
+   "name": "start sort Message.creationDate",
+   "op": "Sort",
+   "label": "Message",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "start_message_key",
+     "start_message_date"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "creationDate"
+  },
+  {
+   "name": "start distinct Message.creationDate",
+   "op": "Distinct",
+   "label": "Message",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "start_message_key",
+     "start_message_date"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "creationDate"
+  },
+  {
+   "name": "start count by Message.creationDate",
+   "op": "Aggregation",
+   "label": "Message",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "start_message_key",
+     "start_message_date"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "creationDate",
+   "agg": "count"
+  },
+  {
+   "name": "start distinct Message.language",
+   "op": "Distinct",
+   "label": "Message",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "start_message_key",
+     "start_message_date"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "language"
+  },
+  {
+   "name": "start count by Message.language",
+   "op": "Aggregation",
+   "label": "Message",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "start_message_key",
+     "start_message_date"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "prop": "language",
+   "agg": "count"
+  },
+  {
+   "name": "start scan filter Person birthday 10%",
+   "op": "EntityScan",
+   "label": "Person",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ]
+   },
+   "prop": "birthday",
+   "cmp": "<",
+   "value": "1981-02-01"
+  },
+  {
+   "name": "start ids filter Person birthday 10%",
+   "op": "Filter",
+   "label": "Person",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     10000
+    ],
+    "list": [
+     "start_person_key"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ],
+    "at": [
+     "store",
+     "coordinator"
+    ]
+   },
+   "prop": "birthday",
+   "cmp": "<",
+   "value": "1981-02-01"
+  },
+  {
+   "name": "start scan filter Person birthday 50%",
+   "op": "EntityScan",
+   "label": "Person",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ]
+   },
+   "prop": "birthday",
+   "cmp": "<",
+   "value": "1985-07-01"
+  },
+  {
+   "name": "start ids filter Person birthday 50%",
+   "op": "Filter",
+   "label": "Person",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     10000
+    ],
+    "list": [
+     "start_person_key"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ],
+    "at": [
+     "store",
+     "coordinator"
+    ]
+   },
+   "prop": "birthday",
+   "cmp": "<",
+   "value": "1985-07-01"
+  },
+  {
+   "name": "start scan filter Person Wei",
+   "op": "EntityScan",
+   "label": "Person",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ]
+   },
+   "prop": "firstName",
+   "cmp": "=",
+   "value": "Wei"
+  },
+  {
+   "name": "start ids filter Person Wei",
+   "op": "Filter",
+   "label": "Person",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     10000
+    ],
+    "list": [
+     "start_person_key"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ],
+    "at": [
+     "store",
+     "coordinator"
+    ]
+   },
+   "prop": "firstName",
+   "cmp": "=",
+   "value": "Wei"
+  },
+  {
+   "name": "start scan filter Message date 0.01%",
+   "op": "EntityScan",
+   "label": "Message",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ]
+   },
+   "prop": "creationDate",
+   "cmp": "<",
+   "value": "2010-01-19T10:39:30Z"
+  },
+  {
+   "name": "start ids filter Message date 0.01%",
+   "op": "Filter",
+   "label": "Message",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     10000
+    ],
+    "list": [
+     "start_message_key"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ],
+    "at": [
+     "store",
+     "coordinator"
+    ]
+   },
+   "prop": "creationDate",
+   "cmp": "<",
+   "value": "2010-01-19T10:39:30Z"
+  },
+  {
+   "name": "start scan filter Message date 0.1%",
+   "op": "EntityScan",
+   "label": "Message",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ]
+   },
+   "prop": "creationDate",
+   "cmp": "<",
+   "value": "2010-02-21T19:09:48Z"
+  },
+  {
+   "name": "start ids filter Message date 0.1%",
+   "op": "Filter",
+   "label": "Message",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     10000
+    ],
+    "list": [
+     "start_message_key"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ],
+    "at": [
+     "store",
+     "coordinator"
+    ]
+   },
+   "prop": "creationDate",
+   "cmp": "<",
+   "value": "2010-02-21T19:09:48Z"
+  },
+  {
+   "name": "start scan filter Message date 1%",
+   "op": "EntityScan",
+   "label": "Message",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ]
+   },
+   "prop": "creationDate",
+   "cmp": "<",
+   "value": "2010-06-07T23:09:57Z"
+  },
+  {
+   "name": "start ids filter Message date 1%",
+   "op": "Filter",
+   "label": "Message",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     10000
+    ],
+    "list": [
+     "start_message_key"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ],
+    "at": [
+     "store",
+     "coordinator"
+    ]
+   },
+   "prop": "creationDate",
+   "cmp": "<",
+   "value": "2010-06-07T23:09:57Z"
+  },
+  {
+   "name": "start scan filter Message date 10%",
+   "op": "EntityScan",
+   "label": "Message",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ]
+   },
+   "prop": "creationDate",
+   "cmp": "<",
+   "value": "2011-04-29T16:48:10Z"
+  },
+  {
+   "name": "start ids filter Message date 10%",
+   "op": "Filter",
+   "label": "Message",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     10000
+    ],
+    "list": [
+     "start_message_key"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ],
+    "at": [
+     "store",
+     "coordinator"
+    ]
+   },
+   "prop": "creationDate",
+   "cmp": "<",
+   "value": "2011-04-29T16:48:10Z"
+  },
+  {
+   "name": "start scan filter Message date 50%",
+   "op": "EntityScan",
+   "label": "Message",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ]
+   },
+   "prop": "creationDate",
+   "cmp": "<",
+   "value": "2012-06-15T23:15:52Z"
+  },
+  {
+   "name": "start ids filter Message date 50%",
+   "op": "Filter",
+   "label": "Message",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     10000
+    ],
+    "list": [
+     "start_message_key"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ],
+    "at": [
+     "store",
+     "coordinator"
+    ]
+   },
+   "prop": "creationDate",
+   "cmp": "<",
+   "value": "2012-06-15T23:15:52Z"
+  },
+  {
+   "name": "start scan filter Message en",
+   "op": "EntityScan",
+   "label": "Message",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ]
+   },
+   "prop": "language",
+   "cmp": "=",
+   "value": "en"
+  },
+  {
+   "name": "start project Person 3",
+   "op": "Projection",
+   "label": "Person",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "start_person_key",
+     "start_person_date"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "props": [
+    "firstName",
+    "lastName",
+    "birthday"
+   ]
+  },
+  {
+   "name": "start project Person 4",
+   "op": "Projection",
+   "label": "Person",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "start_person_key",
+     "start_person_date"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "props": [
+    "firstName",
+    "lastName",
+    "birthday",
+    "id"
+   ]
+  },
+  {
+   "name": "start project Message 3",
+   "op": "Projection",
+   "label": "Message",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "start_message_key",
+     "start_message_date"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "props": [
+    "creationDate",
+    "length",
+    "language"
+   ]
+  },
+  {
+   "name": "start project Message 4",
+   "op": "Projection",
+   "label": "Message",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "rows": [
+     100,
+     1000,
+     10000
+    ],
+    "list": [
+     "start_message_key",
+     "start_message_date"
+    ],
+    "order": [
+     "raw",
+     "sorted"
+    ]
+   },
+   "props": [
+    "creationDate",
+    "length",
+    "language",
+    "id"
+   ]
+  },
+  {
+   "name": "start scan project Person",
+   "op": "Projection",
+   "label": "Person",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "input": [
+     "scan"
+    ]
+   },
+   "prop": "firstName",
+   "cmp": "=",
+   "value": "Wei",
+   "props": [
+    "firstName",
+    "lastName",
+    "birthday"
+   ]
+  },
+  {
+   "name": "start scan project Message",
+   "op": "Projection",
+   "label": "Message",
+   "role": "start",
+   "sweep": {
+    "placement": [
+     "graph",
+     "relational",
+     "columnar",
+     "widecolumn",
+     "document",
+     "kvs"
+    ],
+    "input": [
+     "scan"
+    ]
+   },
+   "prop": "creationDate",
+   "cmp": "<",
+   "value": "2011-04-29T16:48:10Z",
+   "props": [
+    "creationDate",
+    "length",
+    "language"
+   ]
+  }
+ ]
+}

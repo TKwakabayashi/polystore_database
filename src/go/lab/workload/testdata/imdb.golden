@@ -1,0 +1,423 @@
+## IMDB1 — Two hops from a unique-key start through high-degree titles: the trade-off of placing the middle condition
+traits: start=unique key hops=2 fan-out=high aggregate Top-20 | R1 start: p.nconst | R3 middle: t.title_type, t.start_year, t.average_rating | R6 aggregate / sort: q.primary_name
+
+### IMDB1 @graph
+StoreQuery[neo4j] out=(q.primary_name, together)
+  : Limit[20]
+  :   Sort[together DESC, q.primary_name ASC]
+  :     Aggregation[keys: q.primary_name | count(*) AS together]
+  :       GetProperty(q.primary_name) [node:Person]
+  :         RelUniqueFilter[_r0, _r1]
+  :           Expand((t)<-[_r1:WORKED_ON]-(q:Person))
+  :             Filter((p.nconst = "nm0000138"))
+  :               GetProperty(p.nconst) [node:Person]
+  :                 Expand((t)<-[_r0:WORKED_ON]-(p:Person))
+  :                   Filter((t.average_rating >= 7))
+  :                     GetProperty(t.average_rating) [node:Title]
+  :                       Filter((t.start_year >= 2000))
+  :                         GetProperty(t.start_year) [node:Title]
+  :                           Filter((t.title_type = "movie"))
+  :                             GetProperty(t.title_type) [node:Title]
+  :                               EntityScan(t:Title)
+
+### IMDB1 @relational
+Coord Limit[20]
+  Coord Sort[together DESC, q.primary_name ASC]
+    Coord Aggregation[keys: q.primary_name | count(*) AS together]
+      Fetch[mysql] in=(q) out=(q, q.primary_name)
+        : GetProperty(q.primary_name) [node:Person]
+        :   Argument(q)
+        StoreQuery[mysql] in=(p) out=(p)
+          : Filter((p.nconst = "nm0000138"))
+          :   GetProperty(p.nconst) [node:Person]
+          :     Argument(p)
+          StoreQuery[neo4j] in=(t) out=(t, p, q)
+            : RelUniqueFilter[_r0, _r1]
+            :   Expand((t)<-[_r1:WORKED_ON]-(q:Person))
+            :     Expand((t)<-[_r0:WORKED_ON]-(p:Person))
+            :       Argument(t)
+            StoreQuery[mysql] out=(t)
+              : Filter((t.average_rating >= 7))
+              :   GetProperty(t.average_rating) [node:Title]
+              :     Filter((t.start_year >= 2000))
+              :       GetProperty(t.start_year) [node:Title]
+              :         Filter((t.title_type = "movie"))
+              :           GetProperty(t.title_type) [node:Title]
+              :             EntityScan(t:Title)
+
+### IMDB1 @document
+Coord Limit[20]
+  Coord Sort[together DESC, q.primary_name ASC]
+    Coord Aggregation[keys: q.primary_name | count(*) AS together]
+      Fetch[mongo] in=(q) out=(q, q.primary_name)
+        : GetProperty(q.primary_name) [node:Person]
+        :   Argument(q)
+        StoreQuery[mongo] in=(p) out=(p)
+          : Filter((p.nconst = "nm0000138"))
+          :   GetProperty(p.nconst) [node:Person]
+          :     Argument(p)
+          StoreQuery[neo4j] in=(t) out=(t, p, q)
+            : RelUniqueFilter[_r0, _r1]
+            :   Expand((t)<-[_r1:WORKED_ON]-(q:Person))
+            :     Expand((t)<-[_r0:WORKED_ON]-(p:Person))
+            :       Argument(t)
+            StoreQuery[mongo] out=(t)
+              : Filter((t.average_rating >= 7))
+              :   GetProperty(t.average_rating) [node:Title]
+              :     Filter((t.start_year >= 2000))
+              :       GetProperty(t.start_year) [node:Title]
+              :         Filter((t.title_type = "movie"))
+              :           GetProperty(t.title_type) [node:Title]
+              :             EntityScan(t:Title)
+
+### IMDB1 @columnar
+Coord Limit[20]
+  Coord Sort[together DESC, q.primary_name ASC]
+    Coord Aggregation[keys: q.primary_name | count(*) AS together]
+      Fetch[clickhouse] in=(q) out=(q, q.primary_name)
+        : GetProperty(q.primary_name) [node:Person]
+        :   Argument(q)
+        StoreQuery[clickhouse] in=(p) out=(p)
+          : Filter((p.nconst = "nm0000138"))
+          :   GetProperty(p.nconst) [node:Person]
+          :     Argument(p)
+          StoreQuery[neo4j] in=(t) out=(t, p, q)
+            : RelUniqueFilter[_r0, _r1]
+            :   Expand((t)<-[_r1:WORKED_ON]-(q:Person))
+            :     Expand((t)<-[_r0:WORKED_ON]-(p:Person))
+            :       Argument(t)
+            StoreQuery[clickhouse] out=(t)
+              : Filter((t.average_rating >= 7))
+              :   GetProperty(t.average_rating) [node:Title]
+              :     Filter((t.start_year >= 2000))
+              :       GetProperty(t.start_year) [node:Title]
+              :         Filter((t.title_type = "movie"))
+              :           GetProperty(t.title_type) [node:Title]
+              :             EntityScan(t:Title)
+
+### IMDB1 @widecolumn
+Coord Limit[20]
+  Coord Sort[together DESC, q.primary_name ASC]
+    Coord Aggregation[keys: q.primary_name | count(*) AS together]
+      Fetch[cassandra] in=(q) out=(q, q.primary_name)
+        : GetProperty(q.primary_name) [node:Person]
+        :   Argument(q)
+        StoreQuery[cassandra] in=(p) out=(p)
+          : Filter((p.nconst = "nm0000138"))
+          :   GetProperty(p.nconst) [node:Person]
+          :     Argument(p)
+          StoreQuery[neo4j] in=(t) out=(t, p, q)
+            : RelUniqueFilter[_r0, _r1]
+            :   Expand((t)<-[_r1:WORKED_ON]-(q:Person))
+            :     Expand((t)<-[_r0:WORKED_ON]-(p:Person))
+            :       Argument(t)
+            StoreQuery[cassandra] out=(t)
+              : Filter((t.average_rating >= 7))
+              :   GetProperty(t.average_rating) [node:Title]
+              :     Filter((t.start_year >= 2000))
+              :       GetProperty(t.start_year) [node:Title]
+              :         Filter((t.title_type = "movie"))
+              :           GetProperty(t.title_type) [node:Title]
+              :             EntityScan(t:Title)
+
+### IMDB1 @kvs
+Coord Limit[20]
+  Coord Sort[together DESC, q.primary_name ASC]
+    Coord Aggregation[keys: q.primary_name | count(*) AS together]
+      Fetch[leveldb] in=(q) out=(q, q.primary_name)
+        : GetProperty(q.primary_name) [node:Person]
+        :   Argument(q)
+        StoreQuery[leveldb] in=(p) out=(p)
+          : Filter((p.nconst = "nm0000138"))
+          :   GetProperty(p.nconst) [node:Person]
+          :     Argument(p)
+          StoreQuery[neo4j] in=(t) out=(t, p, q)
+            : RelUniqueFilter[_r0, _r1]
+            :   Expand((t)<-[_r1:WORKED_ON]-(q:Person))
+            :     Expand((t)<-[_r0:WORKED_ON]-(p:Person))
+            :       Argument(t)
+            StoreQuery[leveldb] out=(t)
+              : Filter((t.average_rating >= 7))
+              :   GetProperty(t.average_rating) [node:Title]
+              :     Filter((t.start_year >= 2000))
+              :       GetProperty(t.start_year) [node:Title]
+              :         Filter((t.title_type = "movie"))
+              :           GetProperty(t.title_type) [node:Title]
+              :             EntityScan(t:Title)
+
+## IMDB2 — Three hops with exploding fan-out: the extreme case where a middle condition off graph sends every intermediate row across stores
+traits: start=unique key hops=3 fan-out=explosive aggregate Top-20 | R1 start: p.nconst | R2 end: u.num_votes | R3 middle: t.start_year, q.birth_year | R6 aggregate / sort: u.primary_title
+
+### IMDB2 @graph
+StoreQuery[neo4j] out=(u.primary_title, c)
+  : Limit[20]
+  :   Sort[c DESC, u.primary_title ASC]
+  :     Aggregation[keys: u.primary_title | count(*) AS c]
+  :       GetProperty(u.primary_title) [node:Title]
+  :         RelUniqueFilter[_r0, _r1, _r2]
+  :           Filter((u.num_votes >= 100000))
+  :             GetProperty(u.num_votes) [node:Title]
+  :               Expand((q)-[_r2:WORKED_ON]->(u:Title))
+  :                 Filter((q.birth_year >= 1980))
+  :                   GetProperty(q.birth_year) [node:Person]
+  :                     Expand((t)<-[_r1:WORKED_ON]-(q:Person))
+  :                       Filter((t.start_year >= 2010))
+  :                         GetProperty(t.start_year) [node:Title]
+  :                           Expand((p)-[_r0:WORKED_ON]->(t:Title))
+  :                             Filter((p.nconst = "nm0000138"))
+  :                               GetProperty(p.nconst) [node:Person]
+  :                                 EntityScan(p:Person)
+
+### IMDB2 @relational
+Coord Limit[20]
+  Coord Sort[c DESC, u.primary_title ASC]
+    Coord Aggregation[keys: u.primary_title | count(*) AS c]
+      StoreQuery[mysql] in=(u) out=(u, u.primary_title)
+        : GetProperty(u.primary_title) [node:Title]
+        :   Filter((u.num_votes >= 100000))
+        :     GetProperty(u.num_votes) [node:Title]
+        :       Argument(u)
+        StoreQuery[mysql] in=(q) out=(q)
+          : Filter((q.birth_year >= 1980))
+          :   GetProperty(q.birth_year) [node:Person]
+          :     Argument(q)
+          StoreQuery[mysql] in=(t) out=(t)
+            : Filter((t.start_year >= 2010))
+            :   GetProperty(t.start_year) [node:Title]
+            :     Argument(t)
+            StoreQuery[neo4j] in=(p) out=(p, q, t, u)
+              : RelUniqueFilter[_r0, _r1, _r2]
+              :   Expand((q)-[_r2:WORKED_ON]->(u:Title))
+              :     Expand((t)<-[_r1:WORKED_ON]-(q:Person))
+              :       Expand((p)-[_r0:WORKED_ON]->(t:Title))
+              :         Argument(p)
+              StoreQuery[mysql] out=(p)
+                : Filter((p.nconst = "nm0000138"))
+                :   GetProperty(p.nconst) [node:Person]
+                :     EntityScan(p:Person)
+
+### IMDB2 @document
+Coord Limit[20]
+  Coord Sort[c DESC, u.primary_title ASC]
+    Coord Aggregation[keys: u.primary_title | count(*) AS c]
+      StoreQuery[mongo] in=(u) out=(u, u.primary_title)
+        : GetProperty(u.primary_title) [node:Title]
+        :   Filter((u.num_votes >= 100000))
+        :     GetProperty(u.num_votes) [node:Title]
+        :       Argument(u)
+        StoreQuery[mongo] in=(q) out=(q)
+          : Filter((q.birth_year >= 1980))
+          :   GetProperty(q.birth_year) [node:Person]
+          :     Argument(q)
+          StoreQuery[mongo] in=(t) out=(t)
+            : Filter((t.start_year >= 2010))
+            :   GetProperty(t.start_year) [node:Title]
+            :     Argument(t)
+            StoreQuery[neo4j] in=(p) out=(p, q, t, u)
+              : RelUniqueFilter[_r0, _r1, _r2]
+              :   Expand((q)-[_r2:WORKED_ON]->(u:Title))
+              :     Expand((t)<-[_r1:WORKED_ON]-(q:Person))
+              :       Expand((p)-[_r0:WORKED_ON]->(t:Title))
+              :         Argument(p)
+              StoreQuery[mongo] out=(p)
+                : Filter((p.nconst = "nm0000138"))
+                :   GetProperty(p.nconst) [node:Person]
+                :     EntityScan(p:Person)
+
+### IMDB2 @columnar
+Coord Limit[20]
+  Coord Sort[c DESC, u.primary_title ASC]
+    Coord Aggregation[keys: u.primary_title | count(*) AS c]
+      StoreQuery[clickhouse] in=(u) out=(u, u.primary_title)
+        : GetProperty(u.primary_title) [node:Title]
+        :   Filter((u.num_votes >= 100000))
+        :     GetProperty(u.num_votes) [node:Title]
+        :       Argument(u)
+        StoreQuery[clickhouse] in=(q) out=(q)
+          : Filter((q.birth_year >= 1980))
+          :   GetProperty(q.birth_year) [node:Person]
+          :     Argument(q)
+          StoreQuery[clickhouse] in=(t) out=(t)
+            : Filter((t.start_year >= 2010))
+            :   GetProperty(t.start_year) [node:Title]
+            :     Argument(t)
+            StoreQuery[neo4j] in=(p) out=(p, q, t, u)
+              : RelUniqueFilter[_r0, _r1, _r2]
+              :   Expand((q)-[_r2:WORKED_ON]->(u:Title))
+              :     Expand((t)<-[_r1:WORKED_ON]-(q:Person))
+              :       Expand((p)-[_r0:WORKED_ON]->(t:Title))
+              :         Argument(p)
+              StoreQuery[clickhouse] out=(p)
+                : Filter((p.nconst = "nm0000138"))
+                :   GetProperty(p.nconst) [node:Person]
+                :     EntityScan(p:Person)
+
+### IMDB2 @widecolumn
+Coord Limit[20]
+  Coord Sort[c DESC, u.primary_title ASC]
+    Coord Aggregation[keys: u.primary_title | count(*) AS c]
+      StoreQuery[cassandra] in=(u) out=(u, u.primary_title)
+        : GetProperty(u.primary_title) [node:Title]
+        :   Filter((u.num_votes >= 100000))
+        :     GetProperty(u.num_votes) [node:Title]
+        :       Argument(u)
+        StoreQuery[cassandra] in=(q) out=(q)
+          : Filter((q.birth_year >= 1980))
+          :   GetProperty(q.birth_year) [node:Person]
+          :     Argument(q)
+          StoreQuery[cassandra] in=(t) out=(t)
+            : Filter((t.start_year >= 2010))
+            :   GetProperty(t.start_year) [node:Title]
+            :     Argument(t)
+            StoreQuery[neo4j] in=(p) out=(p, q, t, u)
+              : RelUniqueFilter[_r0, _r1, _r2]
+              :   Expand((q)-[_r2:WORKED_ON]->(u:Title))
+              :     Expand((t)<-[_r1:WORKED_ON]-(q:Person))
+              :       Expand((p)-[_r0:WORKED_ON]->(t:Title))
+              :         Argument(p)
+              StoreQuery[cassandra] out=(p)
+                : Filter((p.nconst = "nm0000138"))
+                :   GetProperty(p.nconst) [node:Person]
+                :     EntityScan(p:Person)
+
+### IMDB2 @kvs
+Coord Limit[20]
+  Coord Sort[c DESC, u.primary_title ASC]
+    Coord Aggregation[keys: u.primary_title | count(*) AS c]
+      StoreQuery[leveldb] in=(u) out=(u, u.primary_title)
+        : GetProperty(u.primary_title) [node:Title]
+        :   Filter((u.num_votes >= 100000))
+        :     GetProperty(u.num_votes) [node:Title]
+        :       Argument(u)
+        StoreQuery[leveldb] in=(q) out=(q)
+          : Filter((q.birth_year >= 1980))
+          :   GetProperty(q.birth_year) [node:Person]
+          :     Argument(q)
+          StoreQuery[leveldb] in=(t) out=(t)
+            : Filter((t.start_year >= 2010))
+            :   GetProperty(t.start_year) [node:Title]
+            :     Argument(t)
+            StoreQuery[neo4j] in=(p) out=(p, q, t, u)
+              : RelUniqueFilter[_r0, _r1, _r2]
+              :   Expand((q)-[_r2:WORKED_ON]->(u:Title))
+              :     Expand((t)<-[_r1:WORKED_ON]-(q:Person))
+              :       Expand((p)-[_r0:WORKED_ON]->(t:Title))
+              :         Argument(p)
+              StoreQuery[leveldb] out=(p)
+                : Filter((p.nconst = "nm0000138"))
+                :   GetProperty(p.nconst) [node:Person]
+                :     EntityScan(p:Person)
+
+## IMDB3 — Two hops from a unique-key start plus a per-year aggregation: the end condition and aggregation absorption
+traits: start=unique key hops=2 fan-out=high aggregate | R1 start: t.tconst | R2 end: o.title_type | R6 aggregate / sort: o.start_year, o.average_rating
+
+### IMDB3 @graph
+StoreQuery[neo4j] out=(o.start_year, titles, avgRating)
+  : Sort[o.start_year ASC]
+  :   Aggregation[keys: o.start_year | count(*) AS titles, avg(o.average_rating) AS avgRating]
+  :     GetProperty(o.average_rating) [node:Title]
+  :       GetProperty(o.start_year) [node:Title]
+  :         RelUniqueFilter[_r0, _r1]
+  :           Filter((o.title_type = "movie"))
+  :             GetProperty(o.title_type) [node:Title]
+  :               Expand((p)-[_r1:WORKED_ON]->(o:Title))
+  :                 Expand((t)<-[_r0:WORKED_ON]-(p:Person))
+  :                   Filter((t.tconst = "tt0111161"))
+  :                     GetProperty(t.tconst) [node:Title]
+  :                       EntityScan(t:Title)
+
+### IMDB3 @relational
+Coord Sort[o.start_year ASC]
+  Coord Aggregation[keys: o.start_year | count(*) AS titles, avg(o.average_rating) AS avgRating]
+    StoreQuery[mysql] in=(o) out=(o, o.average_rating, o.start_year)
+      : GetProperty(o.average_rating) [node:Title]
+      :   GetProperty(o.start_year) [node:Title]
+      :     Filter((o.title_type = "movie"))
+      :       GetProperty(o.title_type) [node:Title]
+      :         Argument(o)
+      StoreQuery[neo4j] in=(t) out=(t, o)
+        : RelUniqueFilter[_r0, _r1]
+        :   Expand((p)-[_r1:WORKED_ON]->(o:Title))
+        :     Expand((t)<-[_r0:WORKED_ON]-(p:Person))
+        :       Argument(t)
+        StoreQuery[mysql] out=(t)
+          : Filter((t.tconst = "tt0111161"))
+          :   GetProperty(t.tconst) [node:Title]
+          :     EntityScan(t:Title)
+
+### IMDB3 @document
+Coord Sort[o.start_year ASC]
+  Coord Aggregation[keys: o.start_year | count(*) AS titles, avg(o.average_rating) AS avgRating]
+    StoreQuery[mongo] in=(o) out=(o, o.average_rating, o.start_year)
+      : GetProperty(o.average_rating) [node:Title]
+      :   GetProperty(o.start_year) [node:Title]
+      :     Filter((o.title_type = "movie"))
+      :       GetProperty(o.title_type) [node:Title]
+      :         Argument(o)
+      StoreQuery[neo4j] in=(t) out=(t, o)
+        : RelUniqueFilter[_r0, _r1]
+        :   Expand((p)-[_r1:WORKED_ON]->(o:Title))
+        :     Expand((t)<-[_r0:WORKED_ON]-(p:Person))
+        :       Argument(t)
+        StoreQuery[mongo] out=(t)
+          : Filter((t.tconst = "tt0111161"))
+          :   GetProperty(t.tconst) [node:Title]
+          :     EntityScan(t:Title)
+
+### IMDB3 @columnar
+Coord Sort[o.start_year ASC]
+  Coord Aggregation[keys: o.start_year | count(*) AS titles, avg(o.average_rating) AS avgRating]
+    StoreQuery[clickhouse] in=(o) out=(o, o.average_rating, o.start_year)
+      : GetProperty(o.average_rating) [node:Title]
+      :   GetProperty(o.start_year) [node:Title]
+      :     Filter((o.title_type = "movie"))
+      :       GetProperty(o.title_type) [node:Title]
+      :         Argument(o)
+      StoreQuery[neo4j] in=(t) out=(t, o)
+        : RelUniqueFilter[_r0, _r1]
+        :   Expand((p)-[_r1:WORKED_ON]->(o:Title))
+        :     Expand((t)<-[_r0:WORKED_ON]-(p:Person))
+        :       Argument(t)
+        StoreQuery[clickhouse] out=(t)
+          : Filter((t.tconst = "tt0111161"))
+          :   GetProperty(t.tconst) [node:Title]
+          :     EntityScan(t:Title)
+
+### IMDB3 @widecolumn
+Coord Sort[o.start_year ASC]
+  Coord Aggregation[keys: o.start_year | count(*) AS titles, avg(o.average_rating) AS avgRating]
+    StoreQuery[cassandra] in=(o) out=(o, o.average_rating, o.start_year)
+      : GetProperty(o.average_rating) [node:Title]
+      :   GetProperty(o.start_year) [node:Title]
+      :     Filter((o.title_type = "movie"))
+      :       GetProperty(o.title_type) [node:Title]
+      :         Argument(o)
+      StoreQuery[neo4j] in=(t) out=(t, o)
+        : RelUniqueFilter[_r0, _r1]
+        :   Expand((p)-[_r1:WORKED_ON]->(o:Title))
+        :     Expand((t)<-[_r0:WORKED_ON]-(p:Person))
+        :       Argument(t)
+        StoreQuery[cassandra] out=(t)
+          : Filter((t.tconst = "tt0111161"))
+          :   GetProperty(t.tconst) [node:Title]
+          :     EntityScan(t:Title)
+
+### IMDB3 @kvs
+Coord Sort[o.start_year ASC]
+  Coord Aggregation[keys: o.start_year | count(*) AS titles, avg(o.average_rating) AS avgRating]
+    StoreQuery[leveldb] in=(o) out=(o, o.average_rating, o.start_year)
+      : GetProperty(o.average_rating) [node:Title]
+      :   GetProperty(o.start_year) [node:Title]
+      :     Filter((o.title_type = "movie"))
+      :       GetProperty(o.title_type) [node:Title]
+      :         Argument(o)
+      StoreQuery[neo4j] in=(t) out=(t, o)
+        : RelUniqueFilter[_r0, _r1]
+        :   Expand((p)-[_r1:WORKED_ON]->(o:Title))
+        :     Expand((t)<-[_r0:WORKED_ON]-(p:Person))
+        :       Argument(t)
+        StoreQuery[leveldb] out=(t)
+          : Filter((t.tconst = "tt0111161"))
+          :   GetProperty(t.tconst) [node:Title]
+          :     EntityScan(t:Title)
+

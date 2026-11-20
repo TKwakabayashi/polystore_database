@@ -1,0 +1,10 @@
+{
+  "name": "profile_one",
+  "mode": "profile",
+  "workloads": ["IS1"],
+  "placements": ["neo4j", "mysql"],
+  "models": ["bulk"],
+  "warmup": 1,
+  "trials": 2,
+  "verify": true
+}

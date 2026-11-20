@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
-# ldbc_sf1 の Neo4j 2025(Enterprise/block形式) ストアを Neo4j 5(Community) へ移行する。
+# Moves ldbc_snb_sf1's (then ldbc_sf1) Neo4j 2025 (Enterprise, block format) store to Neo4j 5 (Community).
 #
-# ストアは 2025 -> 5 へダウングレードできず、dump のロードでも不可。
-# そのため「2025 から型付き CSV を書き出し、5 の neo4j-admin database import full
-# でバルクインポートし直す」という論理コピーを行う。
+# A store cannot be downgraded from 2025 to 5, and loading the dump does not work either,
+# so this makes a logical copy: export typed CSV from 2025 and bulk import it again with
+# Neo4j 5's neo4j-admin database import full.
 #
-# 2026-07-16 に実行済み。再実行の必要はないが、手順の記録として残してある
-# （実行するには 2025-enterprise 製の block 形式ストアが再度必要）。
+# Done on 2026-07-16. It need not run again and is kept as a record of the steps
+# (running it needs the 2025-enterprise block-format store again).
 #
-#   scripts/migrate/ldbc_to_neo4j5.sh export   # 2025 から CSV 書き出し
-#   scripts/migrate/ldbc_to_neo4j5.sh import   # 5 の一時ボリュームへバルクインポート
-#   scripts/migrate/ldbc_to_neo4j5.sh schema   # 制約・インデックスを再作成
-#   scripts/migrate/ldbc_to_neo4j5.sh dump     # 5 形式の dump を出力
+#   scripts/migrate/ldbc_to_neo4j5.sh export   # export CSV from 2025
+#   scripts/migrate/ldbc_to_neo4j5.sh import   # bulk import into a temporary Neo4j 5 volume
+#   scripts/migrate/ldbc_to_neo4j5.sh schema   # recreate constraints and indexes
+#   scripts/migrate/ldbc_to_neo4j5.sh dump     # write a Neo4j 5 dump
 #
-# CSV は import ボリューム(polystore_ldbc_sf1_neo4j_import)に置く。
-# 型ヘッダ(:datetime/:date/:long)を付けるので creationDate は文字列に戻らない。
+# The CSV goes to the import volume (polystore_ldbc_sf1_neo4j_import).
+# The headers carry types (:datetime/:date/:long), so creationDate does not turn back into a string.
 set -euo pipefail
-cd "$(dirname "$0")/../.."   # datastore/ を基準に動く
+cd "$(dirname "$0")/../.."   # run from datastore/
 
-ENV_FILE=env/ldbc_sf1.env
+ENV_FILE=datasets/ldbc_snb_sf1/dataset.env
 SRC_CONTAINER=polystore-ldbc_sf1-neo4j-1
 IMPORT_VOL=polystore_ldbc_sf1_neo4j_import
 V5_VOL=polystore_ldbc_sf1_neo4j_data_v5
@@ -27,7 +27,7 @@ PW=password123
 
 cyp() { docker exec "$SRC_CONTAINER" cypher-shell -u neo4j -p "$PW" --format plain "$@"; }
 
-# apoc.export.csv.query で 1 ファイル書き出す。$1=cypher, $2=出力ファイル名
+# Writes one file with apoc.export.csv.query. $1=cypher, $2=output file name
 export_csv() {
   local q="$1" f="$2"
   local esc=${q//\'/\\\'}
@@ -47,15 +47,15 @@ do_export() {
   export_csv 'MATCH (n:Place) RETURN id(n) AS `:ID`, "Place;Entity" AS `:LABEL`, n.id AS `id:long`, n.uuid AS uuid, n.name AS name, n.type AS type, n.url AS url' nodes_place.csv
 
   echo "== export relationships"
-  # uuid + creationDate を持つ型
+  # types with uuid + creationDate
   for t in HAS_TAG HAS_MEMBER IS_LOCATED_IN HAS_CREATOR LIKES REPLY_OF CONTAINER_OF HAS_INTEREST KNOWS HAS_MODERATOR; do
     export_csv "MATCH (a)-[r:${t}]->(b) RETURN id(a) AS \`:START_ID\`, id(b) AS \`:END_ID\`, \"${t}\" AS \`:TYPE\`, r.uuid AS uuid, toString(r.creationDate) AS \`creationDate:datetime\`" "rels_$(echo "$t" | tr 'A-Z' 'a-z').csv"
   done
-  # uuid のみの型
+  # types with uuid only
   for t in HAS_TYPE IS_PART_OF IS_SUBCLASS_OF; do
     export_csv "MATCH (a)-[r:${t}]->(b) RETURN id(a) AS \`:START_ID\`, id(b) AS \`:END_ID\`, \"${t}\" AS \`:TYPE\`, r.uuid AS uuid" "rels_$(echo "$t" | tr 'A-Z' 'a-z').csv"
   done
-  # 追加プロパティを持つ型
+  # types with more properties
   export_csv 'MATCH (a)-[r:WORK_AT]->(b) RETURN id(a) AS `:START_ID`, id(b) AS `:END_ID`, "WORK_AT" AS `:TYPE`, r.uuid AS uuid, toString(r.creationDate) AS `creationDate:datetime`, r.workFrom AS `workFrom:long`' rels_work_at.csv
   export_csv 'MATCH (a)-[r:STUDY_AT]->(b) RETURN id(a) AS `:START_ID`, id(b) AS `:END_ID`, "STUDY_AT" AS `:TYPE`, r.uuid AS uuid, toString(r.creationDate) AS `creationDate:datetime`, r.classYear AS `classYear:long`' rels_study_at.csv
   echo "export done"
@@ -72,7 +72,7 @@ do_import() {
     args+=(--relationships="/import/${f}.csv")
   done
   docker volume create "$V5_VOL" >/dev/null
-  # content に改行が含まれても壊れないよう multiline-fields を有効化する。
+  # multiline-fields is on so newlines in content do not break rows.
   docker run --rm \
     -v "${V5_VOL}":/data -v "${IMPORT_VOL}":/import:ro \
     "$V5_IMAGE" neo4j-admin database import full neo4j \
@@ -93,11 +93,11 @@ do_schema() {
 }
 
 do_dump() {
-  local out=snapshots/ldbc_sf1/neo4j
-  mkdir -p "$out" snapshots/_archive
-  # 2025 製の既存 dump は 5 では読めないので _archive へ退避してから上書きする。
-  if [[ -f "${out}/neo4j.dump" && ! -f snapshots/_archive/ldbc_sf1_neo4j2025.dump ]]; then
-    mv "${out}/neo4j.dump" snapshots/_archive/ldbc_sf1_neo4j2025.dump
+  local out=datasets/ldbc_snb_sf1/dumps
+  mkdir -p "$out" "${out}/_archive"
+  # The existing 2025 dump cannot be read by 5, so move it to _archive before overwriting.
+  if [[ -f "${out}/neo4j.dump" && ! -f "${out}/_archive/neo4j2025.dump" ]]; then
+    mv "${out}/neo4j.dump" "${out}/_archive/neo4j2025.dump"
   fi
   docker run --rm -v "${V5_VOL}":/data -v "$(pwd)/${out}":/dumps \
     "$V5_IMAGE" neo4j-admin database dump neo4j --to-path=/dumps --overwrite-destination

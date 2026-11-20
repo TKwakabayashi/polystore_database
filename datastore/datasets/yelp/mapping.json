@@ -1,0 +1,87 @@
+{
+  "labels": {
+    "Business": [
+      "Business"
+    ],
+    "User": [
+      "User"
+    ]
+  },
+  "entities": {
+    "Business": {
+      "labels": [
+        "Business"
+      ],
+      "properties": {
+        "business_id": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "city": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "stars": {
+          "type": "double",
+          "database": [
+            "graph"
+          ]
+        },
+        "review_count": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        },
+        "categories": {
+          "type": "string[]",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {}
+    },
+    "User": {
+      "labels": [
+        "User"
+      ],
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "REVIEWED": {
+          "targetEntities": [
+            "Business"
+          ],
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    }
+  },
+  "relationships": {
+    "REVIEWED": {
+      "labels": [
+        "REVIEWED"
+      ],
+      "properties": {}
+    }
+  }
+}

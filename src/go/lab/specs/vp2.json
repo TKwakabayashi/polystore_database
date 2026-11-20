@@ -1,0 +1,47 @@
+{
+  "name": "vp2",
+  "workloads": [
+    "VP2"
+  ],
+  "queries": [
+    "current"
+  ],
+  "cases": [
+    {
+      "label": "small",
+      "params": {
+        "ids": "[35184372090582]",
+        "start": "2012-10-01T00:00:00.000Z",
+        "end": "2012-11-01T00:00:00.000Z"
+      }
+    },
+    {
+      "label": "large",
+      "params": {
+        "ids": "[14]",
+        "start": "2012-07-01T00:00:00.000Z",
+        "end": "2012-11-01T00:00:00.000Z"
+      }
+    }
+  ],
+  "placements": [
+    "graph",
+    "rdb",
+    "doc",
+    "col",
+    "kvs"
+  ],
+  "models": [
+    "vecstream"
+  ],
+  "tunings": [
+    {
+      "label": "defer",
+      "defer": true
+    }
+  ],
+  "warmup": 1,
+  "trials": 3,
+  "timeout": "300s",
+  "verify": true
+}

@@ -1,0 +1,2967 @@
+### AGG1 @graph
+[neo4j] columns=(author.id, author.firstName, author.lastName, replyCount)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) MATCH (m)<-[_r1:REPLY_OF]-(comment:Comment) MATCH (comment)-[_r2:HAS_CREATOR]->(author:Person) WHERE _r0 <> _r2 WITH author.id AS v0, author.firstName AS v1, author.lastName AS v2, count(comment) AS v3 RETURN v0 AS c0, v1 AS c1, v2 AS c2, v3 AS c3 ORDER BY v3 DESC, v0 LIMIT 20
+  params: p0=15393162799448(int64)
+
+### AGG1 @relational
+[mysql] columns=(p)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = ?)
+  args: 15393162799448(int64)
+[neo4j] columns=(p, author, comment) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) MATCH (m)<-[_r1:REPLY_OF]-(comment:Comment) MATCH (comment)-[_r2:HAS_CREATOR]->(author:Person) WHERE _r0 <> _r2 RETURN p.uuid AS c0, author.uuid AS c1, comment.uuid AS c2
+[mysql] columns=(author, author.firstName, author.id, author.lastName) in=(author)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2, `lastName` AS c3 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Aggregation[keys: author.id, author.firstName, author.lastName | count(comment) AS replyCount]
+[coordinator] Sort[replyCount DESC, author.id ASC]
+[coordinator] Limit[20]
+
+### AGG1 @document
+[mongo] columns=(p)
+  db.Person.aggregate([
+    {$match: {id: {$eq: 15393162799448(int64)}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(p, author, comment) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) MATCH (m)<-[_r1:REPLY_OF]-(comment:Comment) MATCH (comment)-[_r2:HAS_CREATOR]->(author:Person) WHERE _r0 <> _r2 RETURN p.uuid AS c0, author.uuid AS c1, comment.uuid AS c2
+[mongo] columns=(author, author.firstName, author.id, author.lastName) in=(author)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$firstName", c2: "$id", c3: "$lastName"}}
+  ])
+[coordinator] Aggregation[keys: author.id, author.firstName, author.lastName | count(comment) AS replyCount]
+[coordinator] Sort[replyCount DESC, author.id ASC]
+[coordinator] Limit[20]
+
+### AGG1 @columnar
+[clickhouse] columns=(p)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = 15393162799448)
+[neo4j] columns=(p, author, comment) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) MATCH (m)<-[_r1:REPLY_OF]-(comment:Comment) MATCH (comment)-[_r2:HAS_CREATOR]->(author:Person) WHERE _r0 <> _r2 RETURN p.uuid AS c0, author.uuid AS c1, comment.uuid AS c2
+[clickhouse] columns=(author, author.firstName, author.id, author.lastName) in=(author)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2, `lastName` AS c3 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Aggregation[keys: author.id, author.firstName, author.lastName | count(comment) AS replyCount]
+[coordinator] Sort[replyCount DESC, author.id ASC]
+[coordinator] Limit[20]
+
+### AGG1 @widecolumn
+[cassandra] columns=(p)
+  SELECT "uuid" AS c0 FROM "Person" WHERE ("id" = ?) ALLOW FILTERING
+  args: 15393162799448(int64)
+[neo4j] columns=(p, author, comment) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) MATCH (m)<-[_r1:REPLY_OF]-(comment:Comment) MATCH (comment)-[_r2:HAS_CREATOR]->(author:Person) WHERE _r0 <> _r2 RETURN p.uuid AS c0, author.uuid AS c1, comment.uuid AS c2
+[cassandra] columns=(author, author.firstName, author.id, author.lastName) in=(author)
+  SELECT "uuid" AS c0, "firstName" AS c1, "id" AS c2, "lastName" AS c3 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Aggregation[keys: author.id, author.firstName, author.lastName | count(comment) AS replyCount]
+[coordinator] Sort[replyCount DESC, author.id ASC]
+[coordinator] Limit[20]
+
+### AGG1 @kvs
+[leveldb] columns=(p)
+  KVS Person index id=15393162799448(int64) get=(id) filter (p.id = 15393162799448)
+[neo4j] columns=(p, author, comment) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) MATCH (m)<-[_r1:REPLY_OF]-(comment:Comment) MATCH (comment)-[_r2:HAS_CREATOR]->(author:Person) WHERE _r0 <> _r2 RETURN p.uuid AS c0, author.uuid AS c1, comment.uuid AS c2
+[leveldb] columns=(author, author.firstName, author.id, author.lastName) in=(author)
+  KVS Person ids get=(id, firstName, lastName)
+[coordinator] Aggregation[keys: author.id, author.firstName, author.lastName | count(comment) AS replyCount]
+[coordinator] Sort[replyCount DESC, author.id ASC]
+[coordinator] Limit[20]
+
+### AGG2 @graph
+[neo4j] columns=(friend.id, friend.firstName, msgCount, avgLen, maxLen)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)-[_r0:KNOWS]-(friend:Person) MATCH (friend)<-[_r1:HAS_CREATOR]-(m:Message) WITH friend.id AS v0, friend.firstName AS v1, count(m) AS v2, avg(m.length) AS v3, max(m.length) AS v4 RETURN v0 AS c0, v1 AS c1, v2 AS c2, v3 AS c3, v4 AS c4 ORDER BY v2 DESC, v0 LIMIT 20
+  params: p0=15393162799448(int64)
+
+### AGG2 @relational
+[mysql] columns=(p)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = ?)
+  args: 15393162799448(int64)
+[neo4j] columns=(p, friend, m) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH (p)-[_r0:KNOWS]-(friend:Person) MATCH (friend)<-[_r1:HAS_CREATOR]-(m:Message) RETURN p.uuid AS c0, friend.uuid AS c1, m.uuid AS c2
+[mysql] columns=(friend, friend.firstName, friend.id) in=(friend)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[mysql] columns=(m, m.length) in=(m)
+  SELECT `uuid` AS c0, `length` AS c1 FROM `Message` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Aggregation[keys: friend.id, friend.firstName | count(m) AS msgCount, avg(m.length) AS avgLen, max(m.length) AS maxLen]
+[coordinator] Sort[msgCount DESC, friend.id ASC]
+[coordinator] Limit[20]
+
+### AGG2 @document
+[mongo] columns=(p)
+  db.Person.aggregate([
+    {$match: {id: {$eq: 15393162799448(int64)}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(p, friend, m) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH (p)-[_r0:KNOWS]-(friend:Person) MATCH (friend)<-[_r1:HAS_CREATOR]-(m:Message) RETURN p.uuid AS c0, friend.uuid AS c1, m.uuid AS c2
+[mongo] columns=(friend, friend.firstName, friend.id) in=(friend)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$firstName", c2: "$id"}}
+  ])
+[mongo] columns=(m, m.length) in=(m)
+  db.Message.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$length"}}
+  ])
+[coordinator] Aggregation[keys: friend.id, friend.firstName | count(m) AS msgCount, avg(m.length) AS avgLen, max(m.length) AS maxLen]
+[coordinator] Sort[msgCount DESC, friend.id ASC]
+[coordinator] Limit[20]
+
+### AGG2 @columnar
+[clickhouse] columns=(p)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = 15393162799448)
+[neo4j] columns=(p, friend, m) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH (p)-[_r0:KNOWS]-(friend:Person) MATCH (friend)<-[_r1:HAS_CREATOR]-(m:Message) RETURN p.uuid AS c0, friend.uuid AS c1, m.uuid AS c2
+[clickhouse] columns=(friend, friend.firstName, friend.id) in=(friend)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[clickhouse] columns=(m, m.length) in=(m)
+  SELECT `uuid` AS c0, `length` AS c1 FROM `Message` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Aggregation[keys: friend.id, friend.firstName | count(m) AS msgCount, avg(m.length) AS avgLen, max(m.length) AS maxLen]
+[coordinator] Sort[msgCount DESC, friend.id ASC]
+[coordinator] Limit[20]
+
+### AGG2 @widecolumn
+[cassandra] columns=(p)
+  SELECT "uuid" AS c0 FROM "Person" WHERE ("id" = ?) ALLOW FILTERING
+  args: 15393162799448(int64)
+[neo4j] columns=(p, friend, m) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH (p)-[_r0:KNOWS]-(friend:Person) MATCH (friend)<-[_r1:HAS_CREATOR]-(m:Message) RETURN p.uuid AS c0, friend.uuid AS c1, m.uuid AS c2
+[cassandra] columns=(friend, friend.firstName, friend.id) in=(friend)
+  SELECT "uuid" AS c0, "firstName" AS c1, "id" AS c2 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[cassandra] columns=(m, m.length) in=(m)
+  SELECT "uuid" AS c0, "length" AS c1 FROM "Message" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Aggregation[keys: friend.id, friend.firstName | count(m) AS msgCount, avg(m.length) AS avgLen, max(m.length) AS maxLen]
+[coordinator] Sort[msgCount DESC, friend.id ASC]
+[coordinator] Limit[20]
+
+### AGG2 @kvs
+[leveldb] columns=(p)
+  KVS Person index id=15393162799448(int64) get=(id) filter (p.id = 15393162799448)
+[neo4j] columns=(p, friend, m) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH (p)-[_r0:KNOWS]-(friend:Person) MATCH (friend)<-[_r1:HAS_CREATOR]-(m:Message) RETURN p.uuid AS c0, friend.uuid AS c1, m.uuid AS c2
+[leveldb] columns=(friend, friend.firstName, friend.id) in=(friend)
+  KVS Person ids get=(id, firstName)
+[leveldb] columns=(m, m.length) in=(m)
+  KVS Message ids get=(length)
+[coordinator] Aggregation[keys: friend.id, friend.firstName | count(m) AS msgCount, avg(m.length) AS avgLen, max(m.length) AS maxLen]
+[coordinator] Sort[msgCount DESC, friend.id ASC]
+[coordinator] Limit[20]
+
+### AGG3 @graph
+[neo4j] columns=(total, friends, totLen, avgLen, minLen, maxLen)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)-[_r0:KNOWS]-(friend:Person) MATCH (friend)<-[_r1:HAS_CREATOR]-(m:Message) WITH count(*) AS v0, count(DISTINCT friend.id) AS v1, sum(m.length) AS v2, avg(m.length) AS v3, min(m.length) AS v4, max(m.length) AS v5 RETURN v0 AS c0, v1 AS c1, v2 AS c2, v3 AS c3, v4 AS c4, v5 AS c5
+  params: p0=15393162799448(int64)
+
+### AGG3 @relational
+[mysql] columns=(p)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = ?)
+  args: 15393162799448(int64)
+[neo4j] columns=(p, friend, m) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH (p)-[_r0:KNOWS]-(friend:Person) MATCH (friend)<-[_r1:HAS_CREATOR]-(m:Message) RETURN p.uuid AS c0, friend.uuid AS c1, m.uuid AS c2
+[mysql] columns=(friend, friend.id) in=(friend)
+  SELECT `uuid` AS c0, `id` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[mysql] columns=(m, m.length) in=(m)
+  SELECT `uuid` AS c0, `length` AS c1 FROM `Message` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Aggregation[keys: ∅ | count(*) AS total, count(DISTINCT friend.id) AS friends, sum(m.length) AS totLen, avg(m.length) AS avgLen, min(m.length) AS minLen, max(m.length) AS maxLen]
+
+### AGG3 @document
+[mongo] columns=(p)
+  db.Person.aggregate([
+    {$match: {id: {$eq: 15393162799448(int64)}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(p, friend, m) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH (p)-[_r0:KNOWS]-(friend:Person) MATCH (friend)<-[_r1:HAS_CREATOR]-(m:Message) RETURN p.uuid AS c0, friend.uuid AS c1, m.uuid AS c2
+[mongo] columns=(friend, friend.id) in=(friend)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$id"}}
+  ])
+[mongo] columns=(m, m.length) in=(m)
+  db.Message.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$length"}}
+  ])
+[coordinator] Aggregation[keys: ∅ | count(*) AS total, count(DISTINCT friend.id) AS friends, sum(m.length) AS totLen, avg(m.length) AS avgLen, min(m.length) AS minLen, max(m.length) AS maxLen]
+
+### AGG3 @columnar
+[clickhouse] columns=(p)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = 15393162799448)
+[neo4j] columns=(p, friend, m) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH (p)-[_r0:KNOWS]-(friend:Person) MATCH (friend)<-[_r1:HAS_CREATOR]-(m:Message) RETURN p.uuid AS c0, friend.uuid AS c1, m.uuid AS c2
+[clickhouse] columns=(friend, friend.id) in=(friend)
+  SELECT `uuid` AS c0, `id` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[clickhouse] columns=(m, m.length) in=(m)
+  SELECT `uuid` AS c0, `length` AS c1 FROM `Message` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Aggregation[keys: ∅ | count(*) AS total, count(DISTINCT friend.id) AS friends, sum(m.length) AS totLen, avg(m.length) AS avgLen, min(m.length) AS minLen, max(m.length) AS maxLen]
+
+### AGG3 @widecolumn
+[cassandra] columns=(p)
+  SELECT "uuid" AS c0 FROM "Person" WHERE ("id" = ?) ALLOW FILTERING
+  args: 15393162799448(int64)
+[neo4j] columns=(p, friend, m) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH (p)-[_r0:KNOWS]-(friend:Person) MATCH (friend)<-[_r1:HAS_CREATOR]-(m:Message) RETURN p.uuid AS c0, friend.uuid AS c1, m.uuid AS c2
+[cassandra] columns=(friend, friend.id) in=(friend)
+  SELECT "uuid" AS c0, "id" AS c1 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[cassandra] columns=(m, m.length) in=(m)
+  SELECT "uuid" AS c0, "length" AS c1 FROM "Message" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Aggregation[keys: ∅ | count(*) AS total, count(DISTINCT friend.id) AS friends, sum(m.length) AS totLen, avg(m.length) AS avgLen, min(m.length) AS minLen, max(m.length) AS maxLen]
+
+### AGG3 @kvs
+[leveldb] columns=(p)
+  KVS Person index id=15393162799448(int64) get=(id) filter (p.id = 15393162799448)
+[neo4j] columns=(p, friend, m) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH (p)-[_r0:KNOWS]-(friend:Person) MATCH (friend)<-[_r1:HAS_CREATOR]-(m:Message) RETURN p.uuid AS c0, friend.uuid AS c1, m.uuid AS c2
+[leveldb] columns=(friend, friend.id) in=(friend)
+  KVS Person ids get=(id)
+[leveldb] columns=(m, m.length) in=(m)
+  KVS Message ids get=(length)
+[coordinator] Aggregation[keys: ∅ | count(*) AS total, count(DISTINCT friend.id) AS friends, sum(m.length) AS totLen, avg(m.length) AS avgLen, min(m.length) AS minLen, max(m.length) AS maxLen]
+
+### AGG4 @graph
+[neo4j] columns=(m.id, m.length)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) WHERE (m.length >= $p1) AND (m.length <= $p2) WITH m.id AS v0, m.length AS v1 RETURN v0 AS c0, v1 AS c1 ORDER BY v1 DESC, v0 LIMIT 20
+  params: p0=15393162799448(int64), p1=50(int64), p2=200(int64)
+
+### AGG4 @relational
+[neo4j] columns=(m)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) RETURN m.uuid AS c0
+  params: p0=15393162799448(int64)
+[mysql] columns=(m, m.id, m.length) in=(m)
+  SELECT `uuid` AS c0, `id` AS c1, `length` AS c2 FROM `Message` WHERE `uuid` IN (?) AND (`length` >= ?) AND (`length` <= ?)
+  args: <in>, 50(int64), 200(int64)
+[coordinator] Projection[m.id, m.length]
+[coordinator] Sort[m.length DESC, m.id ASC]
+[coordinator] Limit[20]
+
+### AGG4 @document
+[neo4j] columns=(m)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) RETURN m.uuid AS c0
+  params: p0=15393162799448(int64)
+[mongo] columns=(m, m.id, m.length) in=(m)
+  db.Message.aggregate([
+    {$match: {uuid: {$in: <in>}, length: {$gte: 50(int64)}, length: {$lte: 200(int64)}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$id", c2: "$length"}}
+  ])
+[coordinator] Projection[m.id, m.length]
+[coordinator] Sort[m.length DESC, m.id ASC]
+[coordinator] Limit[20]
+
+### AGG4 @columnar
+[neo4j] columns=(m)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) RETURN m.uuid AS c0
+  params: p0=15393162799448(int64)
+[clickhouse] columns=(m, m.id, m.length) in=(m)
+  SELECT `uuid` AS c0, `id` AS c1, `length` AS c2 FROM `Message` WHERE `uuid` IN (?) AND (`length` >= 50) AND (`length` <= 200)
+  args: <in>
+[coordinator] Projection[m.id, m.length]
+[coordinator] Sort[m.length DESC, m.id ASC]
+[coordinator] Limit[20]
+
+### AGG4 @widecolumn
+[neo4j] columns=(m)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) RETURN m.uuid AS c0
+  params: p0=15393162799448(int64)
+[cassandra] columns=(m, m.id, m.length) in=(m)
+  SELECT "uuid" AS c0, "id" AS c1, "length" AS c2 FROM "Message" WHERE "uuid" IN ? AND ("length" >= ?) AND ("length" <= ?) ALLOW FILTERING
+  args: <in>, 50(int64), 200(int64)
+[coordinator] Projection[m.id, m.length]
+[coordinator] Sort[m.length DESC, m.id ASC]
+[coordinator] Limit[20]
+
+### AGG4 @kvs
+[neo4j] columns=(m)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) RETURN m.uuid AS c0
+  params: p0=15393162799448(int64)
+[leveldb] columns=(m, m.id, m.length) in=(m)
+  KVS Message ids get=(length, id) filter (m.length >= 50) filter (m.length <= 200)
+[coordinator] Projection[m.id, m.length]
+[coordinator] Sort[m.length DESC, m.id ASC]
+[coordinator] Limit[20]
+
+### AGG5 @graph
+[neo4j] columns=(cnt, mn, mx, sm, av)
+  MATCH (o:Organisation) WHERE (o.id >= $p0) AND (o.id <= $p1) WITH count(*) AS v0, min(o.id) AS v1, max(o.id) AS v2, sum(o.id) AS v3, avg(o.id) AS v4 RETURN v0 AS c0, v1 AS c1, v2 AS c2, v3 AS c3, v4 AS c4
+  params: p0=100(int64), p1=5000(int64)
+
+### AGG5 @relational
+[mysql] columns=(cnt, mn, mx, sm, av)
+  SELECT count(*) AS c0, min(`id`) AS c1, max(`id`) AS c2, sum(`id`) AS c3, avg(`id`) AS c4 FROM `Organisation` WHERE (`id` >= ?) AND (`id` <= ?)
+  args: 100(int64), 5000(int64)
+
+### AGG5 @document
+[mongo] columns=(cnt, mn, mx, sm, av)
+  db.Organisation.aggregate([
+    {$match: {id: {$gte: 100(int64)}, id: {$lte: 5000(int64)}}}
+    {$group: {_id: {}, a0: {$sum: 1(int64)}, a1: {$min: "$id"}, a2: {$max: "$id"}, a3: {$sum: "$id"}, a4: {$avg: "$id"}}}
+    {$project: {_id: 0(int), v0: "$a0", v1: "$a1", v2: "$a2", v3: "$a3", v4: "$a4"}}
+    {$project: {_id: 0(int), c0: "$v0", c1: "$v1", c2: "$v2", c3: "$v3", c4: "$v4"}}
+  ])
+
+### AGG5 @columnar
+[clickhouse] columns=(cnt, mn, mx, sm, av)
+  SELECT count(*) AS c0, min(`id`) AS c1, max(`id`) AS c2, sum(`id`) AS c3, avg(`id`) AS c4 FROM `Organisation` WHERE (`id` >= 100) AND (`id` <= 5000)
+
+### AGG5 @widecolumn
+[cassandra] columns=(cnt, mn, mx, sm, av)
+  SELECT count(*) AS c0, min("id") AS c1, max("id") AS c2, sum("id") AS c3, avg("id") AS c4 FROM "Organisation" WHERE ("id" >= ?) AND ("id" <= ?) ALLOW FILTERING
+  args: 100(int64), 5000(int64)
+
+### AGG5 @kvs
+[leveldb] columns=(o.id)
+  KVS Organisation scan get=(id) filter (o.id >= 100) filter (o.id <= 5000)
+[coordinator] Aggregation[keys: ∅ | count(*) AS cnt, min(o.id) AS mn, max(o.id) AS mx, sum(o.id) AS sm, avg(o.id) AS av]
+
+### AGG6 @graph
+[neo4j] columns=(o.type, cnt, mn, mx)
+  MATCH (o:Organisation) WITH o.type AS v0, count(*) AS v1, min(o.id) AS v2, max(o.id) AS v3 RETURN v0 AS c0, v1 AS c1, v2 AS c2, v3 AS c3 ORDER BY v1 DESC
+
+### AGG6 @relational
+[mysql] columns=(o.type, cnt, mn, mx)
+  SELECT `type` AS c0, count(*) AS c1, min(`id`) AS c2, max(`id`) AS c3 FROM `Organisation` GROUP BY `type` ORDER BY count(*) DESC
+
+### AGG6 @document
+[mongo] columns=(o.type, cnt, mn, mx)
+  db.Organisation.aggregate([
+    {$match: {}}
+    {$group: {_id: {k0: "$type"}, a0: {$sum: 1(int64)}, a1: {$min: "$id"}, a2: {$max: "$id"}}}
+    {$project: {_id: 0(int), v0: "$_id.k0", v1: "$a0", v2: "$a1", v3: "$a2"}}
+    {$sort: {v1: -1(int64)}}
+    {$project: {_id: 0(int), c0: "$v0", c1: "$v1", c2: "$v2", c3: "$v3"}}
+  ])
+
+### AGG6 @columnar
+[clickhouse] columns=(o.type, cnt, mn, mx)
+  SELECT `type` AS c0, count(*) AS c1, min(`id`) AS c2, max(`id`) AS c3 FROM `Organisation` GROUP BY `type` ORDER BY count(*) DESC NULLS FIRST
+
+### AGG6 @widecolumn
+[cassandra] columns=(o.id, o.type)
+  SELECT "id" AS c0, "type" AS c1 FROM "Organisation"
+[coordinator] Aggregation[keys: o.type | count(*) AS cnt, min(o.id) AS mn, max(o.id) AS mx]
+[coordinator] Sort[cnt DESC]
+
+### AGG6 @kvs
+[leveldb] columns=(o.id, o.type)
+  KVS Organisation scan get=(type, id)
+[coordinator] Aggregation[keys: o.type | count(*) AS cnt, min(o.id) AS mn, max(o.id) AS mx]
+[coordinator] Sort[cnt DESC]
+
+### BI12 @graph
+[neo4j] columns=(messageCount, personCount)
+  MATCH (person:Person) OPTIONAL MATCH (person)<-[_r0:HAS_CREATOR]-(message:Message), _sp_r1 = (message)-[:REPLY_OF*0..]->(post:Post) WHERE (message.content IS NOT NULL) AND (message.length < $p0) AND (message.creationDate > $p1) AND (post.language IN [$p2, $p3]) WITH person AS person, count(message) AS v1 WITH v1 AS v2, count(person) AS v3 RETURN v2 AS c0, v3 AS c1 ORDER BY v3 DESC, v2 DESC
+  params: p0=20(int64), p1=2010-07-22 00:00:00 +0000 UTC(time.Time), p2="ar", p3="hu"
+
+### BI12 @relational
+[neo4j] columns=(messageCount, personCount)
+  MATCH (person:Person) OPTIONAL MATCH (person)<-[_r0:HAS_CREATOR]-(message:Message), _sp_r1 = (message)-[:REPLY_OF*0..]->(post:Post) WHERE (message.content IS NOT NULL) AND (message.length < $p0) AND (message.creationDate > $p1) AND (post.language IN [$p2, $p3]) WITH person AS person, count(message) AS v1 WITH v1 AS v2, count(person) AS v3 RETURN v2 AS c0, v3 AS c1 ORDER BY v3 DESC, v2 DESC
+  params: p0=20(int64), p1=2010-07-22 00:00:00 +0000 UTC(time.Time), p2="ar", p3="hu"
+
+### BI12 @document
+[neo4j] columns=(messageCount, personCount)
+  MATCH (person:Person) OPTIONAL MATCH (person)<-[_r0:HAS_CREATOR]-(message:Message), _sp_r1 = (message)-[:REPLY_OF*0..]->(post:Post) WHERE (message.content IS NOT NULL) AND (message.length < $p0) AND (message.creationDate > $p1) AND (post.language IN [$p2, $p3]) WITH person AS person, count(message) AS v1 WITH v1 AS v2, count(person) AS v3 RETURN v2 AS c0, v3 AS c1 ORDER BY v3 DESC, v2 DESC
+  params: p0=20(int64), p1=2010-07-22 00:00:00 +0000 UTC(time.Time), p2="ar", p3="hu"
+
+### BI12 @columnar
+[neo4j] columns=(messageCount, personCount)
+  MATCH (person:Person) OPTIONAL MATCH (person)<-[_r0:HAS_CREATOR]-(message:Message), _sp_r1 = (message)-[:REPLY_OF*0..]->(post:Post) WHERE (message.content IS NOT NULL) AND (message.length < $p0) AND (message.creationDate > $p1) AND (post.language IN [$p2, $p3]) WITH person AS person, count(message) AS v1 WITH v1 AS v2, count(person) AS v3 RETURN v2 AS c0, v3 AS c1 ORDER BY v3 DESC, v2 DESC
+  params: p0=20(int64), p1=2010-07-22 00:00:00 +0000 UTC(time.Time), p2="ar", p3="hu"
+
+### BI12 @widecolumn
+[neo4j] columns=(messageCount, personCount)
+  MATCH (person:Person) OPTIONAL MATCH (person)<-[_r0:HAS_CREATOR]-(message:Message), _sp_r1 = (message)-[:REPLY_OF*0..]->(post:Post) WHERE (message.content IS NOT NULL) AND (message.length < $p0) AND (message.creationDate > $p1) AND (post.language IN [$p2, $p3]) WITH person AS person, count(message) AS v1 WITH v1 AS v2, count(person) AS v3 RETURN v2 AS c0, v3 AS c1 ORDER BY v3 DESC, v2 DESC
+  params: p0=20(int64), p1=2010-07-22 00:00:00 +0000 UTC(time.Time), p2="ar", p3="hu"
+
+### BI12 @kvs
+[neo4j] columns=(messageCount, personCount)
+  MATCH (person:Person) OPTIONAL MATCH (person)<-[_r0:HAS_CREATOR]-(message:Message), _sp_r1 = (message)-[:REPLY_OF*0..]->(post:Post) WHERE (message.content IS NOT NULL) AND (message.length < $p0) AND (message.creationDate > $p1) AND (post.language IN [$p2, $p3]) WITH person AS person, count(message) AS v1 WITH v1 AS v2, count(person) AS v3 RETURN v2 AS c0, v3 AS c1 ORDER BY v3 DESC, v2 DESC
+  params: p0=20(int64), p1=2010-07-22 00:00:00 +0000 UTC(time.Time), p2="ar", p3="hu"
+
+### BI3 @graph
+[neo4j] columns=(forum.id, forum.title, forum.creationDate, person.id, messageCount)
+  MATCH (_n0:Country) WHERE (_n0.name = $p0) MATCH (_n0)<-[_r0:IS_PART_OF]-(_n1:City) MATCH (_n1)<-[_r1:IS_LOCATED_IN]-(person:Person) MATCH (person)<-[_r2:HAS_MODERATOR]-(forum:Forum) MATCH (forum)-[_r3:CONTAINER_OF]->(post:Post) MATCH _sp_r4 = (post)<-[:REPLY_OF*0..]-(message:Message) MATCH (message)-[_r5:HAS_TAG]->(_n2:Tag) MATCH (_n2)-[_r6:HAS_TYPE]->(_n3:TagClass) WHERE (_n3.name = $p1) WITH forum.id AS v0, forum.title AS v1, forum.creationDate AS v2, person.id AS v3, count(DISTINCT message) AS v4 RETURN v0 AS c0, v1 AS c1, v2 AS c2, v3 AS c3, v4 AS c4 ORDER BY v4 DESC, v0 LIMIT 20
+  params: p0="Germany", p1="MusicalArtist"
+
+### BI3 @relational
+[neo4j] columns=(forum, message, person, _w)
+  MATCH (_n0:Country) WHERE (_n0.name = $p0) MATCH (_n0)<-[_r0:IS_PART_OF]-(_n1:City) MATCH (_n1)<-[_r1:IS_LOCATED_IN]-(person:Person) MATCH (person)<-[_r2:HAS_MODERATOR]-(forum:Forum) MATCH (forum)-[_r3:CONTAINER_OF]->(post:Post) MATCH _sp_r4 = (post)<-[:REPLY_OF*0..]-(message:Message) MATCH (message)-[_r5:HAS_TAG]->(_n2:Tag) MATCH (_n2)-[_r6:HAS_TYPE]->(_n3:TagClass) WHERE (_n3.name = $p1) RETURN forum.uuid AS c0, message.uuid AS c1, person.uuid AS c2, count(*) AS c3
+  params: p0="Germany", p1="MusicalArtist"
+[mysql] columns=(forum, forum.creationDate, forum.id, forum.title) in=(forum)
+  SELECT `uuid` AS c0, `creationDate` AS c1, `id` AS c2, `title` AS c3 FROM `Forum` WHERE `uuid` IN (?)
+  args: <in>
+[mysql] columns=(person, person.id) in=(person)
+  SELECT `uuid` AS c0, `id` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Aggregation[keys: forum.id, forum.title, forum.creationDate, person.id | count(DISTINCT message) AS messageCount]
+[coordinator] Sort[messageCount DESC, forum.id ASC]
+[coordinator] Limit[20]
+
+### BI3 @document
+[neo4j] columns=(forum, message, person, _w)
+  MATCH (_n0:Country) WHERE (_n0.name = $p0) MATCH (_n0)<-[_r0:IS_PART_OF]-(_n1:City) MATCH (_n1)<-[_r1:IS_LOCATED_IN]-(person:Person) MATCH (person)<-[_r2:HAS_MODERATOR]-(forum:Forum) MATCH (forum)-[_r3:CONTAINER_OF]->(post:Post) MATCH _sp_r4 = (post)<-[:REPLY_OF*0..]-(message:Message) MATCH (message)-[_r5:HAS_TAG]->(_n2:Tag) MATCH (_n2)-[_r6:HAS_TYPE]->(_n3:TagClass) WHERE (_n3.name = $p1) RETURN forum.uuid AS c0, message.uuid AS c1, person.uuid AS c2, count(*) AS c3
+  params: p0="Germany", p1="MusicalArtist"
+[mongo] columns=(forum, forum.creationDate, forum.id, forum.title) in=(forum)
+  db.Forum.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$creationDate", c2: "$id", c3: "$title"}}
+  ])
+[mongo] columns=(person, person.id) in=(person)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$id"}}
+  ])
+[coordinator] Aggregation[keys: forum.id, forum.title, forum.creationDate, person.id | count(DISTINCT message) AS messageCount]
+[coordinator] Sort[messageCount DESC, forum.id ASC]
+[coordinator] Limit[20]
+
+### BI3 @columnar
+[neo4j] columns=(forum, message, person, _w)
+  MATCH (_n0:Country) WHERE (_n0.name = $p0) MATCH (_n0)<-[_r0:IS_PART_OF]-(_n1:City) MATCH (_n1)<-[_r1:IS_LOCATED_IN]-(person:Person) MATCH (person)<-[_r2:HAS_MODERATOR]-(forum:Forum) MATCH (forum)-[_r3:CONTAINER_OF]->(post:Post) MATCH _sp_r4 = (post)<-[:REPLY_OF*0..]-(message:Message) MATCH (message)-[_r5:HAS_TAG]->(_n2:Tag) MATCH (_n2)-[_r6:HAS_TYPE]->(_n3:TagClass) WHERE (_n3.name = $p1) RETURN forum.uuid AS c0, message.uuid AS c1, person.uuid AS c2, count(*) AS c3
+  params: p0="Germany", p1="MusicalArtist"
+[clickhouse] columns=(forum, forum.creationDate, forum.id, forum.title) in=(forum)
+  SELECT `uuid` AS c0, `creationDate` AS c1, `id` AS c2, `title` AS c3 FROM `Forum` WHERE `uuid` IN (?)
+  args: <in>
+[clickhouse] columns=(person, person.id) in=(person)
+  SELECT `uuid` AS c0, `id` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Aggregation[keys: forum.id, forum.title, forum.creationDate, person.id | count(DISTINCT message) AS messageCount]
+[coordinator] Sort[messageCount DESC, forum.id ASC]
+[coordinator] Limit[20]
+
+### BI3 @widecolumn
+[neo4j] columns=(forum, message, person, _w)
+  MATCH (_n0:Country) WHERE (_n0.name = $p0) MATCH (_n0)<-[_r0:IS_PART_OF]-(_n1:City) MATCH (_n1)<-[_r1:IS_LOCATED_IN]-(person:Person) MATCH (person)<-[_r2:HAS_MODERATOR]-(forum:Forum) MATCH (forum)-[_r3:CONTAINER_OF]->(post:Post) MATCH _sp_r4 = (post)<-[:REPLY_OF*0..]-(message:Message) MATCH (message)-[_r5:HAS_TAG]->(_n2:Tag) MATCH (_n2)-[_r6:HAS_TYPE]->(_n3:TagClass) WHERE (_n3.name = $p1) RETURN forum.uuid AS c0, message.uuid AS c1, person.uuid AS c2, count(*) AS c3
+  params: p0="Germany", p1="MusicalArtist"
+[cassandra] columns=(forum, forum.creationDate, forum.id, forum.title) in=(forum)
+  SELECT "uuid" AS c0, "creationDate" AS c1, "id" AS c2, "title" AS c3 FROM "Forum" WHERE "uuid" IN ?
+  args: <in>
+[cassandra] columns=(person, person.id) in=(person)
+  SELECT "uuid" AS c0, "id" AS c1 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Aggregation[keys: forum.id, forum.title, forum.creationDate, person.id | count(DISTINCT message) AS messageCount]
+[coordinator] Sort[messageCount DESC, forum.id ASC]
+[coordinator] Limit[20]
+
+### BI3 @kvs
+[neo4j] columns=(forum, message, person, _w)
+  MATCH (_n0:Country) WHERE (_n0.name = $p0) MATCH (_n0)<-[_r0:IS_PART_OF]-(_n1:City) MATCH (_n1)<-[_r1:IS_LOCATED_IN]-(person:Person) MATCH (person)<-[_r2:HAS_MODERATOR]-(forum:Forum) MATCH (forum)-[_r3:CONTAINER_OF]->(post:Post) MATCH _sp_r4 = (post)<-[:REPLY_OF*0..]-(message:Message) MATCH (message)-[_r5:HAS_TAG]->(_n2:Tag) MATCH (_n2)-[_r6:HAS_TYPE]->(_n3:TagClass) WHERE (_n3.name = $p1) RETURN forum.uuid AS c0, message.uuid AS c1, person.uuid AS c2, count(*) AS c3
+  params: p0="Germany", p1="MusicalArtist"
+[leveldb] columns=(forum, forum.creationDate, forum.id, forum.title) in=(forum)
+  KVS Forum ids get=(id, title, creationDate)
+[leveldb] columns=(person, person.id) in=(person)
+  KVS Person ids get=(id)
+[coordinator] Aggregation[keys: forum.id, forum.title, forum.creationDate, person.id | count(DISTINCT message) AS messageCount]
+[coordinator] Sort[messageCount DESC, forum.id ASC]
+[coordinator] Limit[20]
+
+### BI5 @graph
+[neo4j] columns=(person.id, replyCount, likeCount, messageCount, score)
+  MATCH (tag:Tag) WHERE (tag.name = $p0) MATCH (tag)<-[_r0:HAS_TAG]-(message:Message) MATCH (message)-[_r1:HAS_CREATOR]->(person:Person) OPTIONAL MATCH (message)<-[likes:LIKES]-(_n0:Person) WITH person AS person, message AS message, count(likes) AS v2 OPTIONAL MATCH (message)<-[_r2:REPLY_OF]-(reply:Comment) WITH person AS person, message AS message, v2 AS v5, count(reply) AS v6 WITH person AS person, count(message) AS v8, sum(v5) AS v9, sum(v6) AS v10 WITH person.id AS v11, v10 AS v12, v9 AS v13, v8 AS v14, ((($p1 * v8) + ($p2 * v10)) + ($p3 * v9)) AS v15 RETURN v11 AS c0, v12 AS c1, v13 AS c2, v14 AS c3, v15 AS c4 ORDER BY v15 DESC, v11 LIMIT 100
+  params: p0="Abbas_I_of_Persia", p1=1(int64), p2=2(int64), p3=10(int64)
+
+### BI5 @relational
+[neo4j] columns=(person.id, replyCount, likeCount, messageCount, score)
+  MATCH (tag:Tag) WHERE (tag.name = $p0) MATCH (tag)<-[_r0:HAS_TAG]-(message:Message) MATCH (message)-[_r1:HAS_CREATOR]->(person:Person) OPTIONAL MATCH (message)<-[likes:LIKES]-(_n0:Person) WITH person AS person, message AS message, count(likes) AS v2 OPTIONAL MATCH (message)<-[_r2:REPLY_OF]-(reply:Comment) WITH person AS person, message AS message, v2 AS v5, count(reply) AS v6 WITH person AS person, count(message) AS v8, sum(v5) AS v9, sum(v6) AS v10 WITH person.id AS v11, v10 AS v12, v9 AS v13, v8 AS v14, ((($p1 * v8) + ($p2 * v10)) + ($p3 * v9)) AS v15 RETURN v11 AS c0, v12 AS c1, v13 AS c2, v14 AS c3, v15 AS c4 ORDER BY v15 DESC, v11 LIMIT 100
+  params: p0="Abbas_I_of_Persia", p1=1(int64), p2=2(int64), p3=10(int64)
+
+### BI5 @document
+[neo4j] columns=(person.id, replyCount, likeCount, messageCount, score)
+  MATCH (tag:Tag) WHERE (tag.name = $p0) MATCH (tag)<-[_r0:HAS_TAG]-(message:Message) MATCH (message)-[_r1:HAS_CREATOR]->(person:Person) OPTIONAL MATCH (message)<-[likes:LIKES]-(_n0:Person) WITH person AS person, message AS message, count(likes) AS v2 OPTIONAL MATCH (message)<-[_r2:REPLY_OF]-(reply:Comment) WITH person AS person, message AS message, v2 AS v5, count(reply) AS v6 WITH person AS person, count(message) AS v8, sum(v5) AS v9, sum(v6) AS v10 WITH person.id AS v11, v10 AS v12, v9 AS v13, v8 AS v14, ((($p1 * v8) + ($p2 * v10)) + ($p3 * v9)) AS v15 RETURN v11 AS c0, v12 AS c1, v13 AS c2, v14 AS c3, v15 AS c4 ORDER BY v15 DESC, v11 LIMIT 100
+  params: p0="Abbas_I_of_Persia", p1=1(int64), p2=2(int64), p3=10(int64)
+
+### BI5 @columnar
+[neo4j] columns=(person.id, replyCount, likeCount, messageCount, score)
+  MATCH (tag:Tag) WHERE (tag.name = $p0) MATCH (tag)<-[_r0:HAS_TAG]-(message:Message) MATCH (message)-[_r1:HAS_CREATOR]->(person:Person) OPTIONAL MATCH (message)<-[likes:LIKES]-(_n0:Person) WITH person AS person, message AS message, count(likes) AS v2 OPTIONAL MATCH (message)<-[_r2:REPLY_OF]-(reply:Comment) WITH person AS person, message AS message, v2 AS v5, count(reply) AS v6 WITH person AS person, count(message) AS v8, sum(v5) AS v9, sum(v6) AS v10 WITH person.id AS v11, v10 AS v12, v9 AS v13, v8 AS v14, ((($p1 * v8) + ($p2 * v10)) + ($p3 * v9)) AS v15 RETURN v11 AS c0, v12 AS c1, v13 AS c2, v14 AS c3, v15 AS c4 ORDER BY v15 DESC, v11 LIMIT 100
+  params: p0="Abbas_I_of_Persia", p1=1(int64), p2=2(int64), p3=10(int64)
+
+### BI5 @widecolumn
+[neo4j] columns=(person.id, replyCount, likeCount, messageCount, score)
+  MATCH (tag:Tag) WHERE (tag.name = $p0) MATCH (tag)<-[_r0:HAS_TAG]-(message:Message) MATCH (message)-[_r1:HAS_CREATOR]->(person:Person) OPTIONAL MATCH (message)<-[likes:LIKES]-(_n0:Person) WITH person AS person, message AS message, count(likes) AS v2 OPTIONAL MATCH (message)<-[_r2:REPLY_OF]-(reply:Comment) WITH person AS person, message AS message, v2 AS v5, count(reply) AS v6 WITH person AS person, count(message) AS v8, sum(v5) AS v9, sum(v6) AS v10 WITH person.id AS v11, v10 AS v12, v9 AS v13, v8 AS v14, ((($p1 * v8) + ($p2 * v10)) + ($p3 * v9)) AS v15 RETURN v11 AS c0, v12 AS c1, v13 AS c2, v14 AS c3, v15 AS c4 ORDER BY v15 DESC, v11 LIMIT 100
+  params: p0="Abbas_I_of_Persia", p1=1(int64), p2=2(int64), p3=10(int64)
+
+### BI5 @kvs
+[neo4j] columns=(person.id, replyCount, likeCount, messageCount, score)
+  MATCH (tag:Tag) WHERE (tag.name = $p0) MATCH (tag)<-[_r0:HAS_TAG]-(message:Message) MATCH (message)-[_r1:HAS_CREATOR]->(person:Person) OPTIONAL MATCH (message)<-[likes:LIKES]-(_n0:Person) WITH person AS person, message AS message, count(likes) AS v2 OPTIONAL MATCH (message)<-[_r2:REPLY_OF]-(reply:Comment) WITH person AS person, message AS message, v2 AS v5, count(reply) AS v6 WITH person AS person, count(message) AS v8, sum(v5) AS v9, sum(v6) AS v10 WITH person.id AS v11, v10 AS v12, v9 AS v13, v8 AS v14, ((($p1 * v8) + ($p2 * v10)) + ($p3 * v9)) AS v15 RETURN v11 AS c0, v12 AS c1, v13 AS c2, v14 AS c3, v15 AS c4 ORDER BY v15 DESC, v11 LIMIT 100
+  params: p0="Abbas_I_of_Persia", p1=1(int64), p2=2(int64), p3=10(int64)
+
+### BI6 @graph
+[neo4j] columns=(person1.id, authorityScore)
+  MATCH (tag:Tag) WHERE (tag.name = $p0) MATCH (tag)<-[_r0:HAS_TAG]-(message1:Message) MATCH (message1)-[_r1:HAS_CREATOR]->(person1:Person) OPTIONAL MATCH (message1)<-[_r2:LIKES]-(person2:Person) OPTIONAL MATCH (person2)<-[_r3:HAS_CREATOR]-(message2:Message), (message2)<-[like:LIKES]-(person3:Person) WITH person1.id AS v0, count(DISTINCT like) AS v1 RETURN v0 AS c0, v1 AS c1 ORDER BY v1 DESC, v0 LIMIT 100
+  params: p0="Arnold_Schwarzenegger"
+
+### BI6 @relational
+[neo4j] columns=(person1.id, authorityScore)
+  MATCH (tag:Tag) WHERE (tag.name = $p0) MATCH (tag)<-[_r0:HAS_TAG]-(message1:Message) MATCH (message1)-[_r1:HAS_CREATOR]->(person1:Person) OPTIONAL MATCH (message1)<-[_r2:LIKES]-(person2:Person) OPTIONAL MATCH (person2)<-[_r3:HAS_CREATOR]-(message2:Message), (message2)<-[like:LIKES]-(person3:Person) WITH person1.id AS v0, count(DISTINCT like) AS v1 RETURN v0 AS c0, v1 AS c1 ORDER BY v1 DESC, v0 LIMIT 100
+  params: p0="Arnold_Schwarzenegger"
+
+### BI6 @document
+[neo4j] columns=(person1.id, authorityScore)
+  MATCH (tag:Tag) WHERE (tag.name = $p0) MATCH (tag)<-[_r0:HAS_TAG]-(message1:Message) MATCH (message1)-[_r1:HAS_CREATOR]->(person1:Person) OPTIONAL MATCH (message1)<-[_r2:LIKES]-(person2:Person) OPTIONAL MATCH (person2)<-[_r3:HAS_CREATOR]-(message2:Message), (message2)<-[like:LIKES]-(person3:Person) WITH person1.id AS v0, count(DISTINCT like) AS v1 RETURN v0 AS c0, v1 AS c1 ORDER BY v1 DESC, v0 LIMIT 100
+  params: p0="Arnold_Schwarzenegger"
+
+### BI6 @columnar
+[neo4j] columns=(person1.id, authorityScore)
+  MATCH (tag:Tag) WHERE (tag.name = $p0) MATCH (tag)<-[_r0:HAS_TAG]-(message1:Message) MATCH (message1)-[_r1:HAS_CREATOR]->(person1:Person) OPTIONAL MATCH (message1)<-[_r2:LIKES]-(person2:Person) OPTIONAL MATCH (person2)<-[_r3:HAS_CREATOR]-(message2:Message), (message2)<-[like:LIKES]-(person3:Person) WITH person1.id AS v0, count(DISTINCT like) AS v1 RETURN v0 AS c0, v1 AS c1 ORDER BY v1 DESC, v0 LIMIT 100
+  params: p0="Arnold_Schwarzenegger"
+
+### BI6 @widecolumn
+[neo4j] columns=(person1.id, authorityScore)
+  MATCH (tag:Tag) WHERE (tag.name = $p0) MATCH (tag)<-[_r0:HAS_TAG]-(message1:Message) MATCH (message1)-[_r1:HAS_CREATOR]->(person1:Person) OPTIONAL MATCH (message1)<-[_r2:LIKES]-(person2:Person) OPTIONAL MATCH (person2)<-[_r3:HAS_CREATOR]-(message2:Message), (message2)<-[like:LIKES]-(person3:Person) WITH person1.id AS v0, count(DISTINCT like) AS v1 RETURN v0 AS c0, v1 AS c1 ORDER BY v1 DESC, v0 LIMIT 100
+  params: p0="Arnold_Schwarzenegger"
+
+### BI6 @kvs
+[neo4j] columns=(person1.id, authorityScore)
+  MATCH (tag:Tag) WHERE (tag.name = $p0) MATCH (tag)<-[_r0:HAS_TAG]-(message1:Message) MATCH (message1)-[_r1:HAS_CREATOR]->(person1:Person) OPTIONAL MATCH (message1)<-[_r2:LIKES]-(person2:Person) OPTIONAL MATCH (person2)<-[_r3:HAS_CREATOR]-(message2:Message), (message2)<-[like:LIKES]-(person3:Person) WITH person1.id AS v0, count(DISTINCT like) AS v1 RETURN v0 AS c0, v1 AS c1 ORDER BY v1 DESC, v0 LIMIT 100
+  params: p0="Arnold_Schwarzenegger"
+
+### BI9 @graph
+[neo4j] columns=(person.id, person.firstName, person.lastName, threadCount, messageCount)
+  MATCH (post:Post) WHERE (post.creationDate >= $p0) AND (post.creationDate <= $p1) MATCH (post)-[_r0:HAS_CREATOR]->(person:Person) MATCH _sp_r1 = (post)<-[:REPLY_OF*0..]-(reply:Message) WHERE (reply.creationDate >= $p2) AND (reply.creationDate <= $p3) WITH person.id AS v0, person.firstName AS v1, person.lastName AS v2, count(DISTINCT post) AS v3, count(DISTINCT reply) AS v4 RETURN v0 AS c0, v1 AS c1, v2 AS c2, v3 AS c3, v4 AS c4 ORDER BY v4 DESC, v0 LIMIT 100
+  params: p0=2010-01-01 00:00:00 +0000 UTC(time.Time), p1=2013-01-01 00:00:00 +0000 UTC(time.Time), p2=2010-01-01 00:00:00 +0000 UTC(time.Time), p3=2013-01-01 00:00:00 +0000 UTC(time.Time)
+
+### BI9 @relational
+[neo4j] columns=(post)
+  MATCH (post:Post) RETURN post.uuid AS c0
+[mysql] columns=(post) in=(post)
+  SELECT `uuid` AS c0 FROM `Message` WHERE `uuid` IN (?) AND (`creationDate` >= ?) AND (`creationDate` <= ?)
+  args: <in>, 2010-01-01 00:00:00 +0000 UTC(time.Time), 2013-01-01 00:00:00 +0000 UTC(time.Time)
+[neo4j] columns=(post, person, reply, _w) in=(post)
+  MATCH (post:Post) WHERE post.uuid IN $in MATCH (post)-[_r0:HAS_CREATOR]->(person:Person) MATCH _sp_r1 = (post)<-[:REPLY_OF*0..]-(reply:Message) RETURN post.uuid AS c0, person.uuid AS c1, reply.uuid AS c2, count(*) AS c3
+[mysql] columns=(reply) in=(reply)
+  SELECT `uuid` AS c0 FROM `Message` WHERE `uuid` IN (?) AND (`creationDate` >= ?) AND (`creationDate` <= ?)
+  args: <in>, 2010-01-01 00:00:00 +0000 UTC(time.Time), 2013-01-01 00:00:00 +0000 UTC(time.Time)
+[mysql] columns=(person, person.firstName, person.id, person.lastName) in=(person)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2, `lastName` AS c3 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Aggregation[keys: person.id, person.firstName, person.lastName | count(DISTINCT post) AS threadCount, count(DISTINCT reply) AS messageCount]
+[coordinator] Sort[messageCount DESC, person.id ASC]
+[coordinator] Limit[100]
+
+### BI9 @document
+[neo4j] columns=(post)
+  MATCH (post:Post) RETURN post.uuid AS c0
+[mongo] columns=(post) in=(post)
+  db.Message.aggregate([
+    {$match: {uuid: {$in: <in>}, creationDate: {$gte: 2010-01-01 00:00:00 +0000 UTC(time.Time)}, creationDate: {$lte: 2013-01-01 00:00:00 +0000 UTC(time.Time)}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(post, person, reply, _w) in=(post)
+  MATCH (post:Post) WHERE post.uuid IN $in MATCH (post)-[_r0:HAS_CREATOR]->(person:Person) MATCH _sp_r1 = (post)<-[:REPLY_OF*0..]-(reply:Message) RETURN post.uuid AS c0, person.uuid AS c1, reply.uuid AS c2, count(*) AS c3
+[mongo] columns=(reply) in=(reply)
+  db.Message.aggregate([
+    {$match: {uuid: {$in: <in>}, creationDate: {$gte: 2010-01-01 00:00:00 +0000 UTC(time.Time)}, creationDate: {$lte: 2013-01-01 00:00:00 +0000 UTC(time.Time)}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[mongo] columns=(person, person.firstName, person.id, person.lastName) in=(person)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$firstName", c2: "$id", c3: "$lastName"}}
+  ])
+[coordinator] Aggregation[keys: person.id, person.firstName, person.lastName | count(DISTINCT post) AS threadCount, count(DISTINCT reply) AS messageCount]
+[coordinator] Sort[messageCount DESC, person.id ASC]
+[coordinator] Limit[100]
+
+### BI9 @columnar
+[neo4j] columns=(post)
+  MATCH (post:Post) RETURN post.uuid AS c0
+[clickhouse] columns=(post) in=(post)
+  SELECT `uuid` AS c0 FROM `Message` WHERE `uuid` IN (?) AND (`creationDate` >= toDateTime64('2010-01-01 00:00:00.000000', 6, 'UTC')) AND (`creationDate` <= toDateTime64('2013-01-01 00:00:00.000000', 6, 'UTC'))
+  args: <in>
+[neo4j] columns=(post, person, reply, _w) in=(post)
+  MATCH (post:Post) WHERE post.uuid IN $in MATCH (post)-[_r0:HAS_CREATOR]->(person:Person) MATCH _sp_r1 = (post)<-[:REPLY_OF*0..]-(reply:Message) RETURN post.uuid AS c0, person.uuid AS c1, reply.uuid AS c2, count(*) AS c3
+[clickhouse] columns=(reply) in=(reply)
+  SELECT `uuid` AS c0 FROM `Message` WHERE `uuid` IN (?) AND (`creationDate` >= toDateTime64('2010-01-01 00:00:00.000000', 6, 'UTC')) AND (`creationDate` <= toDateTime64('2013-01-01 00:00:00.000000', 6, 'UTC'))
+  args: <in>
+[clickhouse] columns=(person, person.firstName, person.id, person.lastName) in=(person)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2, `lastName` AS c3 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Aggregation[keys: person.id, person.firstName, person.lastName | count(DISTINCT post) AS threadCount, count(DISTINCT reply) AS messageCount]
+[coordinator] Sort[messageCount DESC, person.id ASC]
+[coordinator] Limit[100]
+
+### BI9 @widecolumn
+[neo4j] columns=(post)
+  MATCH (post:Post) RETURN post.uuid AS c0
+[cassandra] columns=(post) in=(post)
+  SELECT "uuid" AS c0 FROM "Message" WHERE "uuid" IN ? AND ("creationDate" >= ?) AND ("creationDate" <= ?) ALLOW FILTERING
+  args: <in>, 2010-01-01 00:00:00 +0000 UTC(time.Time), 2013-01-01 00:00:00 +0000 UTC(time.Time)
+[neo4j] columns=(post, person, reply, _w) in=(post)
+  MATCH (post:Post) WHERE post.uuid IN $in MATCH (post)-[_r0:HAS_CREATOR]->(person:Person) MATCH _sp_r1 = (post)<-[:REPLY_OF*0..]-(reply:Message) RETURN post.uuid AS c0, person.uuid AS c1, reply.uuid AS c2, count(*) AS c3
+[cassandra] columns=(reply) in=(reply)
+  SELECT "uuid" AS c0 FROM "Message" WHERE "uuid" IN ? AND ("creationDate" >= ?) AND ("creationDate" <= ?) ALLOW FILTERING
+  args: <in>, 2010-01-01 00:00:00 +0000 UTC(time.Time), 2013-01-01 00:00:00 +0000 UTC(time.Time)
+[cassandra] columns=(person, person.firstName, person.id, person.lastName) in=(person)
+  SELECT "uuid" AS c0, "firstName" AS c1, "id" AS c2, "lastName" AS c3 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Aggregation[keys: person.id, person.firstName, person.lastName | count(DISTINCT post) AS threadCount, count(DISTINCT reply) AS messageCount]
+[coordinator] Sort[messageCount DESC, person.id ASC]
+[coordinator] Limit[100]
+
+### BI9 @kvs
+[neo4j] columns=(post)
+  MATCH (post:Post) RETURN post.uuid AS c0
+[leveldb] columns=(post) in=(post)
+  KVS Message ids get=(creationDate) filter (post.creationDate >= 2010-01-01 00:00:00 +0000 UTC) filter (post.creationDate <= 2013-01-01 00:00:00 +0000 UTC)
+[neo4j] columns=(post, person, reply, _w) in=(post)
+  MATCH (post:Post) WHERE post.uuid IN $in MATCH (post)-[_r0:HAS_CREATOR]->(person:Person) MATCH _sp_r1 = (post)<-[:REPLY_OF*0..]-(reply:Message) RETURN post.uuid AS c0, person.uuid AS c1, reply.uuid AS c2, count(*) AS c3
+[leveldb] columns=(reply) in=(reply)
+  KVS Message ids get=(creationDate) filter (reply.creationDate >= 2010-01-01 00:00:00 +0000 UTC) filter (reply.creationDate <= 2013-01-01 00:00:00 +0000 UTC)
+[leveldb] columns=(person, person.firstName, person.id, person.lastName) in=(person)
+  KVS Person ids get=(id, firstName, lastName)
+[coordinator] Aggregation[keys: person.id, person.firstName, person.lastName | count(DISTINCT post) AS threadCount, count(DISTINCT reply) AS messageCount]
+[coordinator] Sort[messageCount DESC, person.id ASC]
+[coordinator] Limit[100]
+
+### IC11 @graph
+[neo4j] columns=(personId, personFirstName, personLastName, organizationName, organizationWorkFromYear)
+  MATCH (person:Person) WHERE (person.id = $p0) MATCH _sp_r0 = (person)-[:KNOWS*1..2]-(friend:Person) WHERE (NOT (person = friend)) WITH friend AS friend WITH DISTINCT friend AS friend MATCH (friend)-[workAt:WORK_AT]->(company:Company) WHERE (workAt.workFrom < $p1) MATCH (company)-[_r1:IS_LOCATED_IN]->(_n0:Country) WHERE (_n0.name = $p2) WITH friend.id AS v2, company.name AS v3, workAt.workFrom AS v4, friend AS friend WITH * ORDER BY v4, toInteger(v2), v3 DESC LIMIT 10 WITH v2 AS v6, friend.firstName AS v7, friend.lastName AS v8, v3 AS v9, v4 AS v10 RETURN v6 AS c0, v7 AS c1, v8 AS c2, v9 AS c3, v10 AS c4
+  params: p0=15393162799448(int64), p1=2008(int64), p2="Germany"
+
+### IC11 @relational
+[mysql] columns=(person)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = ?)
+  args: 15393162799448(int64)
+[neo4j] columns=(person, _n0, company, friend, workAt) in=(person)
+  MATCH (person:Person) WHERE person.uuid IN $in MATCH _sp_r0 = (person)-[:KNOWS*1..2]-(friend:Person) WHERE (NOT (person = friend)) WITH friend AS friend, person AS person WITH DISTINCT friend AS friend, person AS person MATCH (friend)-[workAt:WORK_AT]->(company:Company) MATCH (company)-[_r1:IS_LOCATED_IN]->(_n0:Country) RETURN person.uuid AS c0, _n0.uuid AS c1, company.uuid AS c2, friend.uuid AS c3, workAt.uuid AS c4
+[mysql] columns=(workAt, workAt.workFrom) in=(workAt)
+  SELECT `uuid` AS c0, `workFrom` AS c1 FROM `WORK_AT` WHERE `uuid` IN (?) AND (`workFrom` < ?)
+  args: <in>, 2008(int64)
+[mysql] columns=(_n0) in=(_n0)
+  SELECT `uuid` AS c0 FROM `Place` WHERE `uuid` IN (?) AND (`name` = ?)
+  args: <in>, "Germany"
+[mysql] columns=(friend, friend.id) in=(friend)
+  SELECT `uuid` AS c0, `id` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[mysql] columns=(company, company.name) in=(company)
+  SELECT `uuid` AS c0, `name` AS c1 FROM `Organisation` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[friend.id AS personId, company.name AS organizationName, workAt.workFrom AS organizationWorkFromYear, friend]
+[coordinator] Sort[organizationWorkFromYear ASC, tointeger(personId) ASC, organizationName DESC]
+[coordinator] Limit[10]
+[mysql] columns=(friend, friend.firstName, friend.lastName) in=(friend)
+  SELECT `uuid` AS c0, `firstName` AS c1, `lastName` AS c2 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[personId, friend.firstName AS personFirstName, friend.lastName AS personLastName, organizationName, organizationWorkFromYear]
+
+### IC11 @document
+[mongo] columns=(person)
+  db.Person.aggregate([
+    {$match: {id: {$eq: 15393162799448(int64)}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(person, _n0, company, friend, workAt) in=(person)
+  MATCH (person:Person) WHERE person.uuid IN $in MATCH _sp_r0 = (person)-[:KNOWS*1..2]-(friend:Person) WHERE (NOT (person = friend)) WITH friend AS friend, person AS person WITH DISTINCT friend AS friend, person AS person MATCH (friend)-[workAt:WORK_AT]->(company:Company) MATCH (company)-[_r1:IS_LOCATED_IN]->(_n0:Country) RETURN person.uuid AS c0, _n0.uuid AS c1, company.uuid AS c2, friend.uuid AS c3, workAt.uuid AS c4
+[mongo] columns=(workAt, workAt.workFrom) in=(workAt)
+  db.WORK_AT.aggregate([
+    {$match: {uuid: {$in: <in>}, workFrom: {$lt: 2008(int64)}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$workFrom"}}
+  ])
+[mongo] columns=(_n0) in=(_n0)
+  db.Place.aggregate([
+    {$match: {uuid: {$in: <in>}, name: {$eq: "Germany"}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[mongo] columns=(friend, friend.id) in=(friend)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$id"}}
+  ])
+[mongo] columns=(company, company.name) in=(company)
+  db.Organisation.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$name"}}
+  ])
+[coordinator] Projection[friend.id AS personId, company.name AS organizationName, workAt.workFrom AS organizationWorkFromYear, friend]
+[coordinator] Sort[organizationWorkFromYear ASC, tointeger(personId) ASC, organizationName DESC]
+[coordinator] Limit[10]
+[mongo] columns=(friend, friend.firstName, friend.lastName) in=(friend)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$firstName", c2: "$lastName"}}
+  ])
+[coordinator] Projection[personId, friend.firstName AS personFirstName, friend.lastName AS personLastName, organizationName, organizationWorkFromYear]
+
+### IC11 @columnar
+[clickhouse] columns=(person)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = 15393162799448)
+[neo4j] columns=(person, _n0, company, friend, workAt) in=(person)
+  MATCH (person:Person) WHERE person.uuid IN $in MATCH _sp_r0 = (person)-[:KNOWS*1..2]-(friend:Person) WHERE (NOT (person = friend)) WITH friend AS friend, person AS person WITH DISTINCT friend AS friend, person AS person MATCH (friend)-[workAt:WORK_AT]->(company:Company) MATCH (company)-[_r1:IS_LOCATED_IN]->(_n0:Country) RETURN person.uuid AS c0, _n0.uuid AS c1, company.uuid AS c2, friend.uuid AS c3, workAt.uuid AS c4
+[clickhouse] columns=(workAt, workAt.workFrom) in=(workAt)
+  SELECT `uuid` AS c0, `workFrom` AS c1 FROM `WORK_AT` WHERE `uuid` IN (?) AND (`workFrom` < 2008)
+  args: <in>
+[clickhouse] columns=(_n0) in=(_n0)
+  SELECT `uuid` AS c0 FROM `Place` WHERE `uuid` IN (?) AND (`name` = 'Germany')
+  args: <in>
+[clickhouse] columns=(friend, friend.id) in=(friend)
+  SELECT `uuid` AS c0, `id` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[clickhouse] columns=(company, company.name) in=(company)
+  SELECT `uuid` AS c0, `name` AS c1 FROM `Organisation` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[friend.id AS personId, company.name AS organizationName, workAt.workFrom AS organizationWorkFromYear, friend]
+[coordinator] Sort[organizationWorkFromYear ASC, tointeger(personId) ASC, organizationName DESC]
+[coordinator] Limit[10]
+[clickhouse] columns=(friend, friend.firstName, friend.lastName) in=(friend)
+  SELECT `uuid` AS c0, `firstName` AS c1, `lastName` AS c2 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[personId, friend.firstName AS personFirstName, friend.lastName AS personLastName, organizationName, organizationWorkFromYear]
+
+### IC11 @widecolumn
+[cassandra] columns=(person)
+  SELECT "uuid" AS c0 FROM "Person" WHERE ("id" = ?) ALLOW FILTERING
+  args: 15393162799448(int64)
+[neo4j] columns=(person, _n0, company, friend, workAt) in=(person)
+  MATCH (person:Person) WHERE person.uuid IN $in MATCH _sp_r0 = (person)-[:KNOWS*1..2]-(friend:Person) WHERE (NOT (person = friend)) WITH friend AS friend, person AS person WITH DISTINCT friend AS friend, person AS person MATCH (friend)-[workAt:WORK_AT]->(company:Company) MATCH (company)-[_r1:IS_LOCATED_IN]->(_n0:Country) RETURN person.uuid AS c0, _n0.uuid AS c1, company.uuid AS c2, friend.uuid AS c3, workAt.uuid AS c4
+[cassandra] columns=(workAt, workAt.workFrom) in=(workAt)
+  SELECT "uuid" AS c0, "workFrom" AS c1 FROM "WORK_AT" WHERE "uuid" IN ? AND ("workFrom" < ?) ALLOW FILTERING
+  args: <in>, 2008(int64)
+[cassandra] columns=(_n0) in=(_n0)
+  SELECT "uuid" AS c0 FROM "Place" WHERE "uuid" IN ? AND ("name" = ?) ALLOW FILTERING
+  args: <in>, "Germany"
+[cassandra] columns=(friend, friend.id) in=(friend)
+  SELECT "uuid" AS c0, "id" AS c1 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[cassandra] columns=(company, company.name) in=(company)
+  SELECT "uuid" AS c0, "name" AS c1 FROM "Organisation" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Projection[friend.id AS personId, company.name AS organizationName, workAt.workFrom AS organizationWorkFromYear, friend]
+[coordinator] Sort[organizationWorkFromYear ASC, tointeger(personId) ASC, organizationName DESC]
+[coordinator] Limit[10]
+[cassandra] columns=(friend, friend.firstName, friend.lastName) in=(friend)
+  SELECT "uuid" AS c0, "firstName" AS c1, "lastName" AS c2 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Projection[personId, friend.firstName AS personFirstName, friend.lastName AS personLastName, organizationName, organizationWorkFromYear]
+
+### IC11 @kvs
+[leveldb] columns=(person)
+  KVS Person index id=15393162799448(int64) get=(id) filter (person.id = 15393162799448)
+[neo4j] columns=(person, _n0, company, friend, workAt) in=(person)
+  MATCH (person:Person) WHERE person.uuid IN $in MATCH _sp_r0 = (person)-[:KNOWS*1..2]-(friend:Person) WHERE (NOT (person = friend)) WITH friend AS friend, person AS person WITH DISTINCT friend AS friend, person AS person MATCH (friend)-[workAt:WORK_AT]->(company:Company) MATCH (company)-[_r1:IS_LOCATED_IN]->(_n0:Country) RETURN person.uuid AS c0, _n0.uuid AS c1, company.uuid AS c2, friend.uuid AS c3, workAt.uuid AS c4
+[leveldb] columns=(workAt, workAt.workFrom) in=(workAt)
+  KVS WORK_AT ids get=(workFrom) filter (workAt.workFrom < 2008)
+[leveldb] columns=(_n0) in=(_n0)
+  KVS Place ids get=(name) filter (_n0.name = "Germany")
+[leveldb] columns=(friend, friend.id) in=(friend)
+  KVS Person ids get=(id)
+[leveldb] columns=(company, company.name) in=(company)
+  KVS Organisation ids get=(name)
+[coordinator] Projection[friend.id AS personId, company.name AS organizationName, workAt.workFrom AS organizationWorkFromYear, friend]
+[coordinator] Sort[organizationWorkFromYear ASC, tointeger(personId) ASC, organizationName DESC]
+[coordinator] Limit[10]
+[leveldb] columns=(friend, friend.firstName, friend.lastName) in=(friend)
+  KVS Person ids get=(firstName, lastName)
+[coordinator] Projection[personId, friend.firstName AS personFirstName, friend.lastName AS personLastName, organizationName, organizationWorkFromYear]
+
+### IC12 @graph
+[neo4j] columns=(tags)
+  MATCH (tag:Tag) MATCH _sp_r0 = (tag)-[:HAS_TYPE|IS_SUBCLASS_OF*0..]->(baseTagClass:TagClass) WHERE ((tag.name = $p0) OR (baseTagClass.name = $p1)) WITH collect(tag.id) AS v0 RETURN v0 AS c0
+  params: p0="Monarch", p1="Monarch"
+[neo4j] columns=(comment, friend, tag)
+  MATCH (_n0:Person) WHERE (_n0.id = $p0) MATCH (_n0)-[_r1:KNOWS]-(friend:Person) MATCH (friend)<-[_r2:HAS_CREATOR]-(comment:Comment) MATCH (comment)-[_r3:REPLY_OF]->(_n1:Post) MATCH (_n1)-[_r4:HAS_TAG]->(tag:Tag) RETURN comment.uuid AS c0, friend.uuid AS c1, tag.uuid AS c2
+  params: p0=15393162799448(int64)
+[coordinator] NodeHashJoin[cartesian]
+[neo4j] columns=(tag, tag.id) in=(tag)
+  MATCH (tag:Tag) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.id AS c1
+[coordinator] Filter((tag.id IN tags))
+[neo4j] columns=(friend, friend.firstName, friend.id, friend.lastName) in=(friend)
+  MATCH (friend:Person) WHERE friend.uuid IN $in RETURN friend.uuid AS c0, friend.firstName AS c1, friend.id AS c2, friend.lastName AS c3
+[neo4j] columns=(tag, tag.name) in=(tag)
+  MATCH (tag:Tag) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.name AS c1
+[coordinator] Aggregation[keys: friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName | collect(DISTINCT tag.name) AS tagNames, count(DISTINCT comment) AS replyCount]
+[coordinator] Sort[replyCount DESC, tointeger(personId) ASC]
+[coordinator] Limit[20]
+
+### IC12 @relational
+[neo4j] columns=(tags)
+  MATCH (tag:Tag) MATCH _sp_r0 = (tag)-[:HAS_TYPE|IS_SUBCLASS_OF*0..]->(baseTagClass:TagClass) WHERE ((tag.name = $p0) OR (baseTagClass.name = $p1)) WITH collect(tag.id) AS v0 RETURN v0 AS c0
+  params: p0="Monarch", p1="Monarch"
+[neo4j] columns=(comment, friend, tag)
+  MATCH (_n0:Person) WHERE (_n0.id = $p0) MATCH (_n0)-[_r1:KNOWS]-(friend:Person) MATCH (friend)<-[_r2:HAS_CREATOR]-(comment:Comment) MATCH (comment)-[_r3:REPLY_OF]->(_n1:Post) MATCH (_n1)-[_r4:HAS_TAG]->(tag:Tag) RETURN comment.uuid AS c0, friend.uuid AS c1, tag.uuid AS c2
+  params: p0=15393162799448(int64)
+[coordinator] NodeHashJoin[cartesian]
+[neo4j] columns=(tag, tag.id) in=(tag)
+  MATCH (tag:Tag) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.id AS c1
+[coordinator] Filter((tag.id IN tags))
+[neo4j] columns=(friend, friend.firstName, friend.id, friend.lastName) in=(friend)
+  MATCH (friend:Person) WHERE friend.uuid IN $in RETURN friend.uuid AS c0, friend.firstName AS c1, friend.id AS c2, friend.lastName AS c3
+[neo4j] columns=(tag, tag.name) in=(tag)
+  MATCH (tag:Tag) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.name AS c1
+[coordinator] Aggregation[keys: friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName | collect(DISTINCT tag.name) AS tagNames, count(DISTINCT comment) AS replyCount]
+[coordinator] Sort[replyCount DESC, tointeger(personId) ASC]
+[coordinator] Limit[20]
+
+### IC12 @document
+[neo4j] columns=(tags)
+  MATCH (tag:Tag) MATCH _sp_r0 = (tag)-[:HAS_TYPE|IS_SUBCLASS_OF*0..]->(baseTagClass:TagClass) WHERE ((tag.name = $p0) OR (baseTagClass.name = $p1)) WITH collect(tag.id) AS v0 RETURN v0 AS c0
+  params: p0="Monarch", p1="Monarch"
+[neo4j] columns=(comment, friend, tag)
+  MATCH (_n0:Person) WHERE (_n0.id = $p0) MATCH (_n0)-[_r1:KNOWS]-(friend:Person) MATCH (friend)<-[_r2:HAS_CREATOR]-(comment:Comment) MATCH (comment)-[_r3:REPLY_OF]->(_n1:Post) MATCH (_n1)-[_r4:HAS_TAG]->(tag:Tag) RETURN comment.uuid AS c0, friend.uuid AS c1, tag.uuid AS c2
+  params: p0=15393162799448(int64)
+[coordinator] NodeHashJoin[cartesian]
+[neo4j] columns=(tag, tag.id) in=(tag)
+  MATCH (tag:Tag) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.id AS c1
+[coordinator] Filter((tag.id IN tags))
+[neo4j] columns=(friend, friend.firstName, friend.id, friend.lastName) in=(friend)
+  MATCH (friend:Person) WHERE friend.uuid IN $in RETURN friend.uuid AS c0, friend.firstName AS c1, friend.id AS c2, friend.lastName AS c3
+[neo4j] columns=(tag, tag.name) in=(tag)
+  MATCH (tag:Tag) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.name AS c1
+[coordinator] Aggregation[keys: friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName | collect(DISTINCT tag.name) AS tagNames, count(DISTINCT comment) AS replyCount]
+[coordinator] Sort[replyCount DESC, tointeger(personId) ASC]
+[coordinator] Limit[20]
+
+### IC12 @columnar
+[neo4j] columns=(tags)
+  MATCH (tag:Tag) MATCH _sp_r0 = (tag)-[:HAS_TYPE|IS_SUBCLASS_OF*0..]->(baseTagClass:TagClass) WHERE ((tag.name = $p0) OR (baseTagClass.name = $p1)) WITH collect(tag.id) AS v0 RETURN v0 AS c0
+  params: p0="Monarch", p1="Monarch"
+[neo4j] columns=(comment, friend, tag)
+  MATCH (_n0:Person) WHERE (_n0.id = $p0) MATCH (_n0)-[_r1:KNOWS]-(friend:Person) MATCH (friend)<-[_r2:HAS_CREATOR]-(comment:Comment) MATCH (comment)-[_r3:REPLY_OF]->(_n1:Post) MATCH (_n1)-[_r4:HAS_TAG]->(tag:Tag) RETURN comment.uuid AS c0, friend.uuid AS c1, tag.uuid AS c2
+  params: p0=15393162799448(int64)
+[coordinator] NodeHashJoin[cartesian]
+[neo4j] columns=(tag, tag.id) in=(tag)
+  MATCH (tag:Tag) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.id AS c1
+[coordinator] Filter((tag.id IN tags))
+[neo4j] columns=(friend, friend.firstName, friend.id, friend.lastName) in=(friend)
+  MATCH (friend:Person) WHERE friend.uuid IN $in RETURN friend.uuid AS c0, friend.firstName AS c1, friend.id AS c2, friend.lastName AS c3
+[neo4j] columns=(tag, tag.name) in=(tag)
+  MATCH (tag:Tag) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.name AS c1
+[coordinator] Aggregation[keys: friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName | collect(DISTINCT tag.name) AS tagNames, count(DISTINCT comment) AS replyCount]
+[coordinator] Sort[replyCount DESC, tointeger(personId) ASC]
+[coordinator] Limit[20]
+
+### IC12 @widecolumn
+[neo4j] columns=(tags)
+  MATCH (tag:Tag) MATCH _sp_r0 = (tag)-[:HAS_TYPE|IS_SUBCLASS_OF*0..]->(baseTagClass:TagClass) WHERE ((tag.name = $p0) OR (baseTagClass.name = $p1)) WITH collect(tag.id) AS v0 RETURN v0 AS c0
+  params: p0="Monarch", p1="Monarch"
+[neo4j] columns=(comment, friend, tag)
+  MATCH (_n0:Person) WHERE (_n0.id = $p0) MATCH (_n0)-[_r1:KNOWS]-(friend:Person) MATCH (friend)<-[_r2:HAS_CREATOR]-(comment:Comment) MATCH (comment)-[_r3:REPLY_OF]->(_n1:Post) MATCH (_n1)-[_r4:HAS_TAG]->(tag:Tag) RETURN comment.uuid AS c0, friend.uuid AS c1, tag.uuid AS c2
+  params: p0=15393162799448(int64)
+[coordinator] NodeHashJoin[cartesian]
+[neo4j] columns=(tag, tag.id) in=(tag)
+  MATCH (tag:Tag) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.id AS c1
+[coordinator] Filter((tag.id IN tags))
+[neo4j] columns=(friend, friend.firstName, friend.id, friend.lastName) in=(friend)
+  MATCH (friend:Person) WHERE friend.uuid IN $in RETURN friend.uuid AS c0, friend.firstName AS c1, friend.id AS c2, friend.lastName AS c3
+[neo4j] columns=(tag, tag.name) in=(tag)
+  MATCH (tag:Tag) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.name AS c1
+[coordinator] Aggregation[keys: friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName | collect(DISTINCT tag.name) AS tagNames, count(DISTINCT comment) AS replyCount]
+[coordinator] Sort[replyCount DESC, tointeger(personId) ASC]
+[coordinator] Limit[20]
+
+### IC12 @kvs
+[neo4j] columns=(tags)
+  MATCH (tag:Tag) MATCH _sp_r0 = (tag)-[:HAS_TYPE|IS_SUBCLASS_OF*0..]->(baseTagClass:TagClass) WHERE ((tag.name = $p0) OR (baseTagClass.name = $p1)) WITH collect(tag.id) AS v0 RETURN v0 AS c0
+  params: p0="Monarch", p1="Monarch"
+[neo4j] columns=(comment, friend, tag)
+  MATCH (_n0:Person) WHERE (_n0.id = $p0) MATCH (_n0)-[_r1:KNOWS]-(friend:Person) MATCH (friend)<-[_r2:HAS_CREATOR]-(comment:Comment) MATCH (comment)-[_r3:REPLY_OF]->(_n1:Post) MATCH (_n1)-[_r4:HAS_TAG]->(tag:Tag) RETURN comment.uuid AS c0, friend.uuid AS c1, tag.uuid AS c2
+  params: p0=15393162799448(int64)
+[coordinator] NodeHashJoin[cartesian]
+[neo4j] columns=(tag, tag.id) in=(tag)
+  MATCH (tag:Tag) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.id AS c1
+[coordinator] Filter((tag.id IN tags))
+[neo4j] columns=(friend, friend.firstName, friend.id, friend.lastName) in=(friend)
+  MATCH (friend:Person) WHERE friend.uuid IN $in RETURN friend.uuid AS c0, friend.firstName AS c1, friend.id AS c2, friend.lastName AS c3
+[neo4j] columns=(tag, tag.name) in=(tag)
+  MATCH (tag:Tag) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.name AS c1
+[coordinator] Aggregation[keys: friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName | collect(DISTINCT tag.name) AS tagNames, count(DISTINCT comment) AS replyCount]
+[coordinator] Sort[replyCount DESC, tointeger(personId) ASC]
+[coordinator] Limit[20]
+
+### IC2 @graph
+[neo4j] columns=(personId, personFirstName, personLastName, postOrCommentId, postOrCommentContent, postOrCommentCreationDate)
+  MATCH (_n0:Person) WHERE (_n0.id = $p0) MATCH (_n0)-[_r0:KNOWS]-(friend:Person) MATCH (friend)<-[_r1:HAS_CREATOR]-(message:Message) WHERE (message.creationDate < $p1) WITH message.id AS v0, coalesce(message.content, message.imageFile) AS v1, message.creationDate AS v2, friend AS friend WITH * ORDER BY v2 DESC, toInteger(v0) LIMIT 20 WITH friend.id AS v4, friend.firstName AS v5, friend.lastName AS v6, v0 AS v7, v1 AS v8, v2 AS v9 RETURN v4 AS c0, v5 AS c1, v6 AS c2, v7 AS c3, v8 AS c4, v9 AS c5
+  params: p0=15393162799448(int64), p1=2011-06-16 00:00:00 +0000 UTC(time.Time)
+
+### IC2 @relational
+[mysql] columns=(_n0)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = ?)
+  args: 15393162799448(int64)
+[neo4j] columns=(_n0, friend, message) in=(_n0)
+  MATCH (_n0:Person) WHERE _n0.uuid IN $in MATCH (_n0)-[_r0:KNOWS]-(friend:Person) MATCH (friend)<-[_r1:HAS_CREATOR]-(message:Message) RETURN _n0.uuid AS c0, friend.uuid AS c1, message.uuid AS c2
+[mysql] columns=(message, message.content, message.creationDate, message.id, message.imageFile) in=(message)
+  SELECT `uuid` AS c0, `content` AS c1, `creationDate` AS c2, `id` AS c3, `imageFile` AS c4 FROM `Message` WHERE `uuid` IN (?) AND (`creationDate` < ?)
+  args: <in>, 2011-06-16 00:00:00 +0000 UTC(time.Time)
+[coordinator] Projection[message.id AS postOrCommentId, coalesce(message.content, message.imageFile) AS postOrCommentContent, message.creationDate AS postOrCommentCreationDate, friend]
+[coordinator] Sort[postOrCommentCreationDate DESC, tointeger(postOrCommentId) ASC]
+[coordinator] Limit[20]
+[mysql] columns=(friend, friend.firstName, friend.id, friend.lastName) in=(friend)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2, `lastName` AS c3 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName, postOrCommentId, postOrCommentContent, postOrCommentCreationDate]
+
+### IC2 @document
+[mongo] columns=(_n0)
+  db.Person.aggregate([
+    {$match: {id: {$eq: 15393162799448(int64)}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(_n0, friend, message) in=(_n0)
+  MATCH (_n0:Person) WHERE _n0.uuid IN $in MATCH (_n0)-[_r0:KNOWS]-(friend:Person) MATCH (friend)<-[_r1:HAS_CREATOR]-(message:Message) RETURN _n0.uuid AS c0, friend.uuid AS c1, message.uuid AS c2
+[mongo] columns=(message, message.content, message.creationDate, message.id, message.imageFile) in=(message)
+  db.Message.aggregate([
+    {$match: {uuid: {$in: <in>}, creationDate: {$lt: 2011-06-16 00:00:00 +0000 UTC(time.Time)}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$content", c2: "$creationDate", c3: "$id", c4: "$imageFile"}}
+  ])
+[coordinator] Projection[message.id AS postOrCommentId, coalesce(message.content, message.imageFile) AS postOrCommentContent, message.creationDate AS postOrCommentCreationDate, friend]
+[coordinator] Sort[postOrCommentCreationDate DESC, tointeger(postOrCommentId) ASC]
+[coordinator] Limit[20]
+[mongo] columns=(friend, friend.firstName, friend.id, friend.lastName) in=(friend)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$firstName", c2: "$id", c3: "$lastName"}}
+  ])
+[coordinator] Projection[friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName, postOrCommentId, postOrCommentContent, postOrCommentCreationDate]
+
+### IC2 @columnar
+[clickhouse] columns=(_n0)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = 15393162799448)
+[neo4j] columns=(_n0, friend, message) in=(_n0)
+  MATCH (_n0:Person) WHERE _n0.uuid IN $in MATCH (_n0)-[_r0:KNOWS]-(friend:Person) MATCH (friend)<-[_r1:HAS_CREATOR]-(message:Message) RETURN _n0.uuid AS c0, friend.uuid AS c1, message.uuid AS c2
+[clickhouse] columns=(message, message.content, message.creationDate, message.id, message.imageFile) in=(message)
+  SELECT `uuid` AS c0, `content` AS c1, `creationDate` AS c2, `id` AS c3, `imageFile` AS c4 FROM `Message` WHERE `uuid` IN (?) AND (`creationDate` < toDateTime64('2011-06-16 00:00:00.000000', 6, 'UTC'))
+  args: <in>
+[coordinator] Projection[message.id AS postOrCommentId, coalesce(message.content, message.imageFile) AS postOrCommentContent, message.creationDate AS postOrCommentCreationDate, friend]
+[coordinator] Sort[postOrCommentCreationDate DESC, tointeger(postOrCommentId) ASC]
+[coordinator] Limit[20]
+[clickhouse] columns=(friend, friend.firstName, friend.id, friend.lastName) in=(friend)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2, `lastName` AS c3 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName, postOrCommentId, postOrCommentContent, postOrCommentCreationDate]
+
+### IC2 @widecolumn
+[cassandra] columns=(_n0)
+  SELECT "uuid" AS c0 FROM "Person" WHERE ("id" = ?) ALLOW FILTERING
+  args: 15393162799448(int64)
+[neo4j] columns=(_n0, friend, message) in=(_n0)
+  MATCH (_n0:Person) WHERE _n0.uuid IN $in MATCH (_n0)-[_r0:KNOWS]-(friend:Person) MATCH (friend)<-[_r1:HAS_CREATOR]-(message:Message) RETURN _n0.uuid AS c0, friend.uuid AS c1, message.uuid AS c2
+[cassandra] columns=(message, message.content, message.creationDate, message.id, message.imageFile) in=(message)
+  SELECT "uuid" AS c0, "content" AS c1, "creationDate" AS c2, "id" AS c3, "imageFile" AS c4 FROM "Message" WHERE "uuid" IN ? AND ("creationDate" < ?) ALLOW FILTERING
+  args: <in>, 2011-06-16 00:00:00 +0000 UTC(time.Time)
+[coordinator] Projection[message.id AS postOrCommentId, coalesce(message.content, message.imageFile) AS postOrCommentContent, message.creationDate AS postOrCommentCreationDate, friend]
+[coordinator] Sort[postOrCommentCreationDate DESC, tointeger(postOrCommentId) ASC]
+[coordinator] Limit[20]
+[cassandra] columns=(friend, friend.firstName, friend.id, friend.lastName) in=(friend)
+  SELECT "uuid" AS c0, "firstName" AS c1, "id" AS c2, "lastName" AS c3 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Projection[friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName, postOrCommentId, postOrCommentContent, postOrCommentCreationDate]
+
+### IC2 @kvs
+[leveldb] columns=(_n0)
+  KVS Person index id=15393162799448(int64) get=(id) filter (_n0.id = 15393162799448)
+[neo4j] columns=(_n0, friend, message) in=(_n0)
+  MATCH (_n0:Person) WHERE _n0.uuid IN $in MATCH (_n0)-[_r0:KNOWS]-(friend:Person) MATCH (friend)<-[_r1:HAS_CREATOR]-(message:Message) RETURN _n0.uuid AS c0, friend.uuid AS c1, message.uuid AS c2
+[leveldb] columns=(message, message.content, message.creationDate, message.id, message.imageFile) in=(message)
+  KVS Message ids get=(creationDate, id, content, imageFile) filter (message.creationDate < 2011-06-16 00:00:00 +0000 UTC)
+[coordinator] Projection[message.id AS postOrCommentId, coalesce(message.content, message.imageFile) AS postOrCommentContent, message.creationDate AS postOrCommentCreationDate, friend]
+[coordinator] Sort[postOrCommentCreationDate DESC, tointeger(postOrCommentId) ASC]
+[coordinator] Limit[20]
+[leveldb] columns=(friend, friend.firstName, friend.id, friend.lastName) in=(friend)
+  KVS Person ids get=(id, firstName, lastName)
+[coordinator] Projection[friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName, postOrCommentId, postOrCommentContent, postOrCommentCreationDate]
+
+### IC5 @graph
+UNSUPPORTED: ast: unsupported syntax: OPTIONAL MATCH referring to value otherPersons
+
+### IC5 @relational
+UNSUPPORTED: ast: unsupported syntax: OPTIONAL MATCH referring to value otherPersons
+
+### IC5 @document
+UNSUPPORTED: ast: unsupported syntax: OPTIONAL MATCH referring to value otherPersons
+
+### IC5 @columnar
+UNSUPPORTED: ast: unsupported syntax: OPTIONAL MATCH referring to value otherPersons
+
+### IC5 @widecolumn
+UNSUPPORTED: ast: unsupported syntax: OPTIONAL MATCH referring to value otherPersons
+
+### IC5 @kvs
+UNSUPPORTED: ast: unsupported syntax: OPTIONAL MATCH referring to value otherPersons
+
+### IC6 @graph
+[neo4j] columns=(knownTagId)
+  MATCH (knownTag:Tag) WHERE (knownTag.name = $p0) WITH knownTag.id AS v0 RETURN v0 AS c0
+  params: p0="Genghis_Khan"
+[neo4j] columns=(friend, _w)
+  MATCH (person:Person) WHERE (person.id = $p0) MATCH _sp_r0 = (person)-[:KNOWS*1..2]-(friend) WHERE (NOT (person = friend)) RETURN friend.uuid AS c0, count(*) AS c1
+  params: p0=15393162799448(int64)
+[coordinator] NodeHashJoin[cartesian]
+[coordinator] Aggregation[keys: knownTagId | collect(DISTINCT friend) AS friends]
+[coordinator] Unwind(friends AS f)
+[neo4j] columns=(f, _r2, post, t, t.id) in=(f)
+  MATCH (f) WHERE f.uuid IN $in MATCH (f)<-[_r1:HAS_CREATOR]-(post:Post) MATCH (post)-[_r2:HAS_TAG]->(t:Tag) RETURN f.uuid AS c0, _r2.uuid AS c1, post.uuid AS c2, t.uuid AS c3, t.id AS c4
+[coordinator] Filter((t.id = knownTagId))
+[neo4j] columns=(post, _r3, tag) in=(post)
+  MATCH (post:Post) WHERE post.uuid IN $in MATCH (post)-[_r3:HAS_TAG]->(tag:Tag) RETURN post.uuid AS c0, _r3.uuid AS c1, tag.uuid AS c2
+[coordinator] Filter(NOT((t = tag)))
+[coordinator] RelUniqueFilter[_r2, _r3]
+[neo4j] columns=(tag, tag.name) in=(tag)
+  MATCH (tag:Tag) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.name AS c1
+[coordinator] Aggregation[keys: tag.name AS tagName | count(post) AS postCount]
+[coordinator] Projection[tagName, postCount]
+[coordinator] Sort[postCount DESC, tagName ASC]
+[coordinator] Limit[10]
+
+### IC6 @relational
+[neo4j] columns=(knownTagId)
+  MATCH (knownTag:Tag) WHERE (knownTag.name = $p0) WITH knownTag.id AS v0 RETURN v0 AS c0
+  params: p0="Genghis_Khan"
+[neo4j] columns=(friend, _w)
+  MATCH (person:Person) WHERE (person.id = $p0) MATCH _sp_r0 = (person)-[:KNOWS*1..2]-(friend) WHERE (NOT (person = friend)) RETURN friend.uuid AS c0, count(*) AS c1
+  params: p0=15393162799448(int64)
+[coordinator] NodeHashJoin[cartesian]
+[coordinator] Aggregation[keys: knownTagId | collect(DISTINCT friend) AS friends]
+[coordinator] Unwind(friends AS f)
+[neo4j] columns=(f, _r2, post, t, t.id) in=(f)
+  MATCH (f) WHERE f.uuid IN $in MATCH (f)<-[_r1:HAS_CREATOR]-(post:Post) MATCH (post)-[_r2:HAS_TAG]->(t:Tag) RETURN f.uuid AS c0, _r2.uuid AS c1, post.uuid AS c2, t.uuid AS c3, t.id AS c4
+[coordinator] Filter((t.id = knownTagId))
+[neo4j] columns=(post, _r3, tag) in=(post)
+  MATCH (post:Post) WHERE post.uuid IN $in MATCH (post)-[_r3:HAS_TAG]->(tag:Tag) RETURN post.uuid AS c0, _r3.uuid AS c1, tag.uuid AS c2
+[coordinator] Filter(NOT((t = tag)))
+[coordinator] RelUniqueFilter[_r2, _r3]
+[neo4j] columns=(tag, tag.name) in=(tag)
+  MATCH (tag:Tag) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.name AS c1
+[coordinator] Aggregation[keys: tag.name AS tagName | count(post) AS postCount]
+[coordinator] Projection[tagName, postCount]
+[coordinator] Sort[postCount DESC, tagName ASC]
+[coordinator] Limit[10]
+
+### IC6 @document
+[neo4j] columns=(knownTagId)
+  MATCH (knownTag:Tag) WHERE (knownTag.name = $p0) WITH knownTag.id AS v0 RETURN v0 AS c0
+  params: p0="Genghis_Khan"
+[neo4j] columns=(friend, _w)
+  MATCH (person:Person) WHERE (person.id = $p0) MATCH _sp_r0 = (person)-[:KNOWS*1..2]-(friend) WHERE (NOT (person = friend)) RETURN friend.uuid AS c0, count(*) AS c1
+  params: p0=15393162799448(int64)
+[coordinator] NodeHashJoin[cartesian]
+[coordinator] Aggregation[keys: knownTagId | collect(DISTINCT friend) AS friends]
+[coordinator] Unwind(friends AS f)
+[neo4j] columns=(f, _r2, post, t, t.id) in=(f)
+  MATCH (f) WHERE f.uuid IN $in MATCH (f)<-[_r1:HAS_CREATOR]-(post:Post) MATCH (post)-[_r2:HAS_TAG]->(t:Tag) RETURN f.uuid AS c0, _r2.uuid AS c1, post.uuid AS c2, t.uuid AS c3, t.id AS c4
+[coordinator] Filter((t.id = knownTagId))
+[neo4j] columns=(post, _r3, tag) in=(post)
+  MATCH (post:Post) WHERE post.uuid IN $in MATCH (post)-[_r3:HAS_TAG]->(tag:Tag) RETURN post.uuid AS c0, _r3.uuid AS c1, tag.uuid AS c2
+[coordinator] Filter(NOT((t = tag)))
+[coordinator] RelUniqueFilter[_r2, _r3]
+[neo4j] columns=(tag, tag.name) in=(tag)
+  MATCH (tag:Tag) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.name AS c1
+[coordinator] Aggregation[keys: tag.name AS tagName | count(post) AS postCount]
+[coordinator] Projection[tagName, postCount]
+[coordinator] Sort[postCount DESC, tagName ASC]
+[coordinator] Limit[10]
+
+### IC6 @columnar
+[neo4j] columns=(knownTagId)
+  MATCH (knownTag:Tag) WHERE (knownTag.name = $p0) WITH knownTag.id AS v0 RETURN v0 AS c0
+  params: p0="Genghis_Khan"
+[neo4j] columns=(friend, _w)
+  MATCH (person:Person) WHERE (person.id = $p0) MATCH _sp_r0 = (person)-[:KNOWS*1..2]-(friend) WHERE (NOT (person = friend)) RETURN friend.uuid AS c0, count(*) AS c1
+  params: p0=15393162799448(int64)
+[coordinator] NodeHashJoin[cartesian]
+[coordinator] Aggregation[keys: knownTagId | collect(DISTINCT friend) AS friends]
+[coordinator] Unwind(friends AS f)
+[neo4j] columns=(f, _r2, post, t, t.id) in=(f)
+  MATCH (f) WHERE f.uuid IN $in MATCH (f)<-[_r1:HAS_CREATOR]-(post:Post) MATCH (post)-[_r2:HAS_TAG]->(t:Tag) RETURN f.uuid AS c0, _r2.uuid AS c1, post.uuid AS c2, t.uuid AS c3, t.id AS c4
+[coordinator] Filter((t.id = knownTagId))
+[neo4j] columns=(post, _r3, tag) in=(post)
+  MATCH (post:Post) WHERE post.uuid IN $in MATCH (post)-[_r3:HAS_TAG]->(tag:Tag) RETURN post.uuid AS c0, _r3.uuid AS c1, tag.uuid AS c2
+[coordinator] Filter(NOT((t = tag)))
+[coordinator] RelUniqueFilter[_r2, _r3]
+[neo4j] columns=(tag, tag.name) in=(tag)
+  MATCH (tag:Tag) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.name AS c1
+[coordinator] Aggregation[keys: tag.name AS tagName | count(post) AS postCount]
+[coordinator] Projection[tagName, postCount]
+[coordinator] Sort[postCount DESC, tagName ASC]
+[coordinator] Limit[10]
+
+### IC6 @widecolumn
+[neo4j] columns=(knownTagId)
+  MATCH (knownTag:Tag) WHERE (knownTag.name = $p0) WITH knownTag.id AS v0 RETURN v0 AS c0
+  params: p0="Genghis_Khan"
+[neo4j] columns=(friend, _w)
+  MATCH (person:Person) WHERE (person.id = $p0) MATCH _sp_r0 = (person)-[:KNOWS*1..2]-(friend) WHERE (NOT (person = friend)) RETURN friend.uuid AS c0, count(*) AS c1
+  params: p0=15393162799448(int64)
+[coordinator] NodeHashJoin[cartesian]
+[coordinator] Aggregation[keys: knownTagId | collect(DISTINCT friend) AS friends]
+[coordinator] Unwind(friends AS f)
+[neo4j] columns=(f, _r2, post, t, t.id) in=(f)
+  MATCH (f) WHERE f.uuid IN $in MATCH (f)<-[_r1:HAS_CREATOR]-(post:Post) MATCH (post)-[_r2:HAS_TAG]->(t:Tag) RETURN f.uuid AS c0, _r2.uuid AS c1, post.uuid AS c2, t.uuid AS c3, t.id AS c4
+[coordinator] Filter((t.id = knownTagId))
+[neo4j] columns=(post, _r3, tag) in=(post)
+  MATCH (post:Post) WHERE post.uuid IN $in MATCH (post)-[_r3:HAS_TAG]->(tag:Tag) RETURN post.uuid AS c0, _r3.uuid AS c1, tag.uuid AS c2
+[coordinator] Filter(NOT((t = tag)))
+[coordinator] RelUniqueFilter[_r2, _r3]
+[neo4j] columns=(tag, tag.name) in=(tag)
+  MATCH (tag:Tag) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.name AS c1
+[coordinator] Aggregation[keys: tag.name AS tagName | count(post) AS postCount]
+[coordinator] Projection[tagName, postCount]
+[coordinator] Sort[postCount DESC, tagName ASC]
+[coordinator] Limit[10]
+
+### IC6 @kvs
+[neo4j] columns=(knownTagId)
+  MATCH (knownTag:Tag) WHERE (knownTag.name = $p0) WITH knownTag.id AS v0 RETURN v0 AS c0
+  params: p0="Genghis_Khan"
+[neo4j] columns=(friend, _w)
+  MATCH (person:Person) WHERE (person.id = $p0) MATCH _sp_r0 = (person)-[:KNOWS*1..2]-(friend) WHERE (NOT (person = friend)) RETURN friend.uuid AS c0, count(*) AS c1
+  params: p0=15393162799448(int64)
+[coordinator] NodeHashJoin[cartesian]
+[coordinator] Aggregation[keys: knownTagId | collect(DISTINCT friend) AS friends]
+[coordinator] Unwind(friends AS f)
+[neo4j] columns=(f, _r2, post, t, t.id) in=(f)
+  MATCH (f) WHERE f.uuid IN $in MATCH (f)<-[_r1:HAS_CREATOR]-(post:Post) MATCH (post)-[_r2:HAS_TAG]->(t:Tag) RETURN f.uuid AS c0, _r2.uuid AS c1, post.uuid AS c2, t.uuid AS c3, t.id AS c4
+[coordinator] Filter((t.id = knownTagId))
+[neo4j] columns=(post, _r3, tag) in=(post)
+  MATCH (post:Post) WHERE post.uuid IN $in MATCH (post)-[_r3:HAS_TAG]->(tag:Tag) RETURN post.uuid AS c0, _r3.uuid AS c1, tag.uuid AS c2
+[coordinator] Filter(NOT((t = tag)))
+[coordinator] RelUniqueFilter[_r2, _r3]
+[neo4j] columns=(tag, tag.name) in=(tag)
+  MATCH (tag:Tag) WHERE tag.uuid IN $in RETURN tag.uuid AS c0, tag.name AS c1
+[coordinator] Aggregation[keys: tag.name AS tagName | count(post) AS postCount]
+[coordinator] Projection[tagName, postCount]
+[coordinator] Sort[postCount DESC, tagName ASC]
+[coordinator] Limit[10]
+
+### IC8 @graph
+[neo4j] columns=(personId, personFirstName, personLastName, commentCreationDate, commentId, commentContent)
+  MATCH (start:Person) WHERE (start.id = $p0) MATCH (start)<-[_r0:HAS_CREATOR]-(_n0:Message) MATCH (_n0)<-[_r1:REPLY_OF]-(comment:Comment) MATCH (comment)-[_r2:HAS_CREATOR]->(person:Person) WHERE _r0 <> _r2 WITH comment.creationDate AS v0, comment.id AS v1, comment AS comment, person AS person WITH * ORDER BY v0 DESC, v1 LIMIT 20 WITH person.id AS v4, person.firstName AS v5, person.lastName AS v6, v0 AS v7, v1 AS v8, comment.content AS v9 RETURN v4 AS c0, v5 AS c1, v6 AS c2, v7 AS c3, v8 AS c4, v9 AS c5
+  params: p0=15393162799448(int64)
+
+### IC8 @relational
+[mysql] columns=(start)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = ?)
+  args: 15393162799448(int64)
+[neo4j] columns=(start, comment, comment.creationDate, comment.id, person) in=(start)
+  MATCH (start:Person) WHERE start.uuid IN $in MATCH (start)<-[_r0:HAS_CREATOR]-(_n0:Message) MATCH (_n0)<-[_r1:REPLY_OF]-(comment:Comment) MATCH (comment)-[_r2:HAS_CREATOR]->(person:Person) WHERE _r0 <> _r2 RETURN start.uuid AS c0, comment.uuid AS c1, comment.creationDate AS c2, comment.id AS c3, person.uuid AS c4
+[coordinator] Projection[comment.creationDate AS commentCreationDate, comment.id AS commentId, comment, person]
+[coordinator] Sort[commentCreationDate DESC, commentId ASC]
+[coordinator] Limit[20]
+[mysql] columns=(person, person.firstName, person.id, person.lastName) in=(person)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2, `lastName` AS c3 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[neo4j] columns=(comment, comment.content) in=(comment)
+  MATCH (comment:Comment) WHERE comment.uuid IN $in RETURN comment.uuid AS c0, comment.content AS c1
+[coordinator] Projection[person.id AS personId, person.firstName AS personFirstName, person.lastName AS personLastName, commentCreationDate, commentId, comment.content AS commentContent]
+
+### IC8 @document
+[mongo] columns=(start)
+  db.Person.aggregate([
+    {$match: {id: {$eq: 15393162799448(int64)}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(start, comment, comment.creationDate, comment.id, person) in=(start)
+  MATCH (start:Person) WHERE start.uuid IN $in MATCH (start)<-[_r0:HAS_CREATOR]-(_n0:Message) MATCH (_n0)<-[_r1:REPLY_OF]-(comment:Comment) MATCH (comment)-[_r2:HAS_CREATOR]->(person:Person) WHERE _r0 <> _r2 RETURN start.uuid AS c0, comment.uuid AS c1, comment.creationDate AS c2, comment.id AS c3, person.uuid AS c4
+[coordinator] Projection[comment.creationDate AS commentCreationDate, comment.id AS commentId, comment, person]
+[coordinator] Sort[commentCreationDate DESC, commentId ASC]
+[coordinator] Limit[20]
+[mongo] columns=(person, person.firstName, person.id, person.lastName) in=(person)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$firstName", c2: "$id", c3: "$lastName"}}
+  ])
+[neo4j] columns=(comment, comment.content) in=(comment)
+  MATCH (comment:Comment) WHERE comment.uuid IN $in RETURN comment.uuid AS c0, comment.content AS c1
+[coordinator] Projection[person.id AS personId, person.firstName AS personFirstName, person.lastName AS personLastName, commentCreationDate, commentId, comment.content AS commentContent]
+
+### IC8 @columnar
+[clickhouse] columns=(start)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = 15393162799448)
+[neo4j] columns=(start, comment, comment.creationDate, comment.id, person) in=(start)
+  MATCH (start:Person) WHERE start.uuid IN $in MATCH (start)<-[_r0:HAS_CREATOR]-(_n0:Message) MATCH (_n0)<-[_r1:REPLY_OF]-(comment:Comment) MATCH (comment)-[_r2:HAS_CREATOR]->(person:Person) WHERE _r0 <> _r2 RETURN start.uuid AS c0, comment.uuid AS c1, comment.creationDate AS c2, comment.id AS c3, person.uuid AS c4
+[coordinator] Projection[comment.creationDate AS commentCreationDate, comment.id AS commentId, comment, person]
+[coordinator] Sort[commentCreationDate DESC, commentId ASC]
+[coordinator] Limit[20]
+[clickhouse] columns=(person, person.firstName, person.id, person.lastName) in=(person)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2, `lastName` AS c3 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[neo4j] columns=(comment, comment.content) in=(comment)
+  MATCH (comment:Comment) WHERE comment.uuid IN $in RETURN comment.uuid AS c0, comment.content AS c1
+[coordinator] Projection[person.id AS personId, person.firstName AS personFirstName, person.lastName AS personLastName, commentCreationDate, commentId, comment.content AS commentContent]
+
+### IC8 @widecolumn
+[cassandra] columns=(start)
+  SELECT "uuid" AS c0 FROM "Person" WHERE ("id" = ?) ALLOW FILTERING
+  args: 15393162799448(int64)
+[neo4j] columns=(start, comment, comment.creationDate, comment.id, person) in=(start)
+  MATCH (start:Person) WHERE start.uuid IN $in MATCH (start)<-[_r0:HAS_CREATOR]-(_n0:Message) MATCH (_n0)<-[_r1:REPLY_OF]-(comment:Comment) MATCH (comment)-[_r2:HAS_CREATOR]->(person:Person) WHERE _r0 <> _r2 RETURN start.uuid AS c0, comment.uuid AS c1, comment.creationDate AS c2, comment.id AS c3, person.uuid AS c4
+[coordinator] Projection[comment.creationDate AS commentCreationDate, comment.id AS commentId, comment, person]
+[coordinator] Sort[commentCreationDate DESC, commentId ASC]
+[coordinator] Limit[20]
+[cassandra] columns=(person, person.firstName, person.id, person.lastName) in=(person)
+  SELECT "uuid" AS c0, "firstName" AS c1, "id" AS c2, "lastName" AS c3 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[neo4j] columns=(comment, comment.content) in=(comment)
+  MATCH (comment:Comment) WHERE comment.uuid IN $in RETURN comment.uuid AS c0, comment.content AS c1
+[coordinator] Projection[person.id AS personId, person.firstName AS personFirstName, person.lastName AS personLastName, commentCreationDate, commentId, comment.content AS commentContent]
+
+### IC8 @kvs
+[leveldb] columns=(start)
+  KVS Person index id=15393162799448(int64) get=(id) filter (start.id = 15393162799448)
+[neo4j] columns=(start, comment, comment.creationDate, comment.id, person) in=(start)
+  MATCH (start:Person) WHERE start.uuid IN $in MATCH (start)<-[_r0:HAS_CREATOR]-(_n0:Message) MATCH (_n0)<-[_r1:REPLY_OF]-(comment:Comment) MATCH (comment)-[_r2:HAS_CREATOR]->(person:Person) WHERE _r0 <> _r2 RETURN start.uuid AS c0, comment.uuid AS c1, comment.creationDate AS c2, comment.id AS c3, person.uuid AS c4
+[coordinator] Projection[comment.creationDate AS commentCreationDate, comment.id AS commentId, comment, person]
+[coordinator] Sort[commentCreationDate DESC, commentId ASC]
+[coordinator] Limit[20]
+[leveldb] columns=(person, person.firstName, person.id, person.lastName) in=(person)
+  KVS Person ids get=(id, firstName, lastName)
+[neo4j] columns=(comment, comment.content) in=(comment)
+  MATCH (comment:Comment) WHERE comment.uuid IN $in RETURN comment.uuid AS c0, comment.content AS c1
+[coordinator] Projection[person.id AS personId, person.firstName AS personFirstName, person.lastName AS personLastName, commentCreationDate, commentId, comment.content AS commentContent]
+
+### IC9 @graph
+[neo4j] columns=(friend, _w)
+  MATCH (root:Person) WHERE (root.id = $p0) MATCH _sp_r0 = (root)-[:KNOWS*1..2]-(friend:Person) WHERE (NOT (friend = root)) RETURN friend.uuid AS c0, count(*) AS c1
+  params: p0=17592186049378(int64)
+[coordinator] Aggregation[keys: ∅ | collect(DISTINCT friend) AS friends]
+[coordinator] Unwind(friends AS friend)
+[neo4j] columns=(friend, message.content, message.creationDate, message.id, message.imageFile) in=(friend)
+  MATCH (friend:Person) WHERE friend.uuid IN $in MATCH (friend)<-[_r1:HAS_CREATOR]-(message:Message) WHERE (message.creationDate < $p0) RETURN friend.uuid AS c0, message.content AS c1, message.creationDate AS c2, message.id AS c3, message.imageFile AS c4
+  params: p0=2011-06-16 00:00:00 +0000 UTC(time.Time)
+[coordinator] Projection[message.id AS commentOrPostId, coalesce(message.content, message.imageFile) AS commentOrPostContent, message.creationDate AS commentOrPostCreationDate, friend]
+[coordinator] Sort[commentOrPostCreationDate DESC, commentOrPostId ASC]
+[coordinator] Limit[20]
+[neo4j] columns=(friend, friend.firstName, friend.id, friend.lastName) in=(friend)
+  MATCH (friend:Person) WHERE friend.uuid IN $in RETURN friend.uuid AS c0, friend.firstName AS c1, friend.id AS c2, friend.lastName AS c3
+[coordinator] Projection[friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName, commentOrPostId, commentOrPostContent, commentOrPostCreationDate]
+
+### IC9 @relational
+[mysql] columns=(root)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = ?)
+  args: 17592186049378(int64)
+[neo4j] columns=(root, friend, _w) in=(root)
+  MATCH (root:Person) WHERE root.uuid IN $in MATCH _sp_r0 = (root)-[:KNOWS*1..2]-(friend:Person) WHERE (NOT (friend = root)) RETURN root.uuid AS c0, friend.uuid AS c1, count(*) AS c2
+[coordinator] Aggregation[keys: ∅ | collect(DISTINCT friend) AS friends]
+[coordinator] Unwind(friends AS friend)
+[neo4j] columns=(friend, message) in=(friend)
+  MATCH (friend:Person) WHERE friend.uuid IN $in MATCH (friend)<-[_r1:HAS_CREATOR]-(message:Message) RETURN friend.uuid AS c0, message.uuid AS c1
+[mysql] columns=(message, message.content, message.creationDate, message.id, message.imageFile) in=(message)
+  SELECT `uuid` AS c0, `content` AS c1, `creationDate` AS c2, `id` AS c3, `imageFile` AS c4 FROM `Message` WHERE `uuid` IN (?) AND (`creationDate` < ?)
+  args: <in>, 2011-06-16 00:00:00 +0000 UTC(time.Time)
+[coordinator] Projection[message.id AS commentOrPostId, coalesce(message.content, message.imageFile) AS commentOrPostContent, message.creationDate AS commentOrPostCreationDate, friend]
+[coordinator] Sort[commentOrPostCreationDate DESC, commentOrPostId ASC]
+[coordinator] Limit[20]
+[mysql] columns=(friend, friend.firstName, friend.id, friend.lastName) in=(friend)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2, `lastName` AS c3 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName, commentOrPostId, commentOrPostContent, commentOrPostCreationDate]
+
+### IC9 @document
+[mongo] columns=(root)
+  db.Person.aggregate([
+    {$match: {id: {$eq: 17592186049378(int64)}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(root, friend, _w) in=(root)
+  MATCH (root:Person) WHERE root.uuid IN $in MATCH _sp_r0 = (root)-[:KNOWS*1..2]-(friend:Person) WHERE (NOT (friend = root)) RETURN root.uuid AS c0, friend.uuid AS c1, count(*) AS c2
+[coordinator] Aggregation[keys: ∅ | collect(DISTINCT friend) AS friends]
+[coordinator] Unwind(friends AS friend)
+[neo4j] columns=(friend, message) in=(friend)
+  MATCH (friend:Person) WHERE friend.uuid IN $in MATCH (friend)<-[_r1:HAS_CREATOR]-(message:Message) RETURN friend.uuid AS c0, message.uuid AS c1
+[mongo] columns=(message, message.content, message.creationDate, message.id, message.imageFile) in=(message)
+  db.Message.aggregate([
+    {$match: {uuid: {$in: <in>}, creationDate: {$lt: 2011-06-16 00:00:00 +0000 UTC(time.Time)}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$content", c2: "$creationDate", c3: "$id", c4: "$imageFile"}}
+  ])
+[coordinator] Projection[message.id AS commentOrPostId, coalesce(message.content, message.imageFile) AS commentOrPostContent, message.creationDate AS commentOrPostCreationDate, friend]
+[coordinator] Sort[commentOrPostCreationDate DESC, commentOrPostId ASC]
+[coordinator] Limit[20]
+[mongo] columns=(friend, friend.firstName, friend.id, friend.lastName) in=(friend)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$firstName", c2: "$id", c3: "$lastName"}}
+  ])
+[coordinator] Projection[friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName, commentOrPostId, commentOrPostContent, commentOrPostCreationDate]
+
+### IC9 @columnar
+[clickhouse] columns=(root)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = 17592186049378)
+[neo4j] columns=(root, friend, _w) in=(root)
+  MATCH (root:Person) WHERE root.uuid IN $in MATCH _sp_r0 = (root)-[:KNOWS*1..2]-(friend:Person) WHERE (NOT (friend = root)) RETURN root.uuid AS c0, friend.uuid AS c1, count(*) AS c2
+[coordinator] Aggregation[keys: ∅ | collect(DISTINCT friend) AS friends]
+[coordinator] Unwind(friends AS friend)
+[neo4j] columns=(friend, message) in=(friend)
+  MATCH (friend:Person) WHERE friend.uuid IN $in MATCH (friend)<-[_r1:HAS_CREATOR]-(message:Message) RETURN friend.uuid AS c0, message.uuid AS c1
+[clickhouse] columns=(message, message.content, message.creationDate, message.id, message.imageFile) in=(message)
+  SELECT `uuid` AS c0, `content` AS c1, `creationDate` AS c2, `id` AS c3, `imageFile` AS c4 FROM `Message` WHERE `uuid` IN (?) AND (`creationDate` < toDateTime64('2011-06-16 00:00:00.000000', 6, 'UTC'))
+  args: <in>
+[coordinator] Projection[message.id AS commentOrPostId, coalesce(message.content, message.imageFile) AS commentOrPostContent, message.creationDate AS commentOrPostCreationDate, friend]
+[coordinator] Sort[commentOrPostCreationDate DESC, commentOrPostId ASC]
+[coordinator] Limit[20]
+[clickhouse] columns=(friend, friend.firstName, friend.id, friend.lastName) in=(friend)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2, `lastName` AS c3 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName, commentOrPostId, commentOrPostContent, commentOrPostCreationDate]
+
+### IC9 @widecolumn
+[cassandra] columns=(root)
+  SELECT "uuid" AS c0 FROM "Person" WHERE ("id" = ?) ALLOW FILTERING
+  args: 17592186049378(int64)
+[neo4j] columns=(root, friend, _w) in=(root)
+  MATCH (root:Person) WHERE root.uuid IN $in MATCH _sp_r0 = (root)-[:KNOWS*1..2]-(friend:Person) WHERE (NOT (friend = root)) RETURN root.uuid AS c0, friend.uuid AS c1, count(*) AS c2
+[coordinator] Aggregation[keys: ∅ | collect(DISTINCT friend) AS friends]
+[coordinator] Unwind(friends AS friend)
+[neo4j] columns=(friend, message) in=(friend)
+  MATCH (friend:Person) WHERE friend.uuid IN $in MATCH (friend)<-[_r1:HAS_CREATOR]-(message:Message) RETURN friend.uuid AS c0, message.uuid AS c1
+[cassandra] columns=(message, message.content, message.creationDate, message.id, message.imageFile) in=(message)
+  SELECT "uuid" AS c0, "content" AS c1, "creationDate" AS c2, "id" AS c3, "imageFile" AS c4 FROM "Message" WHERE "uuid" IN ? AND ("creationDate" < ?) ALLOW FILTERING
+  args: <in>, 2011-06-16 00:00:00 +0000 UTC(time.Time)
+[coordinator] Projection[message.id AS commentOrPostId, coalesce(message.content, message.imageFile) AS commentOrPostContent, message.creationDate AS commentOrPostCreationDate, friend]
+[coordinator] Sort[commentOrPostCreationDate DESC, commentOrPostId ASC]
+[coordinator] Limit[20]
+[cassandra] columns=(friend, friend.firstName, friend.id, friend.lastName) in=(friend)
+  SELECT "uuid" AS c0, "firstName" AS c1, "id" AS c2, "lastName" AS c3 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Projection[friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName, commentOrPostId, commentOrPostContent, commentOrPostCreationDate]
+
+### IC9 @kvs
+[leveldb] columns=(root)
+  KVS Person index id=17592186049378(int64) get=(id) filter (root.id = 17592186049378)
+[neo4j] columns=(root, friend, _w) in=(root)
+  MATCH (root:Person) WHERE root.uuid IN $in MATCH _sp_r0 = (root)-[:KNOWS*1..2]-(friend:Person) WHERE (NOT (friend = root)) RETURN root.uuid AS c0, friend.uuid AS c1, count(*) AS c2
+[coordinator] Aggregation[keys: ∅ | collect(DISTINCT friend) AS friends]
+[coordinator] Unwind(friends AS friend)
+[neo4j] columns=(friend, message) in=(friend)
+  MATCH (friend:Person) WHERE friend.uuid IN $in MATCH (friend)<-[_r1:HAS_CREATOR]-(message:Message) RETURN friend.uuid AS c0, message.uuid AS c1
+[leveldb] columns=(message, message.content, message.creationDate, message.id, message.imageFile) in=(message)
+  KVS Message ids get=(creationDate, id, content, imageFile) filter (message.creationDate < 2011-06-16 00:00:00 +0000 UTC)
+[coordinator] Projection[message.id AS commentOrPostId, coalesce(message.content, message.imageFile) AS commentOrPostContent, message.creationDate AS commentOrPostCreationDate, friend]
+[coordinator] Sort[commentOrPostCreationDate DESC, commentOrPostId ASC]
+[coordinator] Limit[20]
+[leveldb] columns=(friend, friend.firstName, friend.id, friend.lastName) in=(friend)
+  KVS Person ids get=(id, firstName, lastName)
+[coordinator] Projection[friend.id AS personId, friend.firstName AS personFirstName, friend.lastName AS personLastName, commentOrPostId, commentOrPostContent, commentOrPostCreationDate]
+
+### INLIST @graph
+[neo4j] columns=(o.id, o.type)
+  MATCH (o:Organisation) WHERE (o.type IN [$p0, $p1]) WITH o.id AS v0, o.type AS v1 RETURN v0 AS c0, v1 AS c1 ORDER BY v0 LIMIT 20
+  params: p0="Company", p1="University"
+
+### INLIST @relational
+[mysql] columns=(o.id, o.type)
+  SELECT `id` AS c0, `type` AS c1 FROM `Organisation` WHERE `type` IN (?, ?) ORDER BY `id` ASC LIMIT 20
+  args: "Company", "University"
+
+### INLIST @document
+[mongo] columns=(o.id, o.type)
+  db.Organisation.aggregate([
+    {$match: {type: {$in: ["Company", "University"]}}}
+    {$project: {_id: 0(int), v0: "$id", v1: "$type", uuid: 1(int)}}
+    {$sort: {v0: 1(int64)}}
+    {$limit: {n: 20(int64)}}
+    {$project: {_id: 0(int), c0: "$v0", c1: "$v1"}}
+  ])
+
+### INLIST @columnar
+[clickhouse] columns=(o.id, o.type)
+  SELECT `id` AS c0, `type` AS c1 FROM `Organisation` WHERE `type` IN ('Company', 'University') ORDER BY `id` ASC NULLS LAST LIMIT 20
+
+### INLIST @widecolumn
+[cassandra] columns=(o.id, o.type)
+  SELECT "id" AS c0, "type" AS c1 FROM "Organisation" WHERE "type" IN (?, ?) ALLOW FILTERING
+  args: "Company", "University"
+[coordinator] Sort[o.id ASC]
+[coordinator] Limit[20]
+
+### INLIST @kvs
+[leveldb] columns=(o.id, o.type)
+  KVS Organisation scan get=(type, id) filter (o.type IN ["Company", "University"])
+[coordinator] Projection[o.id, o.type]
+[coordinator] Sort[o.id ASC]
+[coordinator] Limit[20]
+
+### IS1 @graph
+[neo4j] columns=(firstName, lastName, birthday, locationIP, browserUsed, cityId, gender, creationDate)
+  MATCH (n:Person) WHERE (n.id = $p0) MATCH (n)-[_r0:IS_LOCATED_IN]->(p:City) WITH n.firstName AS v0, n.lastName AS v1, n.birthday AS v2, n.locationIP AS v3, n.browserUsed AS v4, p.id AS v5, n.gender AS v6, n.creationDate AS v7 RETURN v0 AS c0, v1 AS c1, v2 AS c2, v3 AS c3, v4 AS c4, v5 AS c5, v6 AS c6, v7 AS c7
+  params: p0=21990232558284(int64)
+
+### IS1 @relational
+[mysql] columns=(n)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = ?)
+  args: 21990232558284(int64)
+[neo4j] columns=(n, p) in=(n)
+  MATCH (n:Person) WHERE n.uuid IN $in MATCH (n)-[_r0:IS_LOCATED_IN]->(p:City) RETURN n.uuid AS c0, p.uuid AS c1
+[mysql] columns=(n, n.birthday, n.browserUsed, n.firstName, n.lastName, n.locationIP) in=(n)
+  SELECT `uuid` AS c0, `birthday` AS c1, `browserUsed` AS c2, `firstName` AS c3, `lastName` AS c4, `locationIP` AS c5 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[mysql] columns=(p, p.id) in=(p)
+  SELECT `uuid` AS c0, `id` AS c1 FROM `Place` WHERE `uuid` IN (?)
+  args: <in>
+[mysql] columns=(n, n.creationDate, n.gender) in=(n)
+  SELECT `uuid` AS c0, `creationDate` AS c1, `gender` AS c2 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[n.firstName AS firstName, n.lastName AS lastName, n.birthday AS birthday, n.locationIP AS locationIP, n.browserUsed AS browserUsed, p.id AS cityId, n.gender AS gender, n.creationDate AS creationDate]
+
+### IS1 @document
+[mongo] columns=(n)
+  db.Person.aggregate([
+    {$match: {id: {$eq: 21990232558284(int64)}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(n, p) in=(n)
+  MATCH (n:Person) WHERE n.uuid IN $in MATCH (n)-[_r0:IS_LOCATED_IN]->(p:City) RETURN n.uuid AS c0, p.uuid AS c1
+[mongo] columns=(n, n.birthday, n.browserUsed, n.firstName, n.lastName, n.locationIP) in=(n)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$birthday", c2: "$browserUsed", c3: "$firstName", c4: "$lastName", c5: "$locationIP"}}
+  ])
+[mongo] columns=(p, p.id) in=(p)
+  db.Place.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$id"}}
+  ])
+[mongo] columns=(n, n.creationDate, n.gender) in=(n)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$creationDate", c2: "$gender"}}
+  ])
+[coordinator] Projection[n.firstName AS firstName, n.lastName AS lastName, n.birthday AS birthday, n.locationIP AS locationIP, n.browserUsed AS browserUsed, p.id AS cityId, n.gender AS gender, n.creationDate AS creationDate]
+
+### IS1 @columnar
+[clickhouse] columns=(n)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = 21990232558284)
+[neo4j] columns=(n, p) in=(n)
+  MATCH (n:Person) WHERE n.uuid IN $in MATCH (n)-[_r0:IS_LOCATED_IN]->(p:City) RETURN n.uuid AS c0, p.uuid AS c1
+[clickhouse] columns=(n, n.birthday, n.browserUsed, n.firstName, n.lastName, n.locationIP) in=(n)
+  SELECT `uuid` AS c0, `birthday` AS c1, `browserUsed` AS c2, `firstName` AS c3, `lastName` AS c4, `locationIP` AS c5 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[clickhouse] columns=(p, p.id) in=(p)
+  SELECT `uuid` AS c0, `id` AS c1 FROM `Place` WHERE `uuid` IN (?)
+  args: <in>
+[clickhouse] columns=(n, n.creationDate, n.gender) in=(n)
+  SELECT `uuid` AS c0, `creationDate` AS c1, `gender` AS c2 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[n.firstName AS firstName, n.lastName AS lastName, n.birthday AS birthday, n.locationIP AS locationIP, n.browserUsed AS browserUsed, p.id AS cityId, n.gender AS gender, n.creationDate AS creationDate]
+
+### IS1 @widecolumn
+[cassandra] columns=(n)
+  SELECT "uuid" AS c0 FROM "Person" WHERE ("id" = ?) ALLOW FILTERING
+  args: 21990232558284(int64)
+[neo4j] columns=(n, p) in=(n)
+  MATCH (n:Person) WHERE n.uuid IN $in MATCH (n)-[_r0:IS_LOCATED_IN]->(p:City) RETURN n.uuid AS c0, p.uuid AS c1
+[cassandra] columns=(n, n.birthday, n.browserUsed, n.firstName, n.lastName, n.locationIP) in=(n)
+  SELECT "uuid" AS c0, "birthday" AS c1, "browserUsed" AS c2, "firstName" AS c3, "lastName" AS c4, "locationIP" AS c5 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[cassandra] columns=(p, p.id) in=(p)
+  SELECT "uuid" AS c0, "id" AS c1 FROM "Place" WHERE "uuid" IN ?
+  args: <in>
+[cassandra] columns=(n, n.creationDate, n.gender) in=(n)
+  SELECT "uuid" AS c0, "creationDate" AS c1, "gender" AS c2 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Projection[n.firstName AS firstName, n.lastName AS lastName, n.birthday AS birthday, n.locationIP AS locationIP, n.browserUsed AS browserUsed, p.id AS cityId, n.gender AS gender, n.creationDate AS creationDate]
+
+### IS1 @kvs
+[leveldb] columns=(n)
+  KVS Person index id=21990232558284(int64) get=(id) filter (n.id = 21990232558284)
+[neo4j] columns=(n, p) in=(n)
+  MATCH (n:Person) WHERE n.uuid IN $in MATCH (n)-[_r0:IS_LOCATED_IN]->(p:City) RETURN n.uuid AS c0, p.uuid AS c1
+[leveldb] columns=(n, n.birthday, n.browserUsed, n.firstName, n.lastName, n.locationIP) in=(n)
+  KVS Person ids get=(firstName, lastName, birthday, locationIP, browserUsed)
+[leveldb] columns=(p, p.id) in=(p)
+  KVS Place ids get=(id)
+[leveldb] columns=(n, n.creationDate, n.gender) in=(n)
+  KVS Person ids get=(gender, creationDate)
+[coordinator] Projection[n.firstName AS firstName, n.lastName AS lastName, n.birthday AS birthday, n.locationIP AS locationIP, n.browserUsed AS browserUsed, p.id AS cityId, n.gender AS gender, n.creationDate AS creationDate]
+
+### IS2 @graph
+[neo4j] columns=(messageId, messageContent, messageCreationDate, postId, personId, personFirstName, personLastName)
+  MATCH (_n0:Person) WHERE (_n0.id = $p0) MATCH (_n0)<-[_r0:HAS_CREATOR]-(message) WITH message AS message, message.id AS v1, message.creationDate AS v2 WITH * ORDER BY v2 DESC, v1 LIMIT 10 MATCH _sp_r1 = (message)-[:REPLY_OF*0..]->(post:Post) MATCH (post)-[_r2:HAS_CREATOR]->(person) WITH v1 AS v3, coalesce(message.imageFile, message.content) AS v4, v2 AS v5, person AS person, post AS post WITH * ORDER BY v5 DESC, v3 WITH v3 AS v8, v4 AS v9, v5 AS v10, post.id AS v11, person.id AS v12, person.firstName AS v13, person.lastName AS v14 RETURN v8 AS c0, v9 AS c1, v10 AS c2, v11 AS c3, v12 AS c4, v13 AS c5, v14 AS c6
+  params: p0=21990232558284(int64)
+
+### IS2 @relational
+[mysql] columns=(_n0)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = ?)
+  args: 21990232558284(int64)
+[neo4j] columns=(_n0, message, message.creationDate, message.id) in=(_n0)
+  MATCH (_n0:Person) WHERE _n0.uuid IN $in MATCH (_n0)<-[_r0:HAS_CREATOR]-(message) RETURN _n0.uuid AS c0, message.uuid AS c1, message.creationDate AS c2, message.id AS c3
+[coordinator] Projection[message, message.id AS messageId, message.creationDate AS messageCreationDate]
+[coordinator] Sort[messageCreationDate DESC, messageId ASC]
+[coordinator] Limit[10]
+[neo4j] columns=(message, message.content, message.imageFile, person, post, _w) in=(message)
+  MATCH (message) WHERE message.uuid IN $in MATCH _sp_r1 = (message)-[:REPLY_OF*0..]->(post:Post) MATCH (post)-[_r2:HAS_CREATOR]->(person) RETURN message.uuid AS c0, message.content AS c1, message.imageFile AS c2, person.uuid AS c3, post.uuid AS c4, count(*) AS c5
+[coordinator] Projection[messageId, coalesce(message.imageFile, message.content) AS messageContent, messageCreationDate, person, post]
+[coordinator] Sort[messageCreationDate DESC, messageId ASC]
+[mysql] columns=(post, post.id) in=(post)
+  SELECT `uuid` AS c0, `id` AS c1 FROM `Message` WHERE `uuid` IN (?)
+  args: <in>
+[neo4j] columns=(person, person.firstName, person.id, person.lastName) in=(person)
+  MATCH (person) WHERE person.uuid IN $in RETURN person.uuid AS c0, person.firstName AS c1, person.id AS c2, person.lastName AS c3
+[coordinator] Projection[messageId, messageContent, messageCreationDate, post.id AS postId, person.id AS personId, person.firstName AS personFirstName, person.lastName AS personLastName]
+
+### IS2 @document
+[mongo] columns=(_n0)
+  db.Person.aggregate([
+    {$match: {id: {$eq: 21990232558284(int64)}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(_n0, message, message.creationDate, message.id) in=(_n0)
+  MATCH (_n0:Person) WHERE _n0.uuid IN $in MATCH (_n0)<-[_r0:HAS_CREATOR]-(message) RETURN _n0.uuid AS c0, message.uuid AS c1, message.creationDate AS c2, message.id AS c3
+[coordinator] Projection[message, message.id AS messageId, message.creationDate AS messageCreationDate]
+[coordinator] Sort[messageCreationDate DESC, messageId ASC]
+[coordinator] Limit[10]
+[neo4j] columns=(message, message.content, message.imageFile, person, post, _w) in=(message)
+  MATCH (message) WHERE message.uuid IN $in MATCH _sp_r1 = (message)-[:REPLY_OF*0..]->(post:Post) MATCH (post)-[_r2:HAS_CREATOR]->(person) RETURN message.uuid AS c0, message.content AS c1, message.imageFile AS c2, person.uuid AS c3, post.uuid AS c4, count(*) AS c5
+[coordinator] Projection[messageId, coalesce(message.imageFile, message.content) AS messageContent, messageCreationDate, person, post]
+[coordinator] Sort[messageCreationDate DESC, messageId ASC]
+[mongo] columns=(post, post.id) in=(post)
+  db.Message.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$id"}}
+  ])
+[neo4j] columns=(person, person.firstName, person.id, person.lastName) in=(person)
+  MATCH (person) WHERE person.uuid IN $in RETURN person.uuid AS c0, person.firstName AS c1, person.id AS c2, person.lastName AS c3
+[coordinator] Projection[messageId, messageContent, messageCreationDate, post.id AS postId, person.id AS personId, person.firstName AS personFirstName, person.lastName AS personLastName]
+
+### IS2 @columnar
+[clickhouse] columns=(_n0)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = 21990232558284)
+[neo4j] columns=(_n0, message, message.creationDate, message.id) in=(_n0)
+  MATCH (_n0:Person) WHERE _n0.uuid IN $in MATCH (_n0)<-[_r0:HAS_CREATOR]-(message) RETURN _n0.uuid AS c0, message.uuid AS c1, message.creationDate AS c2, message.id AS c3
+[coordinator] Projection[message, message.id AS messageId, message.creationDate AS messageCreationDate]
+[coordinator] Sort[messageCreationDate DESC, messageId ASC]
+[coordinator] Limit[10]
+[neo4j] columns=(message, message.content, message.imageFile, person, post, _w) in=(message)
+  MATCH (message) WHERE message.uuid IN $in MATCH _sp_r1 = (message)-[:REPLY_OF*0..]->(post:Post) MATCH (post)-[_r2:HAS_CREATOR]->(person) RETURN message.uuid AS c0, message.content AS c1, message.imageFile AS c2, person.uuid AS c3, post.uuid AS c4, count(*) AS c5
+[coordinator] Projection[messageId, coalesce(message.imageFile, message.content) AS messageContent, messageCreationDate, person, post]
+[coordinator] Sort[messageCreationDate DESC, messageId ASC]
+[clickhouse] columns=(post, post.id) in=(post)
+  SELECT `uuid` AS c0, `id` AS c1 FROM `Message` WHERE `uuid` IN (?)
+  args: <in>
+[neo4j] columns=(person, person.firstName, person.id, person.lastName) in=(person)
+  MATCH (person) WHERE person.uuid IN $in RETURN person.uuid AS c0, person.firstName AS c1, person.id AS c2, person.lastName AS c3
+[coordinator] Projection[messageId, messageContent, messageCreationDate, post.id AS postId, person.id AS personId, person.firstName AS personFirstName, person.lastName AS personLastName]
+
+### IS2 @widecolumn
+[cassandra] columns=(_n0)
+  SELECT "uuid" AS c0 FROM "Person" WHERE ("id" = ?) ALLOW FILTERING
+  args: 21990232558284(int64)
+[neo4j] columns=(_n0, message, message.creationDate, message.id) in=(_n0)
+  MATCH (_n0:Person) WHERE _n0.uuid IN $in MATCH (_n0)<-[_r0:HAS_CREATOR]-(message) RETURN _n0.uuid AS c0, message.uuid AS c1, message.creationDate AS c2, message.id AS c3
+[coordinator] Projection[message, message.id AS messageId, message.creationDate AS messageCreationDate]
+[coordinator] Sort[messageCreationDate DESC, messageId ASC]
+[coordinator] Limit[10]
+[neo4j] columns=(message, message.content, message.imageFile, person, post, _w) in=(message)
+  MATCH (message) WHERE message.uuid IN $in MATCH _sp_r1 = (message)-[:REPLY_OF*0..]->(post:Post) MATCH (post)-[_r2:HAS_CREATOR]->(person) RETURN message.uuid AS c0, message.content AS c1, message.imageFile AS c2, person.uuid AS c3, post.uuid AS c4, count(*) AS c5
+[coordinator] Projection[messageId, coalesce(message.imageFile, message.content) AS messageContent, messageCreationDate, person, post]
+[coordinator] Sort[messageCreationDate DESC, messageId ASC]
+[cassandra] columns=(post, post.id) in=(post)
+  SELECT "uuid" AS c0, "id" AS c1 FROM "Message" WHERE "uuid" IN ?
+  args: <in>
+[neo4j] columns=(person, person.firstName, person.id, person.lastName) in=(person)
+  MATCH (person) WHERE person.uuid IN $in RETURN person.uuid AS c0, person.firstName AS c1, person.id AS c2, person.lastName AS c3
+[coordinator] Projection[messageId, messageContent, messageCreationDate, post.id AS postId, person.id AS personId, person.firstName AS personFirstName, person.lastName AS personLastName]
+
+### IS2 @kvs
+[leveldb] columns=(_n0)
+  KVS Person index id=21990232558284(int64) get=(id) filter (_n0.id = 21990232558284)
+[neo4j] columns=(_n0, message, message.creationDate, message.id) in=(_n0)
+  MATCH (_n0:Person) WHERE _n0.uuid IN $in MATCH (_n0)<-[_r0:HAS_CREATOR]-(message) RETURN _n0.uuid AS c0, message.uuid AS c1, message.creationDate AS c2, message.id AS c3
+[coordinator] Projection[message, message.id AS messageId, message.creationDate AS messageCreationDate]
+[coordinator] Sort[messageCreationDate DESC, messageId ASC]
+[coordinator] Limit[10]
+[neo4j] columns=(message, message.content, message.imageFile, person, post, _w) in=(message)
+  MATCH (message) WHERE message.uuid IN $in MATCH _sp_r1 = (message)-[:REPLY_OF*0..]->(post:Post) MATCH (post)-[_r2:HAS_CREATOR]->(person) RETURN message.uuid AS c0, message.content AS c1, message.imageFile AS c2, person.uuid AS c3, post.uuid AS c4, count(*) AS c5
+[coordinator] Projection[messageId, coalesce(message.imageFile, message.content) AS messageContent, messageCreationDate, person, post]
+[coordinator] Sort[messageCreationDate DESC, messageId ASC]
+[leveldb] columns=(post, post.id) in=(post)
+  KVS Message ids get=(id)
+[neo4j] columns=(person, person.firstName, person.id, person.lastName) in=(person)
+  MATCH (person) WHERE person.uuid IN $in RETURN person.uuid AS c0, person.firstName AS c1, person.id AS c2, person.lastName AS c3
+[coordinator] Projection[messageId, messageContent, messageCreationDate, post.id AS postId, person.id AS personId, person.firstName AS personFirstName, person.lastName AS personLastName]
+
+### IS3 @graph
+[neo4j] columns=(personId, firstName, lastName, friendshipCreationDate)
+  MATCH (n:Person) WHERE (n.id = $p0) MATCH (n)-[r:KNOWS]-(friend) WITH friend.id AS v0, r.creationDate AS v1, friend AS friend WITH * ORDER BY v1 DESC, toInteger(v0) WITH v0 AS v3, friend.firstName AS v4, friend.lastName AS v5, v1 AS v6 RETURN v3 AS c0, v4 AS c1, v5 AS c2, v6 AS c3
+  params: p0=21990232558284(int64)
+
+### IS3 @relational
+[mysql] columns=(n)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = ?)
+  args: 21990232558284(int64)
+[neo4j] columns=(n, friend, friend.id, r) in=(n)
+  MATCH (n:Person) WHERE n.uuid IN $in MATCH (n)-[r:KNOWS]-(friend) RETURN n.uuid AS c0, friend.uuid AS c1, friend.id AS c2, r.uuid AS c3
+[mysql] columns=(r, r.creationDate) in=(r)
+  SELECT `uuid` AS c0, `creationDate` AS c1 FROM `KNOWS` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[friend.id AS personId, r.creationDate AS friendshipCreationDate, friend]
+[coordinator] Sort[friendshipCreationDate DESC, tointeger(personId) ASC]
+[neo4j] columns=(friend, friend.firstName, friend.lastName) in=(friend)
+  MATCH (friend) WHERE friend.uuid IN $in RETURN friend.uuid AS c0, friend.firstName AS c1, friend.lastName AS c2
+[coordinator] Projection[personId, friend.firstName AS firstName, friend.lastName AS lastName, friendshipCreationDate]
+
+### IS3 @document
+[mongo] columns=(n)
+  db.Person.aggregate([
+    {$match: {id: {$eq: 21990232558284(int64)}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(n, friend, friend.id, r) in=(n)
+  MATCH (n:Person) WHERE n.uuid IN $in MATCH (n)-[r:KNOWS]-(friend) RETURN n.uuid AS c0, friend.uuid AS c1, friend.id AS c2, r.uuid AS c3
+[mongo] columns=(r, r.creationDate) in=(r)
+  db.KNOWS.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$creationDate"}}
+  ])
+[coordinator] Projection[friend.id AS personId, r.creationDate AS friendshipCreationDate, friend]
+[coordinator] Sort[friendshipCreationDate DESC, tointeger(personId) ASC]
+[neo4j] columns=(friend, friend.firstName, friend.lastName) in=(friend)
+  MATCH (friend) WHERE friend.uuid IN $in RETURN friend.uuid AS c0, friend.firstName AS c1, friend.lastName AS c2
+[coordinator] Projection[personId, friend.firstName AS firstName, friend.lastName AS lastName, friendshipCreationDate]
+
+### IS3 @columnar
+[clickhouse] columns=(n)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = 21990232558284)
+[neo4j] columns=(n, friend, friend.id, r) in=(n)
+  MATCH (n:Person) WHERE n.uuid IN $in MATCH (n)-[r:KNOWS]-(friend) RETURN n.uuid AS c0, friend.uuid AS c1, friend.id AS c2, r.uuid AS c3
+[clickhouse] columns=(r, r.creationDate) in=(r)
+  SELECT `uuid` AS c0, `creationDate` AS c1 FROM `KNOWS` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[friend.id AS personId, r.creationDate AS friendshipCreationDate, friend]
+[coordinator] Sort[friendshipCreationDate DESC, tointeger(personId) ASC]
+[neo4j] columns=(friend, friend.firstName, friend.lastName) in=(friend)
+  MATCH (friend) WHERE friend.uuid IN $in RETURN friend.uuid AS c0, friend.firstName AS c1, friend.lastName AS c2
+[coordinator] Projection[personId, friend.firstName AS firstName, friend.lastName AS lastName, friendshipCreationDate]
+
+### IS3 @widecolumn
+[cassandra] columns=(n)
+  SELECT "uuid" AS c0 FROM "Person" WHERE ("id" = ?) ALLOW FILTERING
+  args: 21990232558284(int64)
+[neo4j] columns=(n, friend, friend.id, r) in=(n)
+  MATCH (n:Person) WHERE n.uuid IN $in MATCH (n)-[r:KNOWS]-(friend) RETURN n.uuid AS c0, friend.uuid AS c1, friend.id AS c2, r.uuid AS c3
+[cassandra] columns=(r, r.creationDate) in=(r)
+  SELECT "uuid" AS c0, "creationDate" AS c1 FROM "KNOWS" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Projection[friend.id AS personId, r.creationDate AS friendshipCreationDate, friend]
+[coordinator] Sort[friendshipCreationDate DESC, tointeger(personId) ASC]
+[neo4j] columns=(friend, friend.firstName, friend.lastName) in=(friend)
+  MATCH (friend) WHERE friend.uuid IN $in RETURN friend.uuid AS c0, friend.firstName AS c1, friend.lastName AS c2
+[coordinator] Projection[personId, friend.firstName AS firstName, friend.lastName AS lastName, friendshipCreationDate]
+
+### IS3 @kvs
+[leveldb] columns=(n)
+  KVS Person index id=21990232558284(int64) get=(id) filter (n.id = 21990232558284)
+[neo4j] columns=(n, friend, friend.id, r) in=(n)
+  MATCH (n:Person) WHERE n.uuid IN $in MATCH (n)-[r:KNOWS]-(friend) RETURN n.uuid AS c0, friend.uuid AS c1, friend.id AS c2, r.uuid AS c3
+[leveldb] columns=(r, r.creationDate) in=(r)
+  KVS KNOWS ids get=(creationDate)
+[coordinator] Projection[friend.id AS personId, r.creationDate AS friendshipCreationDate, friend]
+[coordinator] Sort[friendshipCreationDate DESC, tointeger(personId) ASC]
+[neo4j] columns=(friend, friend.firstName, friend.lastName) in=(friend)
+  MATCH (friend) WHERE friend.uuid IN $in RETURN friend.uuid AS c0, friend.firstName AS c1, friend.lastName AS c2
+[coordinator] Projection[personId, friend.firstName AS firstName, friend.lastName AS lastName, friendshipCreationDate]
+
+### IS4 @graph
+[neo4j] columns=(messageCreationDate, messageContent)
+  MATCH (m:Message) WHERE (m.id = $p0) WITH m.creationDate AS v0, coalesce(m.content, m.imageFile) AS v1 RETURN v0 AS c0, v1 AS c1
+  params: p0=1030792151051(int64)
+
+### IS4 @relational
+[neo4j] columns=(m)
+  MATCH (m:Message) WHERE (m.id = $p0) RETURN m.uuid AS c0
+  params: p0=1030792151051(int64)
+[mysql] columns=(m, m.content, m.creationDate, m.imageFile) in=(m)
+  SELECT `uuid` AS c0, `content` AS c1, `creationDate` AS c2, `imageFile` AS c3 FROM `Message` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[m.creationDate AS messageCreationDate, coalesce(m.content, m.imageFile) AS messageContent]
+
+### IS4 @document
+[neo4j] columns=(m)
+  MATCH (m:Message) WHERE (m.id = $p0) RETURN m.uuid AS c0
+  params: p0=1030792151051(int64)
+[mongo] columns=(m, m.content, m.creationDate, m.imageFile) in=(m)
+  db.Message.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$content", c2: "$creationDate", c3: "$imageFile"}}
+  ])
+[coordinator] Projection[m.creationDate AS messageCreationDate, coalesce(m.content, m.imageFile) AS messageContent]
+
+### IS4 @columnar
+[neo4j] columns=(m)
+  MATCH (m:Message) WHERE (m.id = $p0) RETURN m.uuid AS c0
+  params: p0=1030792151051(int64)
+[clickhouse] columns=(m, m.content, m.creationDate, m.imageFile) in=(m)
+  SELECT `uuid` AS c0, `content` AS c1, `creationDate` AS c2, `imageFile` AS c3 FROM `Message` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[m.creationDate AS messageCreationDate, coalesce(m.content, m.imageFile) AS messageContent]
+
+### IS4 @widecolumn
+[neo4j] columns=(m)
+  MATCH (m:Message) WHERE (m.id = $p0) RETURN m.uuid AS c0
+  params: p0=1030792151051(int64)
+[cassandra] columns=(m, m.content, m.creationDate, m.imageFile) in=(m)
+  SELECT "uuid" AS c0, "content" AS c1, "creationDate" AS c2, "imageFile" AS c3 FROM "Message" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Projection[m.creationDate AS messageCreationDate, coalesce(m.content, m.imageFile) AS messageContent]
+
+### IS4 @kvs
+[neo4j] columns=(m)
+  MATCH (m:Message) WHERE (m.id = $p0) RETURN m.uuid AS c0
+  params: p0=1030792151051(int64)
+[leveldb] columns=(m, m.content, m.creationDate, m.imageFile) in=(m)
+  KVS Message ids get=(creationDate, content, imageFile)
+[coordinator] Projection[m.creationDate AS messageCreationDate, coalesce(m.content, m.imageFile) AS messageContent]
+
+### IS5 @graph
+[neo4j] columns=(personId, firstName, lastName)
+  MATCH (m:Message) WHERE (m.id = $p0) MATCH (m)-[_r0:HAS_CREATOR]->(p:Person) WITH p.id AS v0, p.firstName AS v1, p.lastName AS v2 RETURN v0 AS c0, v1 AS c1, v2 AS c2
+  params: p0=1030792151051(int64)
+
+### IS5 @relational
+[neo4j] columns=(p)
+  MATCH (m:Message) WHERE (m.id = $p0) MATCH (m)-[_r0:HAS_CREATOR]->(p:Person) RETURN p.uuid AS c0
+  params: p0=1030792151051(int64)
+[mysql] columns=(p, p.firstName, p.id, p.lastName) in=(p)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2, `lastName` AS c3 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[p.id AS personId, p.firstName AS firstName, p.lastName AS lastName]
+
+### IS5 @document
+[neo4j] columns=(p)
+  MATCH (m:Message) WHERE (m.id = $p0) MATCH (m)-[_r0:HAS_CREATOR]->(p:Person) RETURN p.uuid AS c0
+  params: p0=1030792151051(int64)
+[mongo] columns=(p, p.firstName, p.id, p.lastName) in=(p)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$firstName", c2: "$id", c3: "$lastName"}}
+  ])
+[coordinator] Projection[p.id AS personId, p.firstName AS firstName, p.lastName AS lastName]
+
+### IS5 @columnar
+[neo4j] columns=(p)
+  MATCH (m:Message) WHERE (m.id = $p0) MATCH (m)-[_r0:HAS_CREATOR]->(p:Person) RETURN p.uuid AS c0
+  params: p0=1030792151051(int64)
+[clickhouse] columns=(p, p.firstName, p.id, p.lastName) in=(p)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2, `lastName` AS c3 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[p.id AS personId, p.firstName AS firstName, p.lastName AS lastName]
+
+### IS5 @widecolumn
+[neo4j] columns=(p)
+  MATCH (m:Message) WHERE (m.id = $p0) MATCH (m)-[_r0:HAS_CREATOR]->(p:Person) RETURN p.uuid AS c0
+  params: p0=1030792151051(int64)
+[cassandra] columns=(p, p.firstName, p.id, p.lastName) in=(p)
+  SELECT "uuid" AS c0, "firstName" AS c1, "id" AS c2, "lastName" AS c3 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Projection[p.id AS personId, p.firstName AS firstName, p.lastName AS lastName]
+
+### IS5 @kvs
+[neo4j] columns=(p)
+  MATCH (m:Message) WHERE (m.id = $p0) MATCH (m)-[_r0:HAS_CREATOR]->(p:Person) RETURN p.uuid AS c0
+  params: p0=1030792151051(int64)
+[leveldb] columns=(p, p.firstName, p.id, p.lastName) in=(p)
+  KVS Person ids get=(id, firstName, lastName)
+[coordinator] Projection[p.id AS personId, p.firstName AS firstName, p.lastName AS lastName]
+
+### IS6 @graph
+[neo4j] columns=(forumId, forumTitle, moderatorId, moderatorFirstName, moderatorLastName)
+  MATCH (m:Message) WHERE (m.id = $p0) MATCH _sp_r0 = (m)-[:REPLY_OF*0..]->(p:Post) MATCH (p)<-[_r1:CONTAINER_OF]-(f:Forum) MATCH (f)-[_r2:HAS_MODERATOR]->(mod:Person) WITH f.id AS v0, f.title AS v1, mod.id AS v2, mod.firstName AS v3, mod.lastName AS v4 RETURN v0 AS c0, v1 AS c1, v2 AS c2, v3 AS c3, v4 AS c4
+  params: p0=1030792151051(int64)
+
+### IS6 @relational
+[neo4j] columns=(f, mod, _w)
+  MATCH (m:Message) WHERE (m.id = $p0) MATCH _sp_r0 = (m)-[:REPLY_OF*0..]->(p:Post) MATCH (p)<-[_r1:CONTAINER_OF]-(f:Forum) MATCH (f)-[_r2:HAS_MODERATOR]->(mod:Person) RETURN f.uuid AS c0, mod.uuid AS c1, count(*) AS c2
+  params: p0=1030792151051(int64)
+[mysql] columns=(f, f.id, f.title) in=(f)
+  SELECT `uuid` AS c0, `id` AS c1, `title` AS c2 FROM `Forum` WHERE `uuid` IN (?)
+  args: <in>
+[mysql] columns=(mod, mod.firstName, mod.id, mod.lastName) in=(mod)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2, `lastName` AS c3 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[f.id AS forumId, f.title AS forumTitle, mod.id AS moderatorId, mod.firstName AS moderatorFirstName, mod.lastName AS moderatorLastName]
+
+### IS6 @document
+[neo4j] columns=(f, mod, _w)
+  MATCH (m:Message) WHERE (m.id = $p0) MATCH _sp_r0 = (m)-[:REPLY_OF*0..]->(p:Post) MATCH (p)<-[_r1:CONTAINER_OF]-(f:Forum) MATCH (f)-[_r2:HAS_MODERATOR]->(mod:Person) RETURN f.uuid AS c0, mod.uuid AS c1, count(*) AS c2
+  params: p0=1030792151051(int64)
+[mongo] columns=(f, f.id, f.title) in=(f)
+  db.Forum.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$id", c2: "$title"}}
+  ])
+[mongo] columns=(mod, mod.firstName, mod.id, mod.lastName) in=(mod)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$firstName", c2: "$id", c3: "$lastName"}}
+  ])
+[coordinator] Projection[f.id AS forumId, f.title AS forumTitle, mod.id AS moderatorId, mod.firstName AS moderatorFirstName, mod.lastName AS moderatorLastName]
+
+### IS6 @columnar
+[neo4j] columns=(f, mod, _w)
+  MATCH (m:Message) WHERE (m.id = $p0) MATCH _sp_r0 = (m)-[:REPLY_OF*0..]->(p:Post) MATCH (p)<-[_r1:CONTAINER_OF]-(f:Forum) MATCH (f)-[_r2:HAS_MODERATOR]->(mod:Person) RETURN f.uuid AS c0, mod.uuid AS c1, count(*) AS c2
+  params: p0=1030792151051(int64)
+[clickhouse] columns=(f, f.id, f.title) in=(f)
+  SELECT `uuid` AS c0, `id` AS c1, `title` AS c2 FROM `Forum` WHERE `uuid` IN (?)
+  args: <in>
+[clickhouse] columns=(mod, mod.firstName, mod.id, mod.lastName) in=(mod)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2, `lastName` AS c3 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[f.id AS forumId, f.title AS forumTitle, mod.id AS moderatorId, mod.firstName AS moderatorFirstName, mod.lastName AS moderatorLastName]
+
+### IS6 @widecolumn
+[neo4j] columns=(f, mod, _w)
+  MATCH (m:Message) WHERE (m.id = $p0) MATCH _sp_r0 = (m)-[:REPLY_OF*0..]->(p:Post) MATCH (p)<-[_r1:CONTAINER_OF]-(f:Forum) MATCH (f)-[_r2:HAS_MODERATOR]->(mod:Person) RETURN f.uuid AS c0, mod.uuid AS c1, count(*) AS c2
+  params: p0=1030792151051(int64)
+[cassandra] columns=(f, f.id, f.title) in=(f)
+  SELECT "uuid" AS c0, "id" AS c1, "title" AS c2 FROM "Forum" WHERE "uuid" IN ?
+  args: <in>
+[cassandra] columns=(mod, mod.firstName, mod.id, mod.lastName) in=(mod)
+  SELECT "uuid" AS c0, "firstName" AS c1, "id" AS c2, "lastName" AS c3 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Projection[f.id AS forumId, f.title AS forumTitle, mod.id AS moderatorId, mod.firstName AS moderatorFirstName, mod.lastName AS moderatorLastName]
+
+### IS6 @kvs
+[neo4j] columns=(f, mod, _w)
+  MATCH (m:Message) WHERE (m.id = $p0) MATCH _sp_r0 = (m)-[:REPLY_OF*0..]->(p:Post) MATCH (p)<-[_r1:CONTAINER_OF]-(f:Forum) MATCH (f)-[_r2:HAS_MODERATOR]->(mod:Person) RETURN f.uuid AS c0, mod.uuid AS c1, count(*) AS c2
+  params: p0=1030792151051(int64)
+[leveldb] columns=(f, f.id, f.title) in=(f)
+  KVS Forum ids get=(id, title)
+[leveldb] columns=(mod, mod.firstName, mod.id, mod.lastName) in=(mod)
+  KVS Person ids get=(id, firstName, lastName)
+[coordinator] Projection[f.id AS forumId, f.title AS forumTitle, mod.id AS moderatorId, mod.firstName AS moderatorFirstName, mod.lastName AS moderatorLastName]
+
+### IS7 @graph
+[neo4j] columns=(commentId, commentContent, commentCreationDate, replyAuthorId, replyAuthorFirstName, replyAuthorLastName, replyAuthorKnowsOriginalMessageAuthor)
+  MATCH (m:Message) WHERE (m.id = $p0) MATCH (m)<-[_r0:REPLY_OF]-(c:Comment) MATCH (c)-[_r1:HAS_CREATOR]->(p:Person) OPTIONAL MATCH (m)-[_r2:HAS_CREATOR]->(a:Person), (a)-[r:KNOWS]-(p) WITH c.creationDate AS v0, p.id AS v1, CASE WHEN (r IS NULL) THEN false ELSE true END AS v2, p AS p, c AS c WITH * ORDER BY v0 DESC, v1 WITH c.id AS v5, c.content AS v6, v0 AS v7, v1 AS v8, p.firstName AS v9, p.lastName AS v10, v2 AS v11 RETURN v5 AS c0, v6 AS c1, v7 AS c2, v8 AS c3, v9 AS c4, v10 AS c5, v11 AS c6
+  params: p0=1030792151051(int64)
+
+### IS7 @relational
+[neo4j] columns=(commentId, commentContent, commentCreationDate, replyAuthorId, replyAuthorFirstName, replyAuthorLastName, replyAuthorKnowsOriginalMessageAuthor)
+  MATCH (m:Message) WHERE (m.id = $p0) MATCH (m)<-[_r0:REPLY_OF]-(c:Comment) MATCH (c)-[_r1:HAS_CREATOR]->(p:Person) OPTIONAL MATCH (m)-[_r2:HAS_CREATOR]->(a:Person), (a)-[r:KNOWS]-(p) WITH c.creationDate AS v0, p.id AS v1, CASE WHEN (r IS NULL) THEN false ELSE true END AS v2, p AS p, c AS c WITH * ORDER BY v0 DESC, v1 WITH c.id AS v5, c.content AS v6, v0 AS v7, v1 AS v8, p.firstName AS v9, p.lastName AS v10, v2 AS v11 RETURN v5 AS c0, v6 AS c1, v7 AS c2, v8 AS c3, v9 AS c4, v10 AS c5, v11 AS c6
+  params: p0=1030792151051(int64)
+
+### IS7 @document
+[neo4j] columns=(commentId, commentContent, commentCreationDate, replyAuthorId, replyAuthorFirstName, replyAuthorLastName, replyAuthorKnowsOriginalMessageAuthor)
+  MATCH (m:Message) WHERE (m.id = $p0) MATCH (m)<-[_r0:REPLY_OF]-(c:Comment) MATCH (c)-[_r1:HAS_CREATOR]->(p:Person) OPTIONAL MATCH (m)-[_r2:HAS_CREATOR]->(a:Person), (a)-[r:KNOWS]-(p) WITH c.creationDate AS v0, p.id AS v1, CASE WHEN (r IS NULL) THEN false ELSE true END AS v2, p AS p, c AS c WITH * ORDER BY v0 DESC, v1 WITH c.id AS v5, c.content AS v6, v0 AS v7, v1 AS v8, p.firstName AS v9, p.lastName AS v10, v2 AS v11 RETURN v5 AS c0, v6 AS c1, v7 AS c2, v8 AS c3, v9 AS c4, v10 AS c5, v11 AS c6
+  params: p0=1030792151051(int64)
+
+### IS7 @columnar
+[neo4j] columns=(commentId, commentContent, commentCreationDate, replyAuthorId, replyAuthorFirstName, replyAuthorLastName, replyAuthorKnowsOriginalMessageAuthor)
+  MATCH (m:Message) WHERE (m.id = $p0) MATCH (m)<-[_r0:REPLY_OF]-(c:Comment) MATCH (c)-[_r1:HAS_CREATOR]->(p:Person) OPTIONAL MATCH (m)-[_r2:HAS_CREATOR]->(a:Person), (a)-[r:KNOWS]-(p) WITH c.creationDate AS v0, p.id AS v1, CASE WHEN (r IS NULL) THEN false ELSE true END AS v2, p AS p, c AS c WITH * ORDER BY v0 DESC, v1 WITH c.id AS v5, c.content AS v6, v0 AS v7, v1 AS v8, p.firstName AS v9, p.lastName AS v10, v2 AS v11 RETURN v5 AS c0, v6 AS c1, v7 AS c2, v8 AS c3, v9 AS c4, v10 AS c5, v11 AS c6
+  params: p0=1030792151051(int64)
+
+### IS7 @widecolumn
+[neo4j] columns=(commentId, commentContent, commentCreationDate, replyAuthorId, replyAuthorFirstName, replyAuthorLastName, replyAuthorKnowsOriginalMessageAuthor)
+  MATCH (m:Message) WHERE (m.id = $p0) MATCH (m)<-[_r0:REPLY_OF]-(c:Comment) MATCH (c)-[_r1:HAS_CREATOR]->(p:Person) OPTIONAL MATCH (m)-[_r2:HAS_CREATOR]->(a:Person), (a)-[r:KNOWS]-(p) WITH c.creationDate AS v0, p.id AS v1, CASE WHEN (r IS NULL) THEN false ELSE true END AS v2, p AS p, c AS c WITH * ORDER BY v0 DESC, v1 WITH c.id AS v5, c.content AS v6, v0 AS v7, v1 AS v8, p.firstName AS v9, p.lastName AS v10, v2 AS v11 RETURN v5 AS c0, v6 AS c1, v7 AS c2, v8 AS c3, v9 AS c4, v10 AS c5, v11 AS c6
+  params: p0=1030792151051(int64)
+
+### IS7 @kvs
+[neo4j] columns=(commentId, commentContent, commentCreationDate, replyAuthorId, replyAuthorFirstName, replyAuthorLastName, replyAuthorKnowsOriginalMessageAuthor)
+  MATCH (m:Message) WHERE (m.id = $p0) MATCH (m)<-[_r0:REPLY_OF]-(c:Comment) MATCH (c)-[_r1:HAS_CREATOR]->(p:Person) OPTIONAL MATCH (m)-[_r2:HAS_CREATOR]->(a:Person), (a)-[r:KNOWS]-(p) WITH c.creationDate AS v0, p.id AS v1, CASE WHEN (r IS NULL) THEN false ELSE true END AS v2, p AS p, c AS c WITH * ORDER BY v0 DESC, v1 WITH c.id AS v5, c.content AS v6, v0 AS v7, v1 AS v8, p.firstName AS v9, p.lastName AS v10, v2 AS v11 RETURN v5 AS c0, v6 AS c1, v7 AS c2, v8 AS c3, v9 AS c4, v10 AS c5, v11 AS c6
+  params: p0=1030792151051(int64)
+
+### ISNULL @graph
+[neo4j] columns=(m.id, m.content)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) WHERE (m.content IS NOT NULL) WITH m.id AS v0, m.content AS v1 RETURN v0 AS c0, v1 AS c1 ORDER BY v0 LIMIT 20
+  params: p0=15393162799448(int64)
+
+### ISNULL @relational
+[neo4j] columns=(m)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) RETURN m.uuid AS c0
+  params: p0=15393162799448(int64)
+[mysql] columns=(m, m.content, m.id) in=(m)
+  SELECT `uuid` AS c0, `content` AS c1, `id` AS c2 FROM `Message` WHERE `uuid` IN (?) AND `content` IS NOT NULL
+  args: <in>
+[coordinator] Projection[m.id, m.content]
+[coordinator] Sort[m.id ASC]
+[coordinator] Limit[20]
+
+### ISNULL @document
+[neo4j] columns=(m)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) RETURN m.uuid AS c0
+  params: p0=15393162799448(int64)
+[mongo] columns=(m, m.content, m.id) in=(m)
+  db.Message.aggregate([
+    {$match: {uuid: {$in: <in>}, content: {$ne: null}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$content", c2: "$id"}}
+  ])
+[coordinator] Projection[m.id, m.content]
+[coordinator] Sort[m.id ASC]
+[coordinator] Limit[20]
+
+### ISNULL @columnar
+[neo4j] columns=(m)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) RETURN m.uuid AS c0
+  params: p0=15393162799448(int64)
+[clickhouse] columns=(m, m.content, m.id) in=(m)
+  SELECT `uuid` AS c0, `content` AS c1, `id` AS c2 FROM `Message` WHERE `uuid` IN (?) AND `content` IS NOT NULL
+  args: <in>
+[coordinator] Projection[m.id, m.content]
+[coordinator] Sort[m.id ASC]
+[coordinator] Limit[20]
+
+### ISNULL @widecolumn
+[neo4j] columns=(m)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) RETURN m.uuid AS c0
+  params: p0=15393162799448(int64)
+[cassandra] columns=(m, m.content) in=(m)
+  SELECT "uuid" AS c0, "content" AS c1 FROM "Message" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Filter((m.content IS NOT NULL))
+[cassandra] columns=(m, m.id) in=(m)
+  SELECT "uuid" AS c0, "id" AS c1 FROM "Message" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Projection[m.id, m.content]
+[coordinator] Sort[m.id ASC]
+[coordinator] Limit[20]
+
+### ISNULL @kvs
+[neo4j] columns=(m)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) RETURN m.uuid AS c0
+  params: p0=15393162799448(int64)
+[leveldb] columns=(m, m.content, m.id) in=(m)
+  KVS Message ids get=(content, id) filter (m.content IS NOT NULL)
+[coordinator] Projection[m.id, m.content]
+[coordinator] Sort[m.id ASC]
+[coordinator] Limit[20]
+
+### ISV1 @graph
+[neo4j] columns=(f.id, f.title, mod.id, mod.firstName, mod.lastName)
+  MATCH (m:Message) WHERE (m.creationDate >= $p0) AND (m.creationDate < $p1) MATCH _sp_r0 = (m)-[:REPLY_OF*0..]->(_n0:Post) MATCH (_n0)<-[_r1:CONTAINER_OF]-(f:Forum) MATCH (f)-[_r2:HAS_MODERATOR]->(mod:Person) WITH f.id AS v0, f.title AS v1, mod.id AS v2, mod.firstName AS v3, mod.lastName AS v4 RETURN v0 AS c0, v1 AS c1, v2 AS c2, v3 AS c3, v4 AS c4
+  params: p0=2012-11-01 00:00:00 +0000 UTC(time.Time), p1=2012-11-02 00:00:00 +0000 UTC(time.Time)
+
+### ISV1 @relational
+[mysql] columns=(m)
+  SELECT `uuid` AS c0 FROM `Message` WHERE (`creationDate` >= ?) AND (`creationDate` < ?)
+  args: 2012-11-01 00:00:00 +0000 UTC(time.Time), 2012-11-02 00:00:00 +0000 UTC(time.Time)
+[neo4j] columns=(m, f, mod, _w) in=(m)
+  MATCH (m:Message) WHERE m.uuid IN $in MATCH _sp_r0 = (m)-[:REPLY_OF*0..]->(_n0:Post) MATCH (_n0)<-[_r1:CONTAINER_OF]-(f:Forum) MATCH (f)-[_r2:HAS_MODERATOR]->(mod:Person) RETURN m.uuid AS c0, f.uuid AS c1, mod.uuid AS c2, count(*) AS c3
+[mysql] columns=(f, f.id, f.title) in=(f)
+  SELECT `uuid` AS c0, `id` AS c1, `title` AS c2 FROM `Forum` WHERE `uuid` IN (?)
+  args: <in>
+[mysql] columns=(mod, mod.firstName, mod.id, mod.lastName) in=(mod)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2, `lastName` AS c3 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[f.id, f.title, mod.id, mod.firstName, mod.lastName]
+
+### ISV1 @document
+[mongo] columns=(m)
+  db.Message.aggregate([
+    {$match: {creationDate: {$gte: 2012-11-01 00:00:00 +0000 UTC(time.Time)}, creationDate: {$lt: 2012-11-02 00:00:00 +0000 UTC(time.Time)}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(m, f, mod, _w) in=(m)
+  MATCH (m:Message) WHERE m.uuid IN $in MATCH _sp_r0 = (m)-[:REPLY_OF*0..]->(_n0:Post) MATCH (_n0)<-[_r1:CONTAINER_OF]-(f:Forum) MATCH (f)-[_r2:HAS_MODERATOR]->(mod:Person) RETURN m.uuid AS c0, f.uuid AS c1, mod.uuid AS c2, count(*) AS c3
+[mongo] columns=(f, f.id, f.title) in=(f)
+  db.Forum.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$id", c2: "$title"}}
+  ])
+[mongo] columns=(mod, mod.firstName, mod.id, mod.lastName) in=(mod)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$firstName", c2: "$id", c3: "$lastName"}}
+  ])
+[coordinator] Projection[f.id, f.title, mod.id, mod.firstName, mod.lastName]
+
+### ISV1 @columnar
+[clickhouse] columns=(m)
+  SELECT `uuid` AS c0 FROM `Message` WHERE (`creationDate` >= toDateTime64('2012-11-01 00:00:00.000000', 6, 'UTC')) AND (`creationDate` < toDateTime64('2012-11-02 00:00:00.000000', 6, 'UTC'))
+[neo4j] columns=(m, f, mod, _w) in=(m)
+  MATCH (m:Message) WHERE m.uuid IN $in MATCH _sp_r0 = (m)-[:REPLY_OF*0..]->(_n0:Post) MATCH (_n0)<-[_r1:CONTAINER_OF]-(f:Forum) MATCH (f)-[_r2:HAS_MODERATOR]->(mod:Person) RETURN m.uuid AS c0, f.uuid AS c1, mod.uuid AS c2, count(*) AS c3
+[clickhouse] columns=(f, f.id, f.title) in=(f)
+  SELECT `uuid` AS c0, `id` AS c1, `title` AS c2 FROM `Forum` WHERE `uuid` IN (?)
+  args: <in>
+[clickhouse] columns=(mod, mod.firstName, mod.id, mod.lastName) in=(mod)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2, `lastName` AS c3 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[f.id, f.title, mod.id, mod.firstName, mod.lastName]
+
+### ISV1 @widecolumn
+[cassandra] columns=(m)
+  SELECT "uuid" AS c0 FROM "Message" WHERE ("creationDate" >= ?) AND ("creationDate" < ?) ALLOW FILTERING
+  args: 2012-11-01 00:00:00 +0000 UTC(time.Time), 2012-11-02 00:00:00 +0000 UTC(time.Time)
+[neo4j] columns=(m, f, mod, _w) in=(m)
+  MATCH (m:Message) WHERE m.uuid IN $in MATCH _sp_r0 = (m)-[:REPLY_OF*0..]->(_n0:Post) MATCH (_n0)<-[_r1:CONTAINER_OF]-(f:Forum) MATCH (f)-[_r2:HAS_MODERATOR]->(mod:Person) RETURN m.uuid AS c0, f.uuid AS c1, mod.uuid AS c2, count(*) AS c3
+[cassandra] columns=(f, f.id, f.title) in=(f)
+  SELECT "uuid" AS c0, "id" AS c1, "title" AS c2 FROM "Forum" WHERE "uuid" IN ?
+  args: <in>
+[cassandra] columns=(mod, mod.firstName, mod.id, mod.lastName) in=(mod)
+  SELECT "uuid" AS c0, "firstName" AS c1, "id" AS c2, "lastName" AS c3 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Projection[f.id, f.title, mod.id, mod.firstName, mod.lastName]
+
+### ISV1 @kvs
+[leveldb] columns=(m)
+  KVS Message scan get=(creationDate) filter (m.creationDate >= 2012-11-01 00:00:00 +0000 UTC) filter (m.creationDate < 2012-11-02 00:00:00 +0000 UTC)
+[neo4j] columns=(m, f, mod, _w) in=(m)
+  MATCH (m:Message) WHERE m.uuid IN $in MATCH _sp_r0 = (m)-[:REPLY_OF*0..]->(_n0:Post) MATCH (_n0)<-[_r1:CONTAINER_OF]-(f:Forum) MATCH (f)-[_r2:HAS_MODERATOR]->(mod:Person) RETURN m.uuid AS c0, f.uuid AS c1, mod.uuid AS c2, count(*) AS c3
+[leveldb] columns=(f, f.id, f.title) in=(f)
+  KVS Forum ids get=(id, title)
+[leveldb] columns=(mod, mod.firstName, mod.id, mod.lastName) in=(mod)
+  KVS Person ids get=(id, firstName, lastName)
+[coordinator] Projection[f.id, f.title, mod.id, mod.firstName, mod.lastName]
+
+### ISV2 @graph
+[neo4j] columns=(f.id, f.lastName, c.name)
+  MATCH (p:Person) WHERE (p.firstName = $p0) MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) WITH f AS f WITH DISTINCT f AS f MATCH (f)-[_r1:IS_LOCATED_IN]->(c:City) WITH f.id AS v2, f.lastName AS v3, c.name AS v4 RETURN v2 AS c0, v3 AS c1, v4 AS c2
+  params: p0="Jun"
+
+### ISV2 @relational
+[mysql] columns=(p)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`firstName` = ?)
+  args: "Jun"
+[neo4j] columns=(p, f, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) RETURN p.uuid AS c0, f.uuid AS c1, count(*) AS c2
+[coordinator] Projection[f]
+[coordinator] Distinct
+[neo4j] columns=(f, c) in=(f)
+  MATCH (f:Person) WHERE f.uuid IN $in MATCH (f)-[_r1:IS_LOCATED_IN]->(c:City) RETURN f.uuid AS c0, c.uuid AS c1
+[mysql] columns=(f, f.id, f.lastName) in=(f)
+  SELECT `uuid` AS c0, `id` AS c1, `lastName` AS c2 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[mysql] columns=(c, c.name) in=(c)
+  SELECT `uuid` AS c0, `name` AS c1 FROM `Place` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[f.id, f.lastName, c.name]
+
+### ISV2 @document
+[mongo] columns=(p)
+  db.Person.aggregate([
+    {$match: {firstName: {$eq: "Jun"}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(p, f, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) RETURN p.uuid AS c0, f.uuid AS c1, count(*) AS c2
+[coordinator] Projection[f]
+[coordinator] Distinct
+[neo4j] columns=(f, c) in=(f)
+  MATCH (f:Person) WHERE f.uuid IN $in MATCH (f)-[_r1:IS_LOCATED_IN]->(c:City) RETURN f.uuid AS c0, c.uuid AS c1
+[mongo] columns=(f, f.id, f.lastName) in=(f)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$id", c2: "$lastName"}}
+  ])
+[mongo] columns=(c, c.name) in=(c)
+  db.Place.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$name"}}
+  ])
+[coordinator] Projection[f.id, f.lastName, c.name]
+
+### ISV2 @columnar
+[clickhouse] columns=(p)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`firstName` = 'Jun')
+[neo4j] columns=(p, f, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) RETURN p.uuid AS c0, f.uuid AS c1, count(*) AS c2
+[coordinator] Projection[f]
+[coordinator] Distinct
+[neo4j] columns=(f, c) in=(f)
+  MATCH (f:Person) WHERE f.uuid IN $in MATCH (f)-[_r1:IS_LOCATED_IN]->(c:City) RETURN f.uuid AS c0, c.uuid AS c1
+[clickhouse] columns=(f, f.id, f.lastName) in=(f)
+  SELECT `uuid` AS c0, `id` AS c1, `lastName` AS c2 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[clickhouse] columns=(c, c.name) in=(c)
+  SELECT `uuid` AS c0, `name` AS c1 FROM `Place` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[f.id, f.lastName, c.name]
+
+### ISV2 @widecolumn
+[cassandra] columns=(p)
+  SELECT "uuid" AS c0 FROM "Person" WHERE ("firstName" = ?) ALLOW FILTERING
+  args: "Jun"
+[neo4j] columns=(p, f, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) RETURN p.uuid AS c0, f.uuid AS c1, count(*) AS c2
+[coordinator] Projection[f]
+[coordinator] Distinct
+[neo4j] columns=(f, c) in=(f)
+  MATCH (f:Person) WHERE f.uuid IN $in MATCH (f)-[_r1:IS_LOCATED_IN]->(c:City) RETURN f.uuid AS c0, c.uuid AS c1
+[cassandra] columns=(f, f.id, f.lastName) in=(f)
+  SELECT "uuid" AS c0, "id" AS c1, "lastName" AS c2 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[cassandra] columns=(c, c.name) in=(c)
+  SELECT "uuid" AS c0, "name" AS c1 FROM "Place" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Projection[f.id, f.lastName, c.name]
+
+### ISV2 @kvs
+[leveldb] columns=(p)
+  KVS Person index firstName="Jun" get=(firstName) filter (p.firstName = "Jun")
+[neo4j] columns=(p, f, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) RETURN p.uuid AS c0, f.uuid AS c1, count(*) AS c2
+[coordinator] Projection[f]
+[coordinator] Distinct
+[neo4j] columns=(f, c) in=(f)
+  MATCH (f:Person) WHERE f.uuid IN $in MATCH (f)-[_r1:IS_LOCATED_IN]->(c:City) RETURN f.uuid AS c0, c.uuid AS c1
+[leveldb] columns=(f, f.id, f.lastName) in=(f)
+  KVS Person ids get=(id, lastName)
+[leveldb] columns=(c, c.name) in=(c)
+  KVS Place ids get=(name)
+[coordinator] Projection[f.id, f.lastName, c.name]
+
+### ISV3 @graph
+[neo4j] columns=(p.id, f.id, f.firstName, f.lastName)
+  MATCH (p:Person) WHERE (p.firstName = $p0) MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) WHERE (f.birthday >= $p1) AND (f.birthday < $p2) WITH p.id AS v0, f.id AS v1, f.firstName AS v2, f.lastName AS v3 RETURN v0 AS c0, v1 AS c1, v2 AS c2, v3 AS c3
+  params: p0="Deepak", p1=1985-01-01(dbtype.Date), p2=1986-01-01(dbtype.Date)
+
+### ISV3 @relational
+[mysql] columns=(p)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`firstName` = ?)
+  args: "Deepak"
+[neo4j] columns=(p, f, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) RETURN p.uuid AS c0, f.uuid AS c1, count(*) AS c2
+[mysql] columns=(f) in=(f)
+  SELECT `uuid` AS c0 FROM `Person` WHERE `uuid` IN (?) AND (`birthday` >= ?) AND (`birthday` < ?)
+  args: <in>, 1985-01-01 00:00:00 +0000 UTC(time.Time), 1986-01-01 00:00:00 +0000 UTC(time.Time)
+[mysql] columns=(p, p.id) in=(p)
+  SELECT `uuid` AS c0, `id` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[mysql] columns=(f, f.firstName, f.id, f.lastName) in=(f)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2, `lastName` AS c3 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[p.id, f.id, f.firstName, f.lastName]
+
+### ISV3 @document
+[mongo] columns=(p)
+  db.Person.aggregate([
+    {$match: {firstName: {$eq: "Deepak"}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(p, f, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) RETURN p.uuid AS c0, f.uuid AS c1, count(*) AS c2
+[mongo] columns=(f) in=(f)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}, birthday: {$gte: 1985-01-01 00:00:00 +0000 UTC(time.Time)}, birthday: {$lt: 1986-01-01 00:00:00 +0000 UTC(time.Time)}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[mongo] columns=(p, p.id) in=(p)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$id"}}
+  ])
+[mongo] columns=(f, f.firstName, f.id, f.lastName) in=(f)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$firstName", c2: "$id", c3: "$lastName"}}
+  ])
+[coordinator] Projection[p.id, f.id, f.firstName, f.lastName]
+
+### ISV3 @columnar
+[clickhouse] columns=(p)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`firstName` = 'Deepak')
+[neo4j] columns=(p, f, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) RETURN p.uuid AS c0, f.uuid AS c1, count(*) AS c2
+[clickhouse] columns=(f) in=(f)
+  SELECT `uuid` AS c0 FROM `Person` WHERE `uuid` IN (?) AND (`birthday` >= toDate32('1985-01-01')) AND (`birthday` < toDate32('1986-01-01'))
+  args: <in>
+[clickhouse] columns=(p, p.id) in=(p)
+  SELECT `uuid` AS c0, `id` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[clickhouse] columns=(f, f.firstName, f.id, f.lastName) in=(f)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2, `lastName` AS c3 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[p.id, f.id, f.firstName, f.lastName]
+
+### ISV3 @widecolumn
+[cassandra] columns=(p)
+  SELECT "uuid" AS c0 FROM "Person" WHERE ("firstName" = ?) ALLOW FILTERING
+  args: "Deepak"
+[neo4j] columns=(p, f, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) RETURN p.uuid AS c0, f.uuid AS c1, count(*) AS c2
+[cassandra] columns=(f) in=(f)
+  SELECT "uuid" AS c0 FROM "Person" WHERE "uuid" IN ? AND ("birthday" >= ?) AND ("birthday" < ?) ALLOW FILTERING
+  args: <in>, 1985-01-01 00:00:00 +0000 UTC(time.Time), 1986-01-01 00:00:00 +0000 UTC(time.Time)
+[cassandra] columns=(p, p.id) in=(p)
+  SELECT "uuid" AS c0, "id" AS c1 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[cassandra] columns=(f, f.firstName, f.id, f.lastName) in=(f)
+  SELECT "uuid" AS c0, "firstName" AS c1, "id" AS c2, "lastName" AS c3 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Projection[p.id, f.id, f.firstName, f.lastName]
+
+### ISV3 @kvs
+[leveldb] columns=(p)
+  KVS Person index firstName="Deepak" get=(firstName) filter (p.firstName = "Deepak")
+[neo4j] columns=(p, f, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) RETURN p.uuid AS c0, f.uuid AS c1, count(*) AS c2
+[leveldb] columns=(f) in=(f)
+  KVS Person ids get=(birthday) filter (f.birthday >= 1985-01-01 00:00:00 +0000 UTC) filter (f.birthday < 1986-01-01 00:00:00 +0000 UTC)
+[leveldb] columns=(p, p.id) in=(p)
+  KVS Person ids get=(id)
+[leveldb] columns=(f, f.firstName, f.id, f.lastName) in=(f)
+  KVS Person ids get=(id, firstName, lastName)
+[coordinator] Projection[p.id, f.id, f.firstName, f.lastName]
+
+### ISV4 @graph
+[neo4j] columns=(m.id, m.length, post.id, post.creationDate)
+  MATCH (m:Message) WHERE (m.creationDate >= $p0) AND (m.creationDate < $p1) MATCH _sp_r0 = (m)-[:REPLY_OF*0..]->(post:Post) WHERE (post.language = $p2) WITH m.id AS v0, m.length AS v1, post.id AS v2, post.creationDate AS v3 RETURN v0 AS c0, v1 AS c1, v2 AS c2, v3 AS c3
+  params: p0=2012-11-01 00:00:00 +0000 UTC(time.Time), p1=2012-11-02 00:00:00 +0000 UTC(time.Time), p2="zh"
+
+### ISV4 @relational
+[mysql] columns=(m)
+  SELECT `uuid` AS c0 FROM `Message` WHERE (`creationDate` >= ?) AND (`creationDate` < ?)
+  args: 2012-11-01 00:00:00 +0000 UTC(time.Time), 2012-11-02 00:00:00 +0000 UTC(time.Time)
+[neo4j] columns=(m, post, _w) in=(m)
+  MATCH (m:Message) WHERE m.uuid IN $in MATCH _sp_r0 = (m)-[:REPLY_OF*0..]->(post:Post) RETURN m.uuid AS c0, post.uuid AS c1, count(*) AS c2
+[mysql] columns=(post) in=(post)
+  SELECT `uuid` AS c0 FROM `Message` WHERE `uuid` IN (?) AND (`language` = ?)
+  args: <in>, "zh"
+[mysql] columns=(m, m.id, m.length) in=(m)
+  SELECT `uuid` AS c0, `id` AS c1, `length` AS c2 FROM `Message` WHERE `uuid` IN (?)
+  args: <in>
+[mysql] columns=(post, post.creationDate, post.id) in=(post)
+  SELECT `uuid` AS c0, `creationDate` AS c1, `id` AS c2 FROM `Message` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[m.id, m.length, post.id, post.creationDate]
+
+### ISV4 @document
+[mongo] columns=(m)
+  db.Message.aggregate([
+    {$match: {creationDate: {$gte: 2012-11-01 00:00:00 +0000 UTC(time.Time)}, creationDate: {$lt: 2012-11-02 00:00:00 +0000 UTC(time.Time)}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(m, post, _w) in=(m)
+  MATCH (m:Message) WHERE m.uuid IN $in MATCH _sp_r0 = (m)-[:REPLY_OF*0..]->(post:Post) RETURN m.uuid AS c0, post.uuid AS c1, count(*) AS c2
+[mongo] columns=(post) in=(post)
+  db.Message.aggregate([
+    {$match: {uuid: {$in: <in>}, language: {$eq: "zh"}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[mongo] columns=(m, m.id, m.length) in=(m)
+  db.Message.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$id", c2: "$length"}}
+  ])
+[mongo] columns=(post, post.creationDate, post.id) in=(post)
+  db.Message.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$creationDate", c2: "$id"}}
+  ])
+[coordinator] Projection[m.id, m.length, post.id, post.creationDate]
+
+### ISV4 @columnar
+[clickhouse] columns=(m)
+  SELECT `uuid` AS c0 FROM `Message` WHERE (`creationDate` >= toDateTime64('2012-11-01 00:00:00.000000', 6, 'UTC')) AND (`creationDate` < toDateTime64('2012-11-02 00:00:00.000000', 6, 'UTC'))
+[neo4j] columns=(m, post, _w) in=(m)
+  MATCH (m:Message) WHERE m.uuid IN $in MATCH _sp_r0 = (m)-[:REPLY_OF*0..]->(post:Post) RETURN m.uuid AS c0, post.uuid AS c1, count(*) AS c2
+[clickhouse] columns=(post) in=(post)
+  SELECT `uuid` AS c0 FROM `Message` WHERE `uuid` IN (?) AND (`language` = 'zh')
+  args: <in>
+[clickhouse] columns=(m, m.id, m.length) in=(m)
+  SELECT `uuid` AS c0, `id` AS c1, `length` AS c2 FROM `Message` WHERE `uuid` IN (?)
+  args: <in>
+[clickhouse] columns=(post, post.creationDate, post.id) in=(post)
+  SELECT `uuid` AS c0, `creationDate` AS c1, `id` AS c2 FROM `Message` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[m.id, m.length, post.id, post.creationDate]
+
+### ISV4 @widecolumn
+[cassandra] columns=(m)
+  SELECT "uuid" AS c0 FROM "Message" WHERE ("creationDate" >= ?) AND ("creationDate" < ?) ALLOW FILTERING
+  args: 2012-11-01 00:00:00 +0000 UTC(time.Time), 2012-11-02 00:00:00 +0000 UTC(time.Time)
+[neo4j] columns=(m, post, _w) in=(m)
+  MATCH (m:Message) WHERE m.uuid IN $in MATCH _sp_r0 = (m)-[:REPLY_OF*0..]->(post:Post) RETURN m.uuid AS c0, post.uuid AS c1, count(*) AS c2
+[cassandra] columns=(post) in=(post)
+  SELECT "uuid" AS c0 FROM "Message" WHERE "uuid" IN ? AND ("language" = ?) ALLOW FILTERING
+  args: <in>, "zh"
+[cassandra] columns=(m, m.id, m.length) in=(m)
+  SELECT "uuid" AS c0, "id" AS c1, "length" AS c2 FROM "Message" WHERE "uuid" IN ?
+  args: <in>
+[cassandra] columns=(post, post.creationDate, post.id) in=(post)
+  SELECT "uuid" AS c0, "creationDate" AS c1, "id" AS c2 FROM "Message" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Projection[m.id, m.length, post.id, post.creationDate]
+
+### ISV4 @kvs
+[leveldb] columns=(m)
+  KVS Message scan get=(creationDate) filter (m.creationDate >= 2012-11-01 00:00:00 +0000 UTC) filter (m.creationDate < 2012-11-02 00:00:00 +0000 UTC)
+[neo4j] columns=(m, post, _w) in=(m)
+  MATCH (m:Message) WHERE m.uuid IN $in MATCH _sp_r0 = (m)-[:REPLY_OF*0..]->(post:Post) RETURN m.uuid AS c0, post.uuid AS c1, count(*) AS c2
+[leveldb] columns=(post) in=(post)
+  KVS Message ids get=(language) filter (post.language = "zh")
+[leveldb] columns=(m, m.id, m.length) in=(m)
+  KVS Message ids get=(id, length)
+[leveldb] columns=(post, post.creationDate, post.id) in=(post)
+  KVS Message ids get=(id, creationDate)
+[coordinator] Projection[m.id, m.length, post.id, post.creationDate]
+
+### MULTIPAT @graph
+[neo4j] columns=(friend.id, friend.firstName, city.id)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)-[_r0:KNOWS]-(friend:Person) MATCH (friend)-[_r1:IS_LOCATED_IN]->(city:Place) WITH friend.id AS v0, city AS city, friend AS friend WITH * ORDER BY v0 LIMIT 20 WITH v0 AS v3, friend.firstName AS v4, city.id AS v5 RETURN v3 AS c0, v4 AS c1, v5 AS c2
+  params: p0=15393162799448(int64)
+
+### MULTIPAT @relational
+[mysql] columns=(p)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = ?)
+  args: 15393162799448(int64)
+[neo4j] columns=(p, city, friend) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH (p)-[_r0:KNOWS]-(friend:Person) MATCH (friend)-[_r1:IS_LOCATED_IN]->(city:Place) RETURN p.uuid AS c0, city.uuid AS c1, friend.uuid AS c2
+[mysql] columns=(friend, friend.id) in=(friend)
+  SELECT `uuid` AS c0, `id` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[friend.id, city, friend]
+[coordinator] Sort[friend.id ASC]
+[coordinator] Limit[20]
+[mysql] columns=(friend, friend.firstName) in=(friend)
+  SELECT `uuid` AS c0, `firstName` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[mysql] columns=(city, city.id) in=(city)
+  SELECT `uuid` AS c0, `id` AS c1 FROM `Place` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[friend.id, friend.firstName, city.id]
+
+### MULTIPAT @document
+[mongo] columns=(p)
+  db.Person.aggregate([
+    {$match: {id: {$eq: 15393162799448(int64)}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(p, city, friend) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH (p)-[_r0:KNOWS]-(friend:Person) MATCH (friend)-[_r1:IS_LOCATED_IN]->(city:Place) RETURN p.uuid AS c0, city.uuid AS c1, friend.uuid AS c2
+[mongo] columns=(friend, friend.id) in=(friend)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$id"}}
+  ])
+[coordinator] Projection[friend.id, city, friend]
+[coordinator] Sort[friend.id ASC]
+[coordinator] Limit[20]
+[mongo] columns=(friend, friend.firstName) in=(friend)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$firstName"}}
+  ])
+[mongo] columns=(city, city.id) in=(city)
+  db.Place.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$id"}}
+  ])
+[coordinator] Projection[friend.id, friend.firstName, city.id]
+
+### MULTIPAT @columnar
+[clickhouse] columns=(p)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = 15393162799448)
+[neo4j] columns=(p, city, friend) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH (p)-[_r0:KNOWS]-(friend:Person) MATCH (friend)-[_r1:IS_LOCATED_IN]->(city:Place) RETURN p.uuid AS c0, city.uuid AS c1, friend.uuid AS c2
+[clickhouse] columns=(friend, friend.id) in=(friend)
+  SELECT `uuid` AS c0, `id` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[friend.id, city, friend]
+[coordinator] Sort[friend.id ASC]
+[coordinator] Limit[20]
+[clickhouse] columns=(friend, friend.firstName) in=(friend)
+  SELECT `uuid` AS c0, `firstName` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[clickhouse] columns=(city, city.id) in=(city)
+  SELECT `uuid` AS c0, `id` AS c1 FROM `Place` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[friend.id, friend.firstName, city.id]
+
+### MULTIPAT @widecolumn
+[cassandra] columns=(p)
+  SELECT "uuid" AS c0 FROM "Person" WHERE ("id" = ?) ALLOW FILTERING
+  args: 15393162799448(int64)
+[neo4j] columns=(p, city, friend) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH (p)-[_r0:KNOWS]-(friend:Person) MATCH (friend)-[_r1:IS_LOCATED_IN]->(city:Place) RETURN p.uuid AS c0, city.uuid AS c1, friend.uuid AS c2
+[cassandra] columns=(friend, friend.id) in=(friend)
+  SELECT "uuid" AS c0, "id" AS c1 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Projection[friend.id, city, friend]
+[coordinator] Sort[friend.id ASC]
+[coordinator] Limit[20]
+[cassandra] columns=(friend, friend.firstName) in=(friend)
+  SELECT "uuid" AS c0, "firstName" AS c1 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[cassandra] columns=(city, city.id) in=(city)
+  SELECT "uuid" AS c0, "id" AS c1 FROM "Place" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Projection[friend.id, friend.firstName, city.id]
+
+### MULTIPAT @kvs
+[leveldb] columns=(p)
+  KVS Person index id=15393162799448(int64) get=(id) filter (p.id = 15393162799448)
+[neo4j] columns=(p, city, friend) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH (p)-[_r0:KNOWS]-(friend:Person) MATCH (friend)-[_r1:IS_LOCATED_IN]->(city:Place) RETURN p.uuid AS c0, city.uuid AS c1, friend.uuid AS c2
+[leveldb] columns=(friend, friend.id) in=(friend)
+  KVS Person ids get=(id)
+[coordinator] Projection[friend.id, city, friend]
+[coordinator] Sort[friend.id ASC]
+[coordinator] Limit[20]
+[leveldb] columns=(friend, friend.firstName) in=(friend)
+  KVS Person ids get=(firstName)
+[leveldb] columns=(city, city.id) in=(city)
+  KVS Place ids get=(id)
+[coordinator] Projection[friend.id, friend.firstName, city.id]
+
+### PATHFILT @graph
+[neo4j] columns=(other.id, other.firstName)
+  MATCH (person:Person) WHERE (person.id = $p0) MATCH _sp_r0 = (person)-[:KNOWS*1..3]-(other:Person) WHERE all(r IN relationships(_sp_r0) WHERE (r.creationDate > $p1)) WITH other.id AS v0, other AS other WITH * ORDER BY v0 LIMIT 20 WITH v0 AS v2, other.firstName AS v3 RETURN v2 AS c0, v3 AS c1
+  params: p0=17592186049378(int64), p1=2010-01-01 00:00:00 +0000 UTC(time.Time)
+
+### PATHFILT @relational
+[mysql] columns=(person)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = ?)
+  args: 17592186049378(int64)
+[neo4j] columns=(person, other, _w) in=(person)
+  MATCH (person:Person) WHERE person.uuid IN $in MATCH _sp_r0 = (person)-[:KNOWS*1..3]-(other:Person) WHERE all(r IN relationships(_sp_r0) WHERE (r.creationDate > $p0)) RETURN person.uuid AS c0, other.uuid AS c1, count(*) AS c2
+  params: p0=2010-01-01 00:00:00 +0000 UTC(time.Time)
+[mysql] columns=(other, other.id) in=(other)
+  SELECT `uuid` AS c0, `id` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[other.id, other]
+[coordinator] Sort[other.id ASC]
+[coordinator] Limit[20]
+[mysql] columns=(other, other.firstName) in=(other)
+  SELECT `uuid` AS c0, `firstName` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[other.id, other.firstName]
+
+### PATHFILT @document
+[mongo] columns=(person)
+  db.Person.aggregate([
+    {$match: {id: {$eq: 17592186049378(int64)}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(person, other, _w) in=(person)
+  MATCH (person:Person) WHERE person.uuid IN $in MATCH _sp_r0 = (person)-[:KNOWS*1..3]-(other:Person) WHERE all(r IN relationships(_sp_r0) WHERE (r.creationDate > $p0)) RETURN person.uuid AS c0, other.uuid AS c1, count(*) AS c2
+  params: p0=2010-01-01 00:00:00 +0000 UTC(time.Time)
+[mongo] columns=(other, other.id) in=(other)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$id"}}
+  ])
+[coordinator] Projection[other.id, other]
+[coordinator] Sort[other.id ASC]
+[coordinator] Limit[20]
+[mongo] columns=(other, other.firstName) in=(other)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$firstName"}}
+  ])
+[coordinator] Projection[other.id, other.firstName]
+
+### PATHFILT @columnar
+[clickhouse] columns=(person)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = 17592186049378)
+[neo4j] columns=(person, other, _w) in=(person)
+  MATCH (person:Person) WHERE person.uuid IN $in MATCH _sp_r0 = (person)-[:KNOWS*1..3]-(other:Person) WHERE all(r IN relationships(_sp_r0) WHERE (r.creationDate > $p0)) RETURN person.uuid AS c0, other.uuid AS c1, count(*) AS c2
+  params: p0=2010-01-01 00:00:00 +0000 UTC(time.Time)
+[clickhouse] columns=(other, other.id) in=(other)
+  SELECT `uuid` AS c0, `id` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[other.id, other]
+[coordinator] Sort[other.id ASC]
+[coordinator] Limit[20]
+[clickhouse] columns=(other, other.firstName) in=(other)
+  SELECT `uuid` AS c0, `firstName` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[other.id, other.firstName]
+
+### PATHFILT @widecolumn
+[cassandra] columns=(person)
+  SELECT "uuid" AS c0 FROM "Person" WHERE ("id" = ?) ALLOW FILTERING
+  args: 17592186049378(int64)
+[neo4j] columns=(person, other, _w) in=(person)
+  MATCH (person:Person) WHERE person.uuid IN $in MATCH _sp_r0 = (person)-[:KNOWS*1..3]-(other:Person) WHERE all(r IN relationships(_sp_r0) WHERE (r.creationDate > $p0)) RETURN person.uuid AS c0, other.uuid AS c1, count(*) AS c2
+  params: p0=2010-01-01 00:00:00 +0000 UTC(time.Time)
+[cassandra] columns=(other, other.id) in=(other)
+  SELECT "uuid" AS c0, "id" AS c1 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Projection[other.id, other]
+[coordinator] Sort[other.id ASC]
+[coordinator] Limit[20]
+[cassandra] columns=(other, other.firstName) in=(other)
+  SELECT "uuid" AS c0, "firstName" AS c1 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Projection[other.id, other.firstName]
+
+### PATHFILT @kvs
+[leveldb] columns=(person)
+  KVS Person index id=17592186049378(int64) get=(id) filter (person.id = 17592186049378)
+[neo4j] columns=(person, other, _w) in=(person)
+  MATCH (person:Person) WHERE person.uuid IN $in MATCH _sp_r0 = (person)-[:KNOWS*1..3]-(other:Person) WHERE all(r IN relationships(_sp_r0) WHERE (r.creationDate > $p0)) RETURN person.uuid AS c0, other.uuid AS c1, count(*) AS c2
+  params: p0=2010-01-01 00:00:00 +0000 UTC(time.Time)
+[leveldb] columns=(other, other.id) in=(other)
+  KVS Person ids get=(id)
+[coordinator] Projection[other.id, other]
+[coordinator] Sort[other.id ASC]
+[coordinator] Limit[20]
+[leveldb] columns=(other, other.firstName) in=(other)
+  KVS Person ids get=(firstName)
+[coordinator] Projection[other.id, other.firstName]
+
+### TP1 @graph
+[neo4j] columns=(author.firstName, author.lastName, replyCount)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) MATCH (m)<-[_r1:REPLY_OF]-(comment:Comment) MATCH (comment)-[_r2:HAS_CREATOR]->(author:Person) WHERE _r0 <> _r2 WITH author.firstName AS v0, author.lastName AS v1, count(comment) AS v2 RETURN v0 AS c0, v1 AS c1, v2 AS c2 ORDER BY v2 DESC, v1 LIMIT 20
+  params: p0=15393162799448(int64)
+
+### TP1 @relational
+[neo4j] columns=(author, comment)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) MATCH (m)<-[_r1:REPLY_OF]-(comment:Comment) MATCH (comment)-[_r2:HAS_CREATOR]->(author:Person) WHERE _r0 <> _r2 RETURN author.uuid AS c0, comment.uuid AS c1
+  params: p0=15393162799448(int64)
+[mysql] columns=(author, author.firstName, author.lastName) in=(author)
+  SELECT `uuid` AS c0, `firstName` AS c1, `lastName` AS c2 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Aggregation[keys: author.firstName, author.lastName | count(comment) AS replyCount]
+[coordinator] Sort[replyCount DESC, author.lastName ASC]
+[coordinator] Limit[20]
+
+### TP1 @document
+[neo4j] columns=(author, comment)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) MATCH (m)<-[_r1:REPLY_OF]-(comment:Comment) MATCH (comment)-[_r2:HAS_CREATOR]->(author:Person) WHERE _r0 <> _r2 RETURN author.uuid AS c0, comment.uuid AS c1
+  params: p0=15393162799448(int64)
+[mongo] columns=(author, author.firstName, author.lastName) in=(author)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$firstName", c2: "$lastName"}}
+  ])
+[coordinator] Aggregation[keys: author.firstName, author.lastName | count(comment) AS replyCount]
+[coordinator] Sort[replyCount DESC, author.lastName ASC]
+[coordinator] Limit[20]
+
+### TP1 @columnar
+[neo4j] columns=(author, comment)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) MATCH (m)<-[_r1:REPLY_OF]-(comment:Comment) MATCH (comment)-[_r2:HAS_CREATOR]->(author:Person) WHERE _r0 <> _r2 RETURN author.uuid AS c0, comment.uuid AS c1
+  params: p0=15393162799448(int64)
+[clickhouse] columns=(author, author.firstName, author.lastName) in=(author)
+  SELECT `uuid` AS c0, `firstName` AS c1, `lastName` AS c2 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Aggregation[keys: author.firstName, author.lastName | count(comment) AS replyCount]
+[coordinator] Sort[replyCount DESC, author.lastName ASC]
+[coordinator] Limit[20]
+
+### TP1 @widecolumn
+[neo4j] columns=(author, comment)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) MATCH (m)<-[_r1:REPLY_OF]-(comment:Comment) MATCH (comment)-[_r2:HAS_CREATOR]->(author:Person) WHERE _r0 <> _r2 RETURN author.uuid AS c0, comment.uuid AS c1
+  params: p0=15393162799448(int64)
+[cassandra] columns=(author, author.firstName, author.lastName) in=(author)
+  SELECT "uuid" AS c0, "firstName" AS c1, "lastName" AS c2 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Aggregation[keys: author.firstName, author.lastName | count(comment) AS replyCount]
+[coordinator] Sort[replyCount DESC, author.lastName ASC]
+[coordinator] Limit[20]
+
+### TP1 @kvs
+[neo4j] columns=(author, comment)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) MATCH (m)<-[_r1:REPLY_OF]-(comment:Comment) MATCH (comment)-[_r2:HAS_CREATOR]->(author:Person) WHERE _r0 <> _r2 RETURN author.uuid AS c0, comment.uuid AS c1
+  params: p0=15393162799448(int64)
+[leveldb] columns=(author, author.firstName, author.lastName) in=(author)
+  KVS Person ids get=(firstName, lastName)
+[coordinator] Aggregation[keys: author.firstName, author.lastName | count(comment) AS replyCount]
+[coordinator] Sort[replyCount DESC, author.lastName ASC]
+[coordinator] Limit[20]
+
+### VARCMP @graph
+[neo4j] columns=(a.id, b.id, b.firstName)
+  MATCH (a:Person) WHERE (a.id = $p0) MATCH (a)-[_r0:KNOWS]-(b:Person) WHERE (a.id < b.id) WITH a.id AS v0, b.id AS v1, b AS b WITH * ORDER BY v1 LIMIT 20 WITH v0 AS v3, v1 AS v4, b.firstName AS v5 RETURN v3 AS c0, v4 AS c1, v5 AS c2
+  params: p0=15393162799448(int64)
+
+### VARCMP @relational
+[mysql] columns=(a, a.id)
+  SELECT `uuid` AS c0, `id` AS c1 FROM `Person` WHERE (`id` = ?)
+  args: 15393162799448(int64)
+[neo4j] columns=(a, b) in=(a)
+  MATCH (a:Person) WHERE a.uuid IN $in MATCH (a)-[_r0:KNOWS]-(b:Person) RETURN a.uuid AS c0, b.uuid AS c1
+[mysql] columns=(b, b.id) in=(b)
+  SELECT `uuid` AS c0, `id` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Filter((a.id < b.id))
+[coordinator] Projection[a.id, b.id, b]
+[coordinator] Sort[b.id ASC]
+[coordinator] Limit[20]
+[mysql] columns=(b, b.firstName) in=(b)
+  SELECT `uuid` AS c0, `firstName` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[a.id, b.id, b.firstName]
+
+### VARCMP @document
+[mongo] columns=(a, a.id)
+  db.Person.aggregate([
+    {$match: {id: {$eq: 15393162799448(int64)}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$id"}}
+  ])
+[neo4j] columns=(a, b) in=(a)
+  MATCH (a:Person) WHERE a.uuid IN $in MATCH (a)-[_r0:KNOWS]-(b:Person) RETURN a.uuid AS c0, b.uuid AS c1
+[mongo] columns=(b, b.id) in=(b)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$id"}}
+  ])
+[coordinator] Filter((a.id < b.id))
+[coordinator] Projection[a.id, b.id, b]
+[coordinator] Sort[b.id ASC]
+[coordinator] Limit[20]
+[mongo] columns=(b, b.firstName) in=(b)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$firstName"}}
+  ])
+[coordinator] Projection[a.id, b.id, b.firstName]
+
+### VARCMP @columnar
+[clickhouse] columns=(a, a.id)
+  SELECT `uuid` AS c0, `id` AS c1 FROM `Person` WHERE (`id` = 15393162799448)
+[neo4j] columns=(a, b) in=(a)
+  MATCH (a:Person) WHERE a.uuid IN $in MATCH (a)-[_r0:KNOWS]-(b:Person) RETURN a.uuid AS c0, b.uuid AS c1
+[clickhouse] columns=(b, b.id) in=(b)
+  SELECT `uuid` AS c0, `id` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Filter((a.id < b.id))
+[coordinator] Projection[a.id, b.id, b]
+[coordinator] Sort[b.id ASC]
+[coordinator] Limit[20]
+[clickhouse] columns=(b, b.firstName) in=(b)
+  SELECT `uuid` AS c0, `firstName` AS c1 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[a.id, b.id, b.firstName]
+
+### VARCMP @widecolumn
+[cassandra] columns=(a, a.id)
+  SELECT "uuid" AS c0, "id" AS c1 FROM "Person" WHERE ("id" = ?) ALLOW FILTERING
+  args: 15393162799448(int64)
+[neo4j] columns=(a, b) in=(a)
+  MATCH (a:Person) WHERE a.uuid IN $in MATCH (a)-[_r0:KNOWS]-(b:Person) RETURN a.uuid AS c0, b.uuid AS c1
+[cassandra] columns=(b, b.id) in=(b)
+  SELECT "uuid" AS c0, "id" AS c1 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Filter((a.id < b.id))
+[coordinator] Projection[a.id, b.id, b]
+[coordinator] Sort[b.id ASC]
+[coordinator] Limit[20]
+[cassandra] columns=(b, b.firstName) in=(b)
+  SELECT "uuid" AS c0, "firstName" AS c1 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Projection[a.id, b.id, b.firstName]
+
+### VARCMP @kvs
+[leveldb] columns=(a, a.id)
+  KVS Person index id=15393162799448(int64) get=(id) filter (a.id = 15393162799448)
+[neo4j] columns=(a, b) in=(a)
+  MATCH (a:Person) WHERE a.uuid IN $in MATCH (a)-[_r0:KNOWS]-(b:Person) RETURN a.uuid AS c0, b.uuid AS c1
+[leveldb] columns=(b, b.id) in=(b)
+  KVS Person ids get=(id)
+[coordinator] Filter((a.id < b.id))
+[coordinator] Projection[a.id, b.id, b]
+[coordinator] Sort[b.id ASC]
+[coordinator] Limit[20]
+[leveldb] columns=(b, b.firstName) in=(b)
+  KVS Person ids get=(firstName)
+[coordinator] Projection[a.id, b.id, b.firstName]
+
+### VP1 @graph
+[neo4j] columns=(p.id, f.id, f.firstName, f.lastName)
+  MATCH (p:Person) WHERE (p.id IN [$p0, $p1, $p2, $p3, $p4, $p5, $p6, $p7, $p8, $p9, $p10]) MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) WHERE (f.birthday >= $p11) AND (f.birthday < $p12) WITH p.id AS v0, f.id AS v1, f.firstName AS v2, f.lastName AS v3 RETURN v0 AS c0, v1 AS c1, v2 AS c2, v3 AS c3
+  params: p0=14(int64), p1=2199023262647(int64), p10=35184372097588(int64), p11=1985-01-01(dbtype.Date), p12=1986-01-01(dbtype.Date), p2=6597069770240(int64), p3=10995116278068(int64), p4=13194139540794(int64), p5=17592186048307(int64), p6=21990232556371(int64), p7=24189255818910(int64), p8=28587302327203(int64), p9=32985348834784(int64)
+
+### VP1 @relational
+[mysql] columns=(p, p.id)
+  SELECT `uuid` AS c0, `id` AS c1 FROM `Person` WHERE `id` IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  args: 14(int64), 2199023262647(int64), 6597069770240(int64), 10995116278068(int64), 13194139540794(int64), 17592186048307(int64), 21990232556371(int64), 24189255818910(int64), 28587302327203(int64), 32985348834784(int64), 35184372097588(int64)
+[neo4j] columns=(p, f, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) RETURN p.uuid AS c0, f.uuid AS c1, count(*) AS c2
+[mysql] columns=(f, f.firstName, f.id, f.lastName) in=(f)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2, `lastName` AS c3 FROM `Person` WHERE `uuid` IN (?) AND (`birthday` >= ?) AND (`birthday` < ?)
+  args: <in>, 1985-01-01 00:00:00 +0000 UTC(time.Time), 1986-01-01 00:00:00 +0000 UTC(time.Time)
+[coordinator] Projection[p.id, f.id, f.firstName, f.lastName]
+
+### VP1 @document
+[mongo] columns=(p, p.id)
+  db.Person.aggregate([
+    {$match: {id: {$in: [14(int64), 2199023262647(int64), 6597069770240(int64), 10995116278068(int64), 13194139540794(int64), 17592186048307(int64), 21990232556371(int64), 24189255818910(int64), 28587302327203(int64), 32985348834784(int64), 35184372097588(int64)]}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$id"}}
+  ])
+[neo4j] columns=(p, f, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) RETURN p.uuid AS c0, f.uuid AS c1, count(*) AS c2
+[mongo] columns=(f, f.firstName, f.id, f.lastName) in=(f)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}, birthday: {$gte: 1985-01-01 00:00:00 +0000 UTC(time.Time)}, birthday: {$lt: 1986-01-01 00:00:00 +0000 UTC(time.Time)}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$firstName", c2: "$id", c3: "$lastName"}}
+  ])
+[coordinator] Projection[p.id, f.id, f.firstName, f.lastName]
+
+### VP1 @columnar
+[clickhouse] columns=(p, p.id)
+  SELECT `uuid` AS c0, `id` AS c1 FROM `Person` WHERE `id` IN (14, 2199023262647, 6597069770240, 10995116278068, 13194139540794, 17592186048307, 21990232556371, 24189255818910, 28587302327203, 32985348834784, 35184372097588)
+[neo4j] columns=(p, f, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) RETURN p.uuid AS c0, f.uuid AS c1, count(*) AS c2
+[clickhouse] columns=(f, f.firstName, f.id, f.lastName) in=(f)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2, `lastName` AS c3 FROM `Person` WHERE `uuid` IN (?) AND (`birthday` >= toDate32('1985-01-01')) AND (`birthday` < toDate32('1986-01-01'))
+  args: <in>
+[coordinator] Projection[p.id, f.id, f.firstName, f.lastName]
+
+### VP1 @widecolumn
+[cassandra] columns=(p, p.id)
+  SELECT "uuid" AS c0, "id" AS c1 FROM "Person" WHERE "id" IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ALLOW FILTERING
+  args: 14(int64), 2199023262647(int64), 6597069770240(int64), 10995116278068(int64), 13194139540794(int64), 17592186048307(int64), 21990232556371(int64), 24189255818910(int64), 28587302327203(int64), 32985348834784(int64), 35184372097588(int64)
+[neo4j] columns=(p, f, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) RETURN p.uuid AS c0, f.uuid AS c1, count(*) AS c2
+[cassandra] columns=(f, f.firstName, f.id, f.lastName) in=(f)
+  SELECT "uuid" AS c0, "firstName" AS c1, "id" AS c2, "lastName" AS c3 FROM "Person" WHERE "uuid" IN ? AND ("birthday" >= ?) AND ("birthday" < ?) ALLOW FILTERING
+  args: <in>, 1985-01-01 00:00:00 +0000 UTC(time.Time), 1986-01-01 00:00:00 +0000 UTC(time.Time)
+[coordinator] Projection[p.id, f.id, f.firstName, f.lastName]
+
+### VP1 @kvs
+[leveldb] columns=(p, p.id)
+  KVS Person scan get=(id) filter (p.id IN [14, 2199023262647, 6597069770240, 10995116278068, 13194139540794, 17592186048307, 21990232556371, 24189255818910, 28587302327203, 32985348834784, 35184372097588])
+[neo4j] columns=(p, f, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) RETURN p.uuid AS c0, f.uuid AS c1, count(*) AS c2
+[leveldb] columns=(f, f.firstName, f.id, f.lastName) in=(f)
+  KVS Person ids get=(birthday, id, firstName, lastName) filter (f.birthday >= 1985-01-01 00:00:00 +0000 UTC) filter (f.birthday < 1986-01-01 00:00:00 +0000 UTC)
+[coordinator] Projection[p.id, f.id, f.firstName, f.lastName]
+
+### VP2 @graph
+[neo4j] columns=(f.id, f.lastName, n, avgLen)
+  MATCH (p:Person) WHERE (p.id IN [$p0, $p1, $p2, $p3, $p4, $p5, $p6, $p7, $p8, $p9, $p10]) MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) MATCH (f)<-[_r1:HAS_CREATOR]-(m:Message) WHERE (m.creationDate >= $p11) AND (m.creationDate < $p12) WITH f.id AS v0, f.lastName AS v1, count(m) AS v2, avg(m.length) AS v3 RETURN v0 AS c0, v1 AS c1, v2 AS c2, v3 AS c3
+  params: p0=14(int64), p1=2199023262647(int64), p10=35184372097588(int64), p11=2012-10-01 00:00:00 +0000 UTC(time.Time), p12=2012-11-01 00:00:00 +0000 UTC(time.Time), p2=6597069770240(int64), p3=10995116278068(int64), p4=13194139540794(int64), p5=17592186048307(int64), p6=21990232556371(int64), p7=24189255818910(int64), p8=28587302327203(int64), p9=32985348834784(int64)
+
+### VP2 @relational
+[mysql] columns=(p)
+  SELECT `uuid` AS c0 FROM `Person` WHERE `id` IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  args: 14(int64), 2199023262647(int64), 6597069770240(int64), 10995116278068(int64), 13194139540794(int64), 17592186048307(int64), 21990232556371(int64), 24189255818910(int64), 28587302327203(int64), 32985348834784(int64), 35184372097588(int64)
+[neo4j] columns=(p, f, m, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) MATCH (f)<-[_r1:HAS_CREATOR]-(m:Message) RETURN p.uuid AS c0, f.uuid AS c1, m.uuid AS c2, count(*) AS c3
+[mysql] columns=(m) in=(m)
+  SELECT `uuid` AS c0 FROM `Message` WHERE `uuid` IN (?) AND (`creationDate` >= ?) AND (`creationDate` < ?)
+  args: <in>, 2012-10-01 00:00:00 +0000 UTC(time.Time), 2012-11-01 00:00:00 +0000 UTC(time.Time)
+[mysql] columns=(f, f.id, f.lastName) in=(f)
+  SELECT `uuid` AS c0, `id` AS c1, `lastName` AS c2 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[mysql] columns=(m, m.length) in=(m)
+  SELECT `uuid` AS c0, `length` AS c1 FROM `Message` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Aggregation[keys: f.id, f.lastName | count(m) AS n, avg(m.length) AS avgLen]
+
+### VP2 @document
+[mongo] columns=(p)
+  db.Person.aggregate([
+    {$match: {id: {$in: [14(int64), 2199023262647(int64), 6597069770240(int64), 10995116278068(int64), 13194139540794(int64), 17592186048307(int64), 21990232556371(int64), 24189255818910(int64), 28587302327203(int64), 32985348834784(int64), 35184372097588(int64)]}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(p, f, m, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) MATCH (f)<-[_r1:HAS_CREATOR]-(m:Message) RETURN p.uuid AS c0, f.uuid AS c1, m.uuid AS c2, count(*) AS c3
+[mongo] columns=(m) in=(m)
+  db.Message.aggregate([
+    {$match: {uuid: {$in: <in>}, creationDate: {$gte: 2012-10-01 00:00:00 +0000 UTC(time.Time)}, creationDate: {$lt: 2012-11-01 00:00:00 +0000 UTC(time.Time)}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[mongo] columns=(f, f.id, f.lastName) in=(f)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$id", c2: "$lastName"}}
+  ])
+[mongo] columns=(m, m.length) in=(m)
+  db.Message.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$length"}}
+  ])
+[coordinator] Aggregation[keys: f.id, f.lastName | count(m) AS n, avg(m.length) AS avgLen]
+
+### VP2 @columnar
+[clickhouse] columns=(p)
+  SELECT `uuid` AS c0 FROM `Person` WHERE `id` IN (14, 2199023262647, 6597069770240, 10995116278068, 13194139540794, 17592186048307, 21990232556371, 24189255818910, 28587302327203, 32985348834784, 35184372097588)
+[neo4j] columns=(p, f, m, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) MATCH (f)<-[_r1:HAS_CREATOR]-(m:Message) RETURN p.uuid AS c0, f.uuid AS c1, m.uuid AS c2, count(*) AS c3
+[clickhouse] columns=(m) in=(m)
+  SELECT `uuid` AS c0 FROM `Message` WHERE `uuid` IN (?) AND (`creationDate` >= toDateTime64('2012-10-01 00:00:00.000000', 6, 'UTC')) AND (`creationDate` < toDateTime64('2012-11-01 00:00:00.000000', 6, 'UTC'))
+  args: <in>
+[clickhouse] columns=(f, f.id, f.lastName) in=(f)
+  SELECT `uuid` AS c0, `id` AS c1, `lastName` AS c2 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[clickhouse] columns=(m, m.length) in=(m)
+  SELECT `uuid` AS c0, `length` AS c1 FROM `Message` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Aggregation[keys: f.id, f.lastName | count(m) AS n, avg(m.length) AS avgLen]
+
+### VP2 @widecolumn
+[cassandra] columns=(p)
+  SELECT "uuid" AS c0 FROM "Person" WHERE "id" IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ALLOW FILTERING
+  args: 14(int64), 2199023262647(int64), 6597069770240(int64), 10995116278068(int64), 13194139540794(int64), 17592186048307(int64), 21990232556371(int64), 24189255818910(int64), 28587302327203(int64), 32985348834784(int64), 35184372097588(int64)
+[neo4j] columns=(p, f, m, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) MATCH (f)<-[_r1:HAS_CREATOR]-(m:Message) RETURN p.uuid AS c0, f.uuid AS c1, m.uuid AS c2, count(*) AS c3
+[cassandra] columns=(m) in=(m)
+  SELECT "uuid" AS c0 FROM "Message" WHERE "uuid" IN ? AND ("creationDate" >= ?) AND ("creationDate" < ?) ALLOW FILTERING
+  args: <in>, 2012-10-01 00:00:00 +0000 UTC(time.Time), 2012-11-01 00:00:00 +0000 UTC(time.Time)
+[cassandra] columns=(f, f.id, f.lastName) in=(f)
+  SELECT "uuid" AS c0, "id" AS c1, "lastName" AS c2 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[cassandra] columns=(m, m.length) in=(m)
+  SELECT "uuid" AS c0, "length" AS c1 FROM "Message" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Aggregation[keys: f.id, f.lastName | count(m) AS n, avg(m.length) AS avgLen]
+
+### VP2 @kvs
+[leveldb] columns=(p)
+  KVS Person scan get=(id) filter (p.id IN [14, 2199023262647, 6597069770240, 10995116278068, 13194139540794, 17592186048307, 21990232556371, 24189255818910, 28587302327203, 32985348834784, 35184372097588])
+[neo4j] columns=(p, f, m, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) MATCH (f)<-[_r1:HAS_CREATOR]-(m:Message) RETURN p.uuid AS c0, f.uuid AS c1, m.uuid AS c2, count(*) AS c3
+[leveldb] columns=(m) in=(m)
+  KVS Message ids get=(creationDate) filter (m.creationDate >= 2012-10-01 00:00:00 +0000 UTC) filter (m.creationDate < 2012-11-01 00:00:00 +0000 UTC)
+[leveldb] columns=(f, f.id, f.lastName) in=(f)
+  KVS Person ids get=(id, lastName)
+[leveldb] columns=(m, m.length) in=(m)
+  KVS Message ids get=(length)
+[coordinator] Aggregation[keys: f.id, f.lastName | count(m) AS n, avg(m.length) AS avgLen]
+
+### VP3 @graph
+[neo4j] columns=(f.id, f.firstName, f.lastName)
+  MATCH (p:Person) WHERE (p.id IN [$p0, $p1, $p2, $p3, $p4, $p5, $p6, $p7, $p8, $p9, $p10]) MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) WHERE (f.birthday >= $p11) AND (f.birthday < $p12) WITH f.id AS v0, f.birthday AS v1, f AS f WITH * ORDER BY v1 DESC, v0 LIMIT 100 WITH v0 AS v3, f.firstName AS v4, f.lastName AS v5 RETURN v3 AS c0, v4 AS c1, v5 AS c2
+  params: p0=14(int64), p1=2199023262647(int64), p10=35184372097588(int64), p11=1985-01-01(dbtype.Date), p12=1986-01-01(dbtype.Date), p2=6597069770240(int64), p3=10995116278068(int64), p4=13194139540794(int64), p5=17592186048307(int64), p6=21990232556371(int64), p7=24189255818910(int64), p8=28587302327203(int64), p9=32985348834784(int64)
+
+### VP3 @relational
+[mysql] columns=(p)
+  SELECT `uuid` AS c0 FROM `Person` WHERE `id` IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  args: 14(int64), 2199023262647(int64), 6597069770240(int64), 10995116278068(int64), 13194139540794(int64), 17592186048307(int64), 21990232556371(int64), 24189255818910(int64), 28587302327203(int64), 32985348834784(int64), 35184372097588(int64)
+[neo4j] columns=(p, f, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) RETURN p.uuid AS c0, f.uuid AS c1, count(*) AS c2
+[mysql] columns=(f, f.birthday, f.id) in=(f)
+  SELECT `uuid` AS c0, `birthday` AS c1, `id` AS c2 FROM `Person` WHERE `uuid` IN (?) AND (`birthday` >= ?) AND (`birthday` < ?)
+  args: <in>, 1985-01-01 00:00:00 +0000 UTC(time.Time), 1986-01-01 00:00:00 +0000 UTC(time.Time)
+[coordinator] Projection[f.id, f.birthday AS _sort0, f]
+[coordinator] Sort[_sort0 DESC, f.id ASC]
+[coordinator] Limit[100]
+[mysql] columns=(f, f.firstName, f.lastName) in=(f)
+  SELECT `uuid` AS c0, `firstName` AS c1, `lastName` AS c2 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[f.id, f.firstName, f.lastName]
+
+### VP3 @document
+[mongo] columns=(p)
+  db.Person.aggregate([
+    {$match: {id: {$in: [14(int64), 2199023262647(int64), 6597069770240(int64), 10995116278068(int64), 13194139540794(int64), 17592186048307(int64), 21990232556371(int64), 24189255818910(int64), 28587302327203(int64), 32985348834784(int64), 35184372097588(int64)]}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(p, f, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) RETURN p.uuid AS c0, f.uuid AS c1, count(*) AS c2
+[mongo] columns=(f, f.birthday, f.id) in=(f)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}, birthday: {$gte: 1985-01-01 00:00:00 +0000 UTC(time.Time)}, birthday: {$lt: 1986-01-01 00:00:00 +0000 UTC(time.Time)}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$birthday", c2: "$id"}}
+  ])
+[coordinator] Projection[f.id, f.birthday AS _sort0, f]
+[coordinator] Sort[_sort0 DESC, f.id ASC]
+[coordinator] Limit[100]
+[mongo] columns=(f, f.firstName, f.lastName) in=(f)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$firstName", c2: "$lastName"}}
+  ])
+[coordinator] Projection[f.id, f.firstName, f.lastName]
+
+### VP3 @columnar
+[clickhouse] columns=(p)
+  SELECT `uuid` AS c0 FROM `Person` WHERE `id` IN (14, 2199023262647, 6597069770240, 10995116278068, 13194139540794, 17592186048307, 21990232556371, 24189255818910, 28587302327203, 32985348834784, 35184372097588)
+[neo4j] columns=(p, f, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) RETURN p.uuid AS c0, f.uuid AS c1, count(*) AS c2
+[clickhouse] columns=(f, f.birthday, f.id) in=(f)
+  SELECT `uuid` AS c0, `birthday` AS c1, `id` AS c2 FROM `Person` WHERE `uuid` IN (?) AND (`birthday` >= toDate32('1985-01-01')) AND (`birthday` < toDate32('1986-01-01'))
+  args: <in>
+[coordinator] Projection[f.id, f.birthday AS _sort0, f]
+[coordinator] Sort[_sort0 DESC, f.id ASC]
+[coordinator] Limit[100]
+[clickhouse] columns=(f, f.firstName, f.lastName) in=(f)
+  SELECT `uuid` AS c0, `firstName` AS c1, `lastName` AS c2 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Projection[f.id, f.firstName, f.lastName]
+
+### VP3 @widecolumn
+[cassandra] columns=(p)
+  SELECT "uuid" AS c0 FROM "Person" WHERE "id" IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ALLOW FILTERING
+  args: 14(int64), 2199023262647(int64), 6597069770240(int64), 10995116278068(int64), 13194139540794(int64), 17592186048307(int64), 21990232556371(int64), 24189255818910(int64), 28587302327203(int64), 32985348834784(int64), 35184372097588(int64)
+[neo4j] columns=(p, f, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) RETURN p.uuid AS c0, f.uuid AS c1, count(*) AS c2
+[cassandra] columns=(f, f.birthday, f.id) in=(f)
+  SELECT "uuid" AS c0, "birthday" AS c1, "id" AS c2 FROM "Person" WHERE "uuid" IN ? AND ("birthday" >= ?) AND ("birthday" < ?) ALLOW FILTERING
+  args: <in>, 1985-01-01 00:00:00 +0000 UTC(time.Time), 1986-01-01 00:00:00 +0000 UTC(time.Time)
+[coordinator] Projection[f.id, f.birthday AS _sort0, f]
+[coordinator] Sort[_sort0 DESC, f.id ASC]
+[coordinator] Limit[100]
+[cassandra] columns=(f, f.firstName, f.lastName) in=(f)
+  SELECT "uuid" AS c0, "firstName" AS c1, "lastName" AS c2 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Projection[f.id, f.firstName, f.lastName]
+
+### VP3 @kvs
+[leveldb] columns=(p)
+  KVS Person scan get=(id) filter (p.id IN [14, 2199023262647, 6597069770240, 10995116278068, 13194139540794, 17592186048307, 21990232556371, 24189255818910, 28587302327203, 32985348834784, 35184372097588])
+[neo4j] columns=(p, f, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) RETURN p.uuid AS c0, f.uuid AS c1, count(*) AS c2
+[leveldb] columns=(f, f.birthday, f.id) in=(f)
+  KVS Person ids get=(birthday, id) filter (f.birthday >= 1985-01-01 00:00:00 +0000 UTC) filter (f.birthday < 1986-01-01 00:00:00 +0000 UTC)
+[coordinator] Projection[f.id, f.birthday AS _sort0, f]
+[coordinator] Sort[_sort0 DESC, f.id ASC]
+[coordinator] Limit[100]
+[leveldb] columns=(f, f.firstName, f.lastName) in=(f)
+  KVS Person ids get=(firstName, lastName)
+[coordinator] Projection[f.id, f.firstName, f.lastName]
+
+### VP4 @graph
+[neo4j] columns=(f.id, f.firstName, f.lastName)
+  MATCH (p:Person) WHERE (p.id IN [$p0, $p1, $p2, $p3, $p4, $p5, $p6, $p7, $p8, $p9, $p10]) MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) WITH f AS f WITH DISTINCT f AS f WHERE (f.birthday >= $p11) AND (f.birthday < $p12) WITH f.id AS v2, f.firstName AS v3, f.lastName AS v4 RETURN v2 AS c0, v3 AS c1, v4 AS c2
+  params: p0=14(int64), p1=2199023262647(int64), p10=35184372097588(int64), p11=1981-01-01(dbtype.Date), p12=1990-01-01(dbtype.Date), p2=6597069770240(int64), p3=10995116278068(int64), p4=13194139540794(int64), p5=17592186048307(int64), p6=21990232556371(int64), p7=24189255818910(int64), p8=28587302327203(int64), p9=32985348834784(int64)
+
+### VP4 @relational
+[mysql] columns=(p)
+  SELECT `uuid` AS c0 FROM `Person` WHERE `id` IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  args: 14(int64), 2199023262647(int64), 6597069770240(int64), 10995116278068(int64), 13194139540794(int64), 17592186048307(int64), 21990232556371(int64), 24189255818910(int64), 28587302327203(int64), 32985348834784(int64), 35184372097588(int64)
+[neo4j] columns=(p, f, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) RETURN p.uuid AS c0, f.uuid AS c1, count(*) AS c2
+[coordinator] Projection[f]
+[coordinator] Distinct
+[mysql] columns=(f, f.firstName, f.id, f.lastName) in=(f)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2, `lastName` AS c3 FROM `Person` WHERE `uuid` IN (?) AND (`birthday` >= ?) AND (`birthday` < ?)
+  args: <in>, 1981-01-01 00:00:00 +0000 UTC(time.Time), 1990-01-01 00:00:00 +0000 UTC(time.Time)
+[coordinator] Projection[f.id, f.firstName, f.lastName]
+
+### VP4 @document
+[mongo] columns=(p)
+  db.Person.aggregate([
+    {$match: {id: {$in: [14(int64), 2199023262647(int64), 6597069770240(int64), 10995116278068(int64), 13194139540794(int64), 17592186048307(int64), 21990232556371(int64), 24189255818910(int64), 28587302327203(int64), 32985348834784(int64), 35184372097588(int64)]}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(p, f, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) RETURN p.uuid AS c0, f.uuid AS c1, count(*) AS c2
+[coordinator] Projection[f]
+[coordinator] Distinct
+[mongo] columns=(f, f.firstName, f.id, f.lastName) in=(f)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}, birthday: {$gte: 1981-01-01 00:00:00 +0000 UTC(time.Time)}, birthday: {$lt: 1990-01-01 00:00:00 +0000 UTC(time.Time)}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$firstName", c2: "$id", c3: "$lastName"}}
+  ])
+[coordinator] Projection[f.id, f.firstName, f.lastName]
+
+### VP4 @columnar
+[clickhouse] columns=(p)
+  SELECT `uuid` AS c0 FROM `Person` WHERE `id` IN (14, 2199023262647, 6597069770240, 10995116278068, 13194139540794, 17592186048307, 21990232556371, 24189255818910, 28587302327203, 32985348834784, 35184372097588)
+[neo4j] columns=(p, f, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) RETURN p.uuid AS c0, f.uuid AS c1, count(*) AS c2
+[coordinator] Projection[f]
+[coordinator] Distinct
+[clickhouse] columns=(f, f.firstName, f.id, f.lastName) in=(f)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2, `lastName` AS c3 FROM `Person` WHERE `uuid` IN (?) AND (`birthday` >= toDate32('1981-01-01')) AND (`birthday` < toDate32('1990-01-01'))
+  args: <in>
+[coordinator] Projection[f.id, f.firstName, f.lastName]
+
+### VP4 @widecolumn
+[cassandra] columns=(p)
+  SELECT "uuid" AS c0 FROM "Person" WHERE "id" IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ALLOW FILTERING
+  args: 14(int64), 2199023262647(int64), 6597069770240(int64), 10995116278068(int64), 13194139540794(int64), 17592186048307(int64), 21990232556371(int64), 24189255818910(int64), 28587302327203(int64), 32985348834784(int64), 35184372097588(int64)
+[neo4j] columns=(p, f, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) RETURN p.uuid AS c0, f.uuid AS c1, count(*) AS c2
+[coordinator] Projection[f]
+[coordinator] Distinct
+[cassandra] columns=(f, f.firstName, f.id, f.lastName) in=(f)
+  SELECT "uuid" AS c0, "firstName" AS c1, "id" AS c2, "lastName" AS c3 FROM "Person" WHERE "uuid" IN ? AND ("birthday" >= ?) AND ("birthday" < ?) ALLOW FILTERING
+  args: <in>, 1981-01-01 00:00:00 +0000 UTC(time.Time), 1990-01-01 00:00:00 +0000 UTC(time.Time)
+[coordinator] Projection[f.id, f.firstName, f.lastName]
+
+### VP4 @kvs
+[leveldb] columns=(p)
+  KVS Person scan get=(id) filter (p.id IN [14, 2199023262647, 6597069770240, 10995116278068, 13194139540794, 17592186048307, 21990232556371, 24189255818910, 28587302327203, 32985348834784, 35184372097588])
+[neo4j] columns=(p, f, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) RETURN p.uuid AS c0, f.uuid AS c1, count(*) AS c2
+[coordinator] Projection[f]
+[coordinator] Distinct
+[leveldb] columns=(f, f.firstName, f.id, f.lastName) in=(f)
+  KVS Person ids get=(birthday, id, firstName, lastName) filter (f.birthday >= 1981-01-01 00:00:00 +0000 UTC) filter (f.birthday < 1990-01-01 00:00:00 +0000 UTC)
+[coordinator] Projection[f.id, f.firstName, f.lastName]
+

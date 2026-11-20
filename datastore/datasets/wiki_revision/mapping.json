@@ -1,0 +1,170 @@
+{
+  "labels": {
+    "Page": [
+      "Page"
+    ],
+    "Revision": [
+      "Revision"
+    ],
+    "Contributor": [
+      "Contributor"
+    ]
+  },
+  "entities": {
+    "Page": {
+      "labels": [
+        "Page"
+      ],
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "namespace": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "HAS_REVISION": {
+          "targetEntities": [
+            "Revision"
+          ],
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    },
+    "Revision": {
+      "labels": [
+        "Revision"
+      ],
+      "properties": {
+        "rev_id": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "page_id": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "timestamp": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "comment": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "minor": {
+          "type": "boolean",
+          "database": [
+            "graph"
+          ]
+        },
+        "text_bytes": {
+          "type": "long",
+          "database": [
+            "graph"
+          ]
+        },
+        "sha1": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "images": {
+          "type": "string[]",
+          "database": [
+            "graph"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "PREV": {
+          "targetEntities": [
+            "Revision"
+          ],
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    },
+    "Contributor": {
+      "labels": [
+        "Contributor"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "user_id": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "EDITED": {
+          "targetEntities": [
+            "Revision"
+          ],
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    }
+  },
+  "relationships": {
+    "HAS_REVISION": {
+      "labels": [
+        "HAS_REVISION"
+      ],
+      "properties": {}
+    },
+    "PREV": {
+      "labels": [
+        "PREV"
+      ],
+      "properties": {}
+    },
+    "EDITED": {
+      "labels": [
+        "EDITED"
+      ],
+      "properties": {}
+    }
+  }
+}

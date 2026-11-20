@@ -1,0 +1,67 @@
+{
+  "name": "isv3",
+  "workloads": [
+    "ISV3"
+  ],
+  "queries": [
+    "current"
+  ],
+  "cases": [
+    {
+      "label": "Deepak_1y",
+      "params": {
+        "name": "Deepak",
+        "start": "1985-01-01",
+        "end": "1986-01-01"
+      }
+    },
+    {
+      "label": "Deepak_1m",
+      "params": {
+        "name": "Deepak",
+        "start": "1985-01-01",
+        "end": "1985-02-01"
+      }
+    },
+    {
+      "label": "John_1y",
+      "params": {
+        "name": "John",
+        "start": "1985-01-01",
+        "end": "1986-01-01"
+      }
+    },
+    {
+      "label": "John_1m",
+      "params": {
+        "name": "John",
+        "start": "1985-01-01",
+        "end": "1985-02-01"
+      }
+    }
+  ],
+  "placements": [
+    "graph",
+    "rdb",
+    "doc",
+    "col",
+    "kvs"
+  ],
+  "models": [
+    "vecstream"
+  ],
+  "tunings": [
+    {
+      "label": "off",
+      "defer": false
+    },
+    {
+      "label": "defer",
+      "defer": true
+    }
+  ],
+  "warmup": 1,
+  "trials": 3,
+  "timeout": "120s",
+  "verify": true
+}

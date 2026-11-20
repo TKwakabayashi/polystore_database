@@ -1,0 +1,311 @@
+{
+  "labels": {
+    "Person": [
+      "Person"
+    ],
+    "Forum": [
+      "Forum"
+    ],
+    "Post": [
+      "Post"
+    ],
+    "Comment": [
+      "Comment"
+    ]
+  },
+  "entities": {
+    "Person": {
+      "labels": [
+        "Person"
+      ],
+      "properties": {
+        "person_id": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "first_name": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "last_name": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "gender": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "birthday": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "browser": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "creation_date": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "location_ip": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "speaks": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "email": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "KNOWS": {
+          "targetEntities": [
+            "Person"
+          ],
+          "database": [
+            "graph"
+          ]
+        },
+        "POSTED": {
+          "targetEntities": [
+            "Post"
+          ],
+          "database": [
+            "graph"
+          ]
+        },
+        "COMMENTED": {
+          "targetEntities": [
+            "Comment"
+          ],
+          "database": [
+            "graph"
+          ]
+        },
+        "MEMBER_OF": {
+          "targetEntities": [
+            "Forum"
+          ],
+          "database": [
+            "graph"
+          ]
+        },
+        "MODERATES": {
+          "targetEntities": [
+            "Forum"
+          ],
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    },
+    "Forum": {
+      "labels": [
+        "Forum"
+      ],
+      "properties": {
+        "forum_id": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "creation_date": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {}
+    },
+    "Post": {
+      "labels": [
+        "Post"
+      ],
+      "properties": {
+        "post_id": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "content": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "image_file": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "length": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        },
+        "browser": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "creation_date": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "IN_FORUM": {
+          "targetEntities": [
+            "Forum"
+          ],
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    },
+    "Comment": {
+      "labels": [
+        "Comment"
+      ],
+      "properties": {
+        "comment_id": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "content": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "length": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        },
+        "browser": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "creation_date": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "REPLY_TO_POST": {
+          "targetEntities": [
+            "Post"
+          ],
+          "database": [
+            "graph"
+          ]
+        },
+        "REPLY_TO_COMMENT": {
+          "targetEntities": [
+            "Comment"
+          ],
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    }
+  },
+  "relationships": {
+    "KNOWS": {
+      "labels": [
+        "KNOWS"
+      ],
+      "properties": {}
+    },
+    "POSTED": {
+      "labels": [
+        "POSTED"
+      ],
+      "properties": {}
+    },
+    "COMMENTED": {
+      "labels": [
+        "COMMENTED"
+      ],
+      "properties": {}
+    },
+    "REPLY_TO_POST": {
+      "labels": [
+        "REPLY_TO_POST"
+      ],
+      "properties": {}
+    },
+    "REPLY_TO_COMMENT": {
+      "labels": [
+        "REPLY_TO_COMMENT"
+      ],
+      "properties": {}
+    },
+    "IN_FORUM": {
+      "labels": [
+        "IN_FORUM"
+      ],
+      "properties": {}
+    },
+    "MEMBER_OF": {
+      "labels": [
+        "MEMBER_OF"
+      ],
+      "properties": {}
+    },
+    "MODERATES": {
+      "labels": [
+        "MODERATES"
+      ],
+      "properties": {}
+    }
+  }
+}

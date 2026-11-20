@@ -1,0 +1,280 @@
+### AGG1 @relational
+[mysql] columns=(p)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = ?)
+  args: 15393162799448(int64)
+[neo4j] columns=(author, _p1_0) in=(p) shipped=aggregate table=(k0, w)
+  UNWIND $in AS _k MATCH (p:Person {uuid: _k.k0}) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) MATCH (m)<-[_r1:REPLY_OF]-(comment:Comment) MATCH (comment)-[_r2:HAS_CREATOR]->(author:Person) WHERE _r0 <> _r2 WITH author AS author, sum(CASE WHEN comment IS NULL THEN 0 ELSE _k.w END) AS v1 RETURN author.uuid AS c0, v1 AS c1
+[mysql] columns=(author, author.firstName, author.id, author.lastName) in=(author)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2, `lastName` AS c3 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Aggregation[keys: author.id, author.firstName, author.lastName | sum(_p1_0) AS replyCount]
+[coordinator] Sort[replyCount DESC, author.id ASC]
+[coordinator] Limit[20]
+
+### AGG1 @document
+[mongo] columns=(p)
+  db.Person.aggregate([
+    {$match: {id: {$eq: 15393162799448(int64)}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(author, _p1_0) in=(p) shipped=aggregate table=(k0, w)
+  UNWIND $in AS _k MATCH (p:Person {uuid: _k.k0}) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) MATCH (m)<-[_r1:REPLY_OF]-(comment:Comment) MATCH (comment)-[_r2:HAS_CREATOR]->(author:Person) WHERE _r0 <> _r2 WITH author AS author, sum(CASE WHEN comment IS NULL THEN 0 ELSE _k.w END) AS v1 RETURN author.uuid AS c0, v1 AS c1
+[mongo] columns=(author, author.firstName, author.id, author.lastName) in=(author)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$firstName", c2: "$id", c3: "$lastName"}}
+  ])
+[coordinator] Aggregation[keys: author.id, author.firstName, author.lastName | sum(_p1_0) AS replyCount]
+[coordinator] Sort[replyCount DESC, author.id ASC]
+[coordinator] Limit[20]
+
+### AGG1 @columnar
+[clickhouse] columns=(p)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = 15393162799448)
+[neo4j] columns=(author, _p1_0) in=(p) shipped=aggregate table=(k0, w)
+  UNWIND $in AS _k MATCH (p:Person {uuid: _k.k0}) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) MATCH (m)<-[_r1:REPLY_OF]-(comment:Comment) MATCH (comment)-[_r2:HAS_CREATOR]->(author:Person) WHERE _r0 <> _r2 WITH author AS author, sum(CASE WHEN comment IS NULL THEN 0 ELSE _k.w END) AS v1 RETURN author.uuid AS c0, v1 AS c1
+[clickhouse] columns=(author, author.firstName, author.id, author.lastName) in=(author)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2, `lastName` AS c3 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Aggregation[keys: author.id, author.firstName, author.lastName | sum(_p1_0) AS replyCount]
+[coordinator] Sort[replyCount DESC, author.id ASC]
+[coordinator] Limit[20]
+
+### AGG1 @widecolumn
+[cassandra] columns=(p)
+  SELECT "uuid" AS c0 FROM "Person" WHERE ("id" = ?) ALLOW FILTERING
+  args: 15393162799448(int64)
+[neo4j] columns=(author, _p1_0) in=(p) shipped=aggregate table=(k0, w)
+  UNWIND $in AS _k MATCH (p:Person {uuid: _k.k0}) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) MATCH (m)<-[_r1:REPLY_OF]-(comment:Comment) MATCH (comment)-[_r2:HAS_CREATOR]->(author:Person) WHERE _r0 <> _r2 WITH author AS author, sum(CASE WHEN comment IS NULL THEN 0 ELSE _k.w END) AS v1 RETURN author.uuid AS c0, v1 AS c1
+[cassandra] columns=(author, author.firstName, author.id, author.lastName) in=(author)
+  SELECT "uuid" AS c0, "firstName" AS c1, "id" AS c2, "lastName" AS c3 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Aggregation[keys: author.id, author.firstName, author.lastName | sum(_p1_0) AS replyCount]
+[coordinator] Sort[replyCount DESC, author.id ASC]
+[coordinator] Limit[20]
+
+### AGG1 @kvs
+[leveldb] columns=(p)
+  KVS Person index id=15393162799448(int64) get=(id) filter (p.id = 15393162799448)
+[neo4j] columns=(author, _p1_0) in=(p) shipped=aggregate table=(k0, w)
+  UNWIND $in AS _k MATCH (p:Person {uuid: _k.k0}) MATCH (p)<-[_r0:HAS_CREATOR]-(m:Message) MATCH (m)<-[_r1:REPLY_OF]-(comment:Comment) MATCH (comment)-[_r2:HAS_CREATOR]->(author:Person) WHERE _r0 <> _r2 WITH author AS author, sum(CASE WHEN comment IS NULL THEN 0 ELSE _k.w END) AS v1 RETURN author.uuid AS c0, v1 AS c1
+[leveldb] columns=(author, author.firstName, author.id, author.lastName) in=(author)
+  KVS Person ids get=(id, firstName, lastName)
+[coordinator] Aggregation[keys: author.id, author.firstName, author.lastName | sum(_p1_0) AS replyCount]
+[coordinator] Sort[replyCount DESC, author.id ASC]
+[coordinator] Limit[20]
+
+### AGG2 @relational
+[mysql] columns=(p)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = ?)
+  args: 15393162799448(int64)
+[neo4j] columns=(p, friend, m) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH (p)-[_r0:KNOWS]-(friend:Person) MATCH (friend)<-[_r1:HAS_CREATOR]-(m:Message) RETURN p.uuid AS c0, friend.uuid AS c1, m.uuid AS c2
+[mysql] columns=(friend, _p1_0, _p1_1s, _p1_1c, _p1_2) in=(m) shipped=aggregate table=(k0, s0, w)
+  SELECT t.`s0` AS c0, SUM(CASE WHEN t.`k0` IS NULL THEN 0 ELSE t.`w` END) AS c1, SUM(t.`w` * d.`length`) AS c2, SUM(CASE WHEN d.`length` IS NULL THEN 0 ELSE t.`w` END) AS c3, MAX(d.`length`) AS c4 FROM JSON_TABLE(CAST(? AS JSON), '$[*]' COLUMNS(`k0` VARCHAR(36) COLLATE utf8mb4_bin PATH '$[0]', `s0` VARCHAR(36) COLLATE utf8mb4_bin PATH '$[1]', `w` BIGINT PATH '$[2]')) AS t LEFT JOIN `Message` AS d ON d.`uuid` = t.`k0` GROUP BY t.`s0`
+  args: <in>
+[mysql] columns=(friend, friend.firstName, friend.id) in=(friend)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Aggregation[keys: friend.id, friend.firstName | sum(_p1_0) AS msgCount, sum(_p1_1s) AS _p1_1s, sum(_p1_1c) AS _p1_1c, max(_p1_2) AS maxLen]
+[coordinator] Projection[friend.id, friend.firstName, msgCount, CASE WHEN (_p1_1c = 0) THEN null ELSE (tofloat(_p1_1s) / _p1_1c) END AS avgLen, maxLen]
+[coordinator] Sort[msgCount DESC, friend.id ASC]
+[coordinator] Limit[20]
+
+### AGG2 @document
+[mongo] columns=(p)
+  db.Person.aggregate([
+    {$match: {id: {$eq: 15393162799448(int64)}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(p, friend, m) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH (p)-[_r0:KNOWS]-(friend:Person) MATCH (friend)<-[_r1:HAS_CREATOR]-(m:Message) RETURN p.uuid AS c0, friend.uuid AS c1, m.uuid AS c2
+[mongo] columns=(friend, _p1_0, _p1_1s, _p1_1c, _p1_2) in=(m) shipped=aggregate table=(k0, s0, w)
+  db.aggregate([
+    {$documents: {rows: <in>}}
+    {$lookup: {from: "Message", localField: "k0", foreignField: "uuid", as: "d"}}
+    {$unwind: {path: "$d", preserveNullAndEmptyArrays: true(bool)}}
+    {$group: {_id: {g0: "$s0"}, a0: {$sum: {$cond: [{$eq: [{$ifNull: ["$k0", null]}, null]}, 0(int64), "$w"]}}, a1: {$sum: {$multiply: ["$w", "$d.length"]}}, a2: {$sum: {$cond: [{$eq: [{$ifNull: ["$d.length", null]}, null]}, 0(int64), "$w"]}}, a3: {$max: "$d.length"}}}
+    {$project: {_id: 0(int), c0: "$_id.g0", c1: "$a0", c2: "$a1", c3: "$a2", c4: "$a3"}}
+  ])
+[mongo] columns=(friend, friend.firstName, friend.id) in=(friend)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$firstName", c2: "$id"}}
+  ])
+[coordinator] Aggregation[keys: friend.id, friend.firstName | sum(_p1_0) AS msgCount, sum(_p1_1s) AS _p1_1s, sum(_p1_1c) AS _p1_1c, max(_p1_2) AS maxLen]
+[coordinator] Projection[friend.id, friend.firstName, msgCount, CASE WHEN (_p1_1c = 0) THEN null ELSE (tofloat(_p1_1s) / _p1_1c) END AS avgLen, maxLen]
+[coordinator] Sort[msgCount DESC, friend.id ASC]
+[coordinator] Limit[20]
+
+### AGG2 @columnar
+[clickhouse] columns=(p)
+  SELECT `uuid` AS c0 FROM `Person` WHERE (`id` = 15393162799448)
+[neo4j] columns=(p, friend, m) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH (p)-[_r0:KNOWS]-(friend:Person) MATCH (friend)<-[_r1:HAS_CREATOR]-(m:Message) RETURN p.uuid AS c0, friend.uuid AS c1, m.uuid AS c2
+[clickhouse] columns=(m, m.length) in=(m) shipped=aggregate(emulated: executor joins the table and aggregates)
+  SELECT `uuid` AS c0, `length` AS c1 FROM `Message` WHERE `uuid` IN (?)
+  args: <in>
+[clickhouse] columns=(friend, friend.firstName, friend.id) in=(friend)
+  SELECT `uuid` AS c0, `firstName` AS c1, `id` AS c2 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Aggregation[keys: friend.id, friend.firstName | sum(_p1_0) AS msgCount, sum(_p1_1s) AS _p1_1s, sum(_p1_1c) AS _p1_1c, max(_p1_2) AS maxLen]
+[coordinator] Projection[friend.id, friend.firstName, msgCount, CASE WHEN (_p1_1c = 0) THEN null ELSE (tofloat(_p1_1s) / _p1_1c) END AS avgLen, maxLen]
+[coordinator] Sort[msgCount DESC, friend.id ASC]
+[coordinator] Limit[20]
+
+### AGG2 @widecolumn
+[cassandra] columns=(p)
+  SELECT "uuid" AS c0 FROM "Person" WHERE ("id" = ?) ALLOW FILTERING
+  args: 15393162799448(int64)
+[neo4j] columns=(p, friend, m) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH (p)-[_r0:KNOWS]-(friend:Person) MATCH (friend)<-[_r1:HAS_CREATOR]-(m:Message) RETURN p.uuid AS c0, friend.uuid AS c1, m.uuid AS c2
+[cassandra] columns=(m, m.length) in=(m) shipped=aggregate(emulated: executor joins the table and aggregates)
+  SELECT "uuid" AS c0, "length" AS c1 FROM "Message" WHERE "uuid" IN ?
+  args: <in>
+[cassandra] columns=(friend, friend.firstName, friend.id) in=(friend)
+  SELECT "uuid" AS c0, "firstName" AS c1, "id" AS c2 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Aggregation[keys: friend.id, friend.firstName | sum(_p1_0) AS msgCount, sum(_p1_1s) AS _p1_1s, sum(_p1_1c) AS _p1_1c, max(_p1_2) AS maxLen]
+[coordinator] Projection[friend.id, friend.firstName, msgCount, CASE WHEN (_p1_1c = 0) THEN null ELSE (tofloat(_p1_1s) / _p1_1c) END AS avgLen, maxLen]
+[coordinator] Sort[msgCount DESC, friend.id ASC]
+[coordinator] Limit[20]
+
+### AGG2 @kvs
+[leveldb] columns=(p)
+  KVS Person index id=15393162799448(int64) get=(id) filter (p.id = 15393162799448)
+[neo4j] columns=(p, friend, m) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH (p)-[_r0:KNOWS]-(friend:Person) MATCH (friend)<-[_r1:HAS_CREATOR]-(m:Message) RETURN p.uuid AS c0, friend.uuid AS c1, m.uuid AS c2
+[leveldb] columns=(m, m.length) in=(m) shipped=aggregate(emulated: executor joins the table and aggregates)
+  KVS Message ids get=(length)
+[leveldb] columns=(friend, friend.firstName, friend.id) in=(friend)
+  KVS Person ids get=(id, firstName)
+[coordinator] Aggregation[keys: friend.id, friend.firstName | sum(_p1_0) AS msgCount, sum(_p1_1s) AS _p1_1s, sum(_p1_1c) AS _p1_1c, max(_p1_2) AS maxLen]
+[coordinator] Projection[friend.id, friend.firstName, msgCount, CASE WHEN (_p1_1c = 0) THEN null ELSE (tofloat(_p1_1s) / _p1_1c) END AS avgLen, maxLen]
+[coordinator] Sort[msgCount DESC, friend.id ASC]
+[coordinator] Limit[20]
+
+### VP2 @relational
+[mysql] columns=(p)
+  SELECT `uuid` AS c0 FROM `Person` WHERE `id` IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  args: 14(int64), 2199023262647(int64), 6597069770240(int64), 10995116278068(int64), 13194139540794(int64), 17592186048307(int64), 21990232556371(int64), 24189255818910(int64), 28587302327203(int64), 32985348834784(int64), 35184372097588(int64)
+[neo4j] columns=(p, f, m, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) MATCH (f)<-[_r1:HAS_CREATOR]-(m:Message) RETURN p.uuid AS c0, f.uuid AS c1, m.uuid AS c2, count(*) AS c3
+[mysql] columns=(f, _p1_0, _p1_1s, _p1_1c) in=(m) shipped=aggregate table=(k0, s0, w)
+  SELECT t.`s0` AS c0, SUM(CASE WHEN t.`k0` IS NULL THEN 0 ELSE t.`w` END) AS c1, SUM(t.`w` * d.`length`) AS c2, SUM(CASE WHEN d.`length` IS NULL THEN 0 ELSE t.`w` END) AS c3 FROM JSON_TABLE(CAST(? AS JSON), '$[*]' COLUMNS(`k0` VARCHAR(36) COLLATE utf8mb4_bin PATH '$[0]', `s0` VARCHAR(36) COLLATE utf8mb4_bin PATH '$[1]', `w` BIGINT PATH '$[2]')) AS t LEFT JOIN `Message` AS d ON d.`uuid` = t.`k0` WHERE (d.`creationDate` >= ?) AND (d.`creationDate` < ?) GROUP BY t.`s0`
+  args: <in>, 2012-10-01 00:00:00 +0000 UTC(time.Time), 2012-11-01 00:00:00 +0000 UTC(time.Time)
+[mysql] columns=(f, f.id, f.lastName) in=(f)
+  SELECT `uuid` AS c0, `id` AS c1, `lastName` AS c2 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Aggregation[keys: f.id, f.lastName | sum(_p1_0) AS n, sum(_p1_1s) AS _p1_1s, sum(_p1_1c) AS _p1_1c]
+[coordinator] Projection[f.id, f.lastName, n, CASE WHEN (_p1_1c = 0) THEN null ELSE (tofloat(_p1_1s) / _p1_1c) END AS avgLen]
+
+### VP2 @document
+[mongo] columns=(p)
+  db.Person.aggregate([
+    {$match: {id: {$in: [14(int64), 2199023262647(int64), 6597069770240(int64), 10995116278068(int64), 13194139540794(int64), 17592186048307(int64), 21990232556371(int64), 24189255818910(int64), 28587302327203(int64), 32985348834784(int64), 35184372097588(int64)]}}}
+    {$project: {_id: 0(int), c0: "$uuid"}}
+  ])
+[neo4j] columns=(p, f, m, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) MATCH (f)<-[_r1:HAS_CREATOR]-(m:Message) RETURN p.uuid AS c0, f.uuid AS c1, m.uuid AS c2, count(*) AS c3
+[mongo] columns=(f, _p1_0, _p1_1s, _p1_1c) in=(m) shipped=aggregate table=(k0, s0, w)
+  db.aggregate([
+    {$documents: {rows: <in>}}
+    {$lookup: {from: "Message", localField: "k0", foreignField: "uuid", as: "d"}}
+    {$unwind: {path: "$d", preserveNullAndEmptyArrays: true(bool)}}
+    {$match: {d.creationDate: {$gte: 2012-10-01 00:00:00 +0000 UTC(time.Time)}, d.creationDate: {$lt: 2012-11-01 00:00:00 +0000 UTC(time.Time)}}}
+    {$group: {_id: {g0: "$s0"}, a0: {$sum: {$cond: [{$eq: [{$ifNull: ["$k0", null]}, null]}, 0(int64), "$w"]}}, a1: {$sum: {$multiply: ["$w", "$d.length"]}}, a2: {$sum: {$cond: [{$eq: [{$ifNull: ["$d.length", null]}, null]}, 0(int64), "$w"]}}}}
+    {$project: {_id: 0(int), c0: "$_id.g0", c1: "$a0", c2: "$a1", c3: "$a2"}}
+  ])
+[mongo] columns=(f, f.id, f.lastName) in=(f)
+  db.Person.aggregate([
+    {$match: {uuid: {$in: <in>}}}
+    {$project: {_id: 0(int), c0: "$uuid", c1: "$id", c2: "$lastName"}}
+  ])
+[coordinator] Aggregation[keys: f.id, f.lastName | sum(_p1_0) AS n, sum(_p1_1s) AS _p1_1s, sum(_p1_1c) AS _p1_1c]
+[coordinator] Projection[f.id, f.lastName, n, CASE WHEN (_p1_1c = 0) THEN null ELSE (tofloat(_p1_1s) / _p1_1c) END AS avgLen]
+
+### VP2 @columnar
+[clickhouse] columns=(p)
+  SELECT `uuid` AS c0 FROM `Person` WHERE `id` IN (14, 2199023262647, 6597069770240, 10995116278068, 13194139540794, 17592186048307, 21990232556371, 24189255818910, 28587302327203, 32985348834784, 35184372097588)
+[neo4j] columns=(p, f, m, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) MATCH (f)<-[_r1:HAS_CREATOR]-(m:Message) RETURN p.uuid AS c0, f.uuid AS c1, m.uuid AS c2, count(*) AS c3
+[clickhouse] columns=(m, m.creationDate, m.length) in=(m) shipped=aggregate(emulated: executor joins the table and aggregates)
+  SELECT `uuid` AS c0, `creationDate` AS c1, `length` AS c2 FROM `Message` WHERE `uuid` IN (?) AND (`creationDate` >= toDateTime64('2012-10-01 00:00:00.000000', 6, 'UTC')) AND (`creationDate` < toDateTime64('2012-11-01 00:00:00.000000', 6, 'UTC'))
+  args: <in>
+[clickhouse] columns=(f, f.id, f.lastName) in=(f)
+  SELECT `uuid` AS c0, `id` AS c1, `lastName` AS c2 FROM `Person` WHERE `uuid` IN (?)
+  args: <in>
+[coordinator] Aggregation[keys: f.id, f.lastName | sum(_p1_0) AS n, sum(_p1_1s) AS _p1_1s, sum(_p1_1c) AS _p1_1c]
+[coordinator] Projection[f.id, f.lastName, n, CASE WHEN (_p1_1c = 0) THEN null ELSE (tofloat(_p1_1s) / _p1_1c) END AS avgLen]
+
+### VP2 @widecolumn
+[cassandra] columns=(p)
+  SELECT "uuid" AS c0 FROM "Person" WHERE "id" IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ALLOW FILTERING
+  args: 14(int64), 2199023262647(int64), 6597069770240(int64), 10995116278068(int64), 13194139540794(int64), 17592186048307(int64), 21990232556371(int64), 24189255818910(int64), 28587302327203(int64), 32985348834784(int64), 35184372097588(int64)
+[neo4j] columns=(p, f, m, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) MATCH (f)<-[_r1:HAS_CREATOR]-(m:Message) RETURN p.uuid AS c0, f.uuid AS c1, m.uuid AS c2, count(*) AS c3
+[cassandra] columns=(m, m.creationDate, m.length) in=(m) shipped=aggregate(emulated: executor joins the table and aggregates)
+  SELECT "uuid" AS c0, "creationDate" AS c1, "length" AS c2 FROM "Message" WHERE "uuid" IN ? AND ("creationDate" >= ?) AND ("creationDate" < ?) ALLOW FILTERING
+  args: <in>, 2012-10-01 00:00:00 +0000 UTC(time.Time), 2012-11-01 00:00:00 +0000 UTC(time.Time)
+[cassandra] columns=(f, f.id, f.lastName) in=(f)
+  SELECT "uuid" AS c0, "id" AS c1, "lastName" AS c2 FROM "Person" WHERE "uuid" IN ?
+  args: <in>
+[coordinator] Aggregation[keys: f.id, f.lastName | sum(_p1_0) AS n, sum(_p1_1s) AS _p1_1s, sum(_p1_1c) AS _p1_1c]
+[coordinator] Projection[f.id, f.lastName, n, CASE WHEN (_p1_1c = 0) THEN null ELSE (tofloat(_p1_1s) / _p1_1c) END AS avgLen]
+
+### VP2 @kvs
+[leveldb] columns=(p)
+  KVS Person scan get=(id) filter (p.id IN [14, 2199023262647, 6597069770240, 10995116278068, 13194139540794, 17592186048307, 21990232556371, 24189255818910, 28587302327203, 32985348834784, 35184372097588])
+[neo4j] columns=(p, f, m, _w) in=(p)
+  MATCH (p:Person) WHERE p.uuid IN $in MATCH _sp_r0 = (p)-[:KNOWS*1..2]-(f:Person) MATCH (f)<-[_r1:HAS_CREATOR]-(m:Message) RETURN p.uuid AS c0, f.uuid AS c1, m.uuid AS c2, count(*) AS c3
+[leveldb] columns=(m, m.creationDate, m.length) in=(m) shipped=aggregate(emulated: executor joins the table and aggregates)
+  KVS Message ids get=(creationDate, length) filter (m.creationDate >= 2012-10-01 00:00:00 +0000 UTC) filter (m.creationDate < 2012-11-01 00:00:00 +0000 UTC)
+[leveldb] columns=(f, f.id, f.lastName) in=(f)
+  KVS Person ids get=(id, lastName)
+[coordinator] Aggregation[keys: f.id, f.lastName | sum(_p1_0) AS n, sum(_p1_1s) AS _p1_1s, sum(_p1_1c) AS _p1_1c]
+[coordinator] Projection[f.id, f.lastName, n, CASE WHEN (_p1_1c = 0) THEN null ELSE (tofloat(_p1_1s) / _p1_1c) END AS avgLen]
+
+### binary uuid @relational
+MATCH (p:Person {id: $x})-[:KNOWS]-(f:Person)<-[:HAS_CREATOR]-(m:Message) RETURN f.firstName, count(*) AS n, avg(m.length) AS a
+[neo4j] columns=(f, m)
+  MATCH (p:Person) WHERE (p.id = $p0) MATCH (p)-[_r0:KNOWS]-(f:Person) MATCH (f)<-[_r1:HAS_CREATOR]-(m:Message) RETURN f.uuid AS c0, m.uuid AS c1
+  params: p0=1(int64)
+[mysql] columns=(f, _p1_0, _p1_1s, _p1_1c) in=(m) shipped=aggregate table=(k0, s0, w)
+  SELECT UNHEX(t.`s0`) AS c0, SUM(t.`w`) AS c1, SUM(t.`w` * d.`length`) AS c2, SUM(CASE WHEN d.`length` IS NULL THEN 0 ELSE t.`w` END) AS c3 FROM JSON_TABLE(CAST(? AS JSON), '$[*]' COLUMNS(`k0` VARCHAR(32) COLLATE utf8mb4_bin PATH '$[0]', `s0` VARCHAR(32) COLLATE utf8mb4_bin PATH '$[1]', `w` BIGINT PATH '$[2]')) AS t LEFT JOIN `Message` AS d ON d.`uuid` = UNHEX(t.`k0`) GROUP BY UNHEX(t.`s0`)
+  args: <in>
+[neo4j] columns=(f, f.firstName) in=(f)
+  MATCH (f:Person) WHERE f.uuid IN $in RETURN f.uuid AS c0, f.firstName AS c1
+[coordinator] Aggregation[keys: f.firstName | sum(_p1_0) AS n, sum(_p1_1s) AS _p1_1s, sum(_p1_1c) AS _p1_1c]
+[coordinator] Projection[f.firstName, n, CASE WHEN (_p1_1c = 0) THEN null ELSE (tofloat(_p1_1s) / _p1_1c) END AS a]
+
+### mode=filter @mysql
+[mysql] columns=(_rid) in=(m) shipped=filter table=(rid, k0, s0)
+  SELECT t.`rid` AS c0 FROM JSON_TABLE(CAST(? AS JSON), '$[*]' COLUMNS(`rid` BIGINT PATH '$[0]', `k0` VARCHAR(36) COLLATE utf8mb4_bin PATH '$[1]', `s0` VARCHAR(36) COLLATE utf8mb4_bin PATH '$[2]')) AS t LEFT JOIN `Message` AS d ON d.`uuid` = t.`k0` WHERE (d.`length` > ?)
+  args: <in>, 10(int64)
+
+### mode=filter @mongo
+[mongo] columns=(_rid) in=(m) shipped=filter table=(rid, k0, s0)
+  db.aggregate([
+    {$documents: {rows: <in>}}
+    {$lookup: {from: "Message", localField: "k0", foreignField: "uuid", as: "d"}}
+    {$unwind: {path: "$d", preserveNullAndEmptyArrays: true(bool)}}
+    {$match: {d.length: {$gt: 10(int64)}}}
+    {$project: {_id: 0(int), c0: "$rid"}}
+  ])
+
+### mode=project @mysql
+[mysql] columns=(_rid, m.length) in=(m) shipped=project table=(rid, k0, s0)
+  SELECT t.`rid` AS c0, d.`length` AS c1 FROM JSON_TABLE(CAST(? AS JSON), '$[*]' COLUMNS(`rid` BIGINT PATH '$[0]', `k0` VARCHAR(36) COLLATE utf8mb4_bin PATH '$[1]', `s0` VARCHAR(36) COLLATE utf8mb4_bin PATH '$[2]')) AS t LEFT JOIN `Message` AS d ON d.`uuid` = t.`k0` WHERE (d.`length` > ?)
+  args: <in>, 10(int64)
+
+### mode=project @mongo
+[mongo] columns=(_rid, m.length) in=(m) shipped=project table=(rid, k0, s0)
+  db.aggregate([
+    {$documents: {rows: <in>}}
+    {$lookup: {from: "Message", localField: "k0", foreignField: "uuid", as: "d"}}
+    {$unwind: {path: "$d", preserveNullAndEmptyArrays: true(bool)}}
+    {$match: {d.length: {$gt: 10(int64)}}}
+    {$project: {_id: 0(int), c0: "$rid", c1: "$d.length"}}
+  ])
+

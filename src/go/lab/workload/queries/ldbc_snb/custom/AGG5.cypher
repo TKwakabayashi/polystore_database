@@ -1,0 +1,3 @@
+MATCH (o:Organisation)
+WHERE o.id >= $minId AND o.id <= $maxId
+RETURN count(*) AS cnt, min(o.id) AS mn, max(o.id) AS mx, sum(o.id) AS sm, avg(o.id) AS av

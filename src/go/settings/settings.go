@@ -1,143 +1,108 @@
-// Package settings は「内部挙動の切り替え」を1か所に集約する。
-//
-// ここは CLI フラグではなくソースコードで切り替える設定の唯一の置き場所。
-// 値を変えたら再ビルドして反映する。プロジェクト内 import を持たない葉パッケージ
-// （将来 store.Kind 導入時に store のみ import する予定）なので、どの層からも参照できる。
-//
-// ベンチマーク実行系だけは、スイープのためにこれらの var を実行時に一時上書きする
-// （唯一の合法な実行時書き換え箇所。前後で必ず元値へ戻す）。
+// Package settings holds the default values of internal behavior, switched in source code (edit and rebuild),
+// not with CLI flags. Only entry points and experiment harnesses read it; Plan and Exec (options.go) turn the
+// defaults into the planner and executor options that the query engine receives as arguments.
 package settings
 
-// ===== 実行エンジン =====
-// -mode run で使う実行モデル。P4 のエンジンレジストリで消費される。
-type EngineKind string
+import "polystore_database/src/go/query/exec"
 
-const (
-	EngineStream     EngineKind = "stream"
-	EngineBulk       EngineKind = "bulk"
-	EngineVolcano    EngineKind = "volcano"
-	EngineVectorized EngineKind = "vectorized"
-	EngineVecStream  EngineKind = "vecstream" // push × 列 Batch × parallel
-)
-
+// ===== Execution =====
 var (
-	Engine     = EngineStream // ★ -mode run の実行モデル（刷新版 executor の反復モデル）
-	VectorSize = 1024         // vectorized のベクトル長
+	Engine     = exec.ModelStream // iteration model of single query runs
+	VectorSize = 1024             // batch width of vectorized, stream and vecstream
 )
 
-// MaterializeChunkSize は ID 材料化で 1 クエリへ載せる識別子数の希望値（0 = ストア既定を使う）。
-// 実測スイープ用の全体上書きノブ。実効値は executor の chunkSize が
-// min(この値 or ストア既定, ストアの物理上限 store.LimitsOf(k).MaxInList) で clamp する。
+// MaterializeChunkSize is the wanted number of ids per store query (0: the store's default). The executor
+// clamps it to min(this or the store default, the store's limit store.LimitsOf(k).MaxInList).
 var MaterializeChunkSize = 0
 
-// UniqueKeyProps は「等値条件で 1 件に絞れる」とみなすプロパティ名（エンティティの一意キー）。
-// 刷新版の翻訳（logical.Translate）が、パターンの起点を選ぶときに統計の代わりに使う。
-var UniqueKeyProps = []string{"id"}
-
-// UUIDFormat は uuid を各ストアへ保存する形式。
-type UUIDFormat int
-
-const (
-	// UUIDText は文字列 "N-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"（38 文字）で保存する。
-	UUIDText UUIDFormat = iota
-	// UUIDBinary は 17 バイト（種別 1 バイト＋UUID 16 バイト）で保存する
-	// （Neo4j byte[] / MySQL BINARY(17) / Cassandra blob / Mongo BinData / LevelDB キーの生バイト）。
-	UUIDBinary
-)
-
-// UUIDStorage は全ストア共通の uuid の保存形式。既存データの形式と一致させること
-// （切り替えたら `-mode uuid-format` で Neo4j の uuid を書き換え、非 graph への移行を作り直す）。
-// 読み取り側（id.FromAny）はどちらの形式も受け付ける。
-var UUIDStorage = UUIDText
-
-// CostBasedPlanning は、統計（mapping.json の隣の stats.json。`-mode stats` で収集）があるとき、
-// 翻訳が成分の起点・分割するか・辺をたどる順序を推定コスト（中間行数の和）で決めるか（刷新版）。
-// 統計が無い・false なら規則（一意キーの等値 > 等値・IN > 述語の数、出現順）で決める。
+// CostBasedPlanning chooses, when statistics exist (stats.json next to the mapping; `admin stats`), the start,
+// split and edge order of pattern components by estimated cost (sum of intermediate rows). Without statistics or
+// when false, rules decide (unique-key equality > equality and IN > number of predicates, then pattern order).
 var CostBasedPlanning = true
 
-// SplitAnchoredPatterns は、連結したパターンに起点になれる頂点（前の節で束縛済み・一意キーの等値）が
-// 2 つ以上あるとき、頂点を最寄りの起点へ振り分けて起点ごとに展開し、共有する頂点で NodeHashJoin する
-// （両側から探索して中央で合流する）か（刷新版）。全 graph なら 1 本の Cypher に戻るので Neo4j の計画は変わらない。
+// SplitAnchoredPatterns: when a connected pattern has two or more anchors (bound earlier, or unique-key
+// equality), assign vertices to the nearest anchor, expand from each and NodeHashJoin on the shared vertices
+// (search from both sides, meet in the middle). An all-Neo4j pattern stays one Cypher query.
 var SplitAnchoredPatterns = true
 
-// StoreFetchParallelism は、1 つの演算子が IN-list をチャンクに分けて同じストアへ投げるときの
-// 同時発行数（刷新版の executor）。1 なら直列。
-var StoreFetchParallelism = 4
+// DeferPredicates moves fetches (GetProperty) and filters (Filter), except those on the start, after all
+// pattern expansions (logical.DeferPredicates). Neo4j then runs the traversal alone in one query and the
+// conditions on interior nodes, endpoints and edges apply to its result. The physical planner also splits less:
+// a `WITH DISTINCT <ids>` is absorbed into the traversal even with several starts (duplicates across input
+// batches are removed by the coordinator), and moved fetches are grouped per store (Neo4j first).
+// false (default) applies them as soon as their variables are bound (fewer rows early). Results are the same.
+var DeferPredicates = false
 
-// WeightedRows は、可変長の展開を含む graph のクエリの結果を、同じ出力の組ごとに件数（重み）付きの
-// 1 行へまとめて返させるか（刷新版）。経路ごとの重複で中間行が爆発する形（Q11 など）を抑える。結果は不変。
-var WeightedRows = true
+// DeferOffGraphPredicates moves fetches and filters on columns not in Neo4j after the pattern expansions
+// (physical.Build; filters on the start stay). The Neo4j traversal then stays one query instead of splitting at
+// non-Neo4j conditions; Neo4j conditions apply inside it. false applies them when bound (fewer rows, split traversal). Results are the same.
+var DeferOffGraphPredicates = true
 
-// GraphFetchParallelism は graph（Neo4j）へのチャンクの同時発行数。graph のチャンクは 5 万件の起点から
-// 可変長トラバーサルを走らせることがあり、並列にすると Neo4j がメモリ不足で落ちる（ldbc_sf1 の BI9 で
-// heap 4G / pagecache 1G の構成が OOM-kill された）ので既定は直列。
-var GraphFetchParallelism = 1
+// AbsorbDistinctOverOneRow absorbs `WITH DISTINCT <ids>` into a Neo4j query whose input is one row by unique-key
+// equality (physical.Build), so the traversal does not split at WITH DISTINCT even when the start is outside Neo4j.
+var AbsorbDistinctOverOneRow = true
 
-// ===== 計測（bench） =====
-const (
-	Warmup = 3  // 計測から除外する先頭ウォームアップ回数
-	Trials = 10 // Warmup の後に実行し平均を取る計測回数
-)
+// SplitAggregation splits an aggregation into a partial aggregation per key owner id, the fetch of key values,
+// and a final aggregation (logical.SplitAggregation; eager aggregation). Key values are fetched once per owner,
+// and with ShipRows partial aggregations can be absorbed into the stores holding values. Not for DISTINCT or collect. Results are the same.
+var SplitAggregation = false
 
-var (
-	// ★ bench / bench-models のスイープ軸（旧 -placements/-models フラグ）。
-	// BenchPlacements は P3b で []store.Kind へ型付け予定（現状は文字列）。
-	BenchPlacements = []string{"graph", "rdb", "doc", "col", "kvs"}
-	BenchModels     = []string{"stream", "bulk", "volcano", "vectorized", "vecstream"}
+// ShipRows absorbs partial aggregations into queries on the stores holding the values and passes the boundary
+// as a table of id tuples with weights (ir.ShipAggregate). false keeps the plain IN on one id column.
+var ShipRows = false
 
-	MigrationDeleteSource = true // ★ 移行成功後にソース側を削除する（旧 -delete フラグ）
-)
-
-// ===== verify（-mode verify：配置×pushdown×エンジン×バッチの性能検証マトリクス）=====
-var (
-	// VerifyEngines は verify マトリクスで横断計測する自作エンジン（Neo4j 直接は別途基準として測る）。
-	VerifyEngines = []string{"stream", "bulk", "vecstream"}
-	// VerifyBatchSizes は VectorSize を振るスイープ点。stream/vecstream のバッチ幅に効く
-	// （bulk はバッチ非依存のため 1 回のみ計測）。
-	VerifyBatchSizes = []int{256, 1024, 4096}
-)
-
-// ===== 出力 =====
-type OutputFormat string
-
-const (
-	FormatRows   OutputFormat = "rows"   // 結果を1件ずつ
-	FormatTiming OutputFormat = "timing" // 全体実行時間+件数
-	FormatDetail OutputFormat = "detail" // 演算子ごとの時間・中間件数（bulk用）
-)
-
-type Target string
-
-const (
-	TargetCustom Target = "custom" // 自作システムのみ
-	TargetNeo4j  Target = "neo4j"  // Neo4j のみ
-	TargetBoth   Target = "both"   // 両方（比較）
-)
-
-var (
-	Format    = FormatTiming // ★ -mode run の出力形式（旧 SelectedFormat）
-	RunTarget = TargetCustom // ★ -mode run の実行対象（旧 SelectedTarget）
-)
-
-// ===== プロファイル =====
-// 採取スコープ。profile パッケージが参照し、有効なスコープだけ pprof を採取する。
-type ProfileScope string
-
-const (
-	ScopeRun       ProfileScope = "run"       // プロセス全体
-	ScopeEngine    ProfileScope = "engine"    // クエリ実行のみ（旧 ProfileCustomRun 相当）
-	ScopeMigration ProfileScope = "migration" // 移行処理
-	ScopePlanner   ProfileScope = "planner"   // parse + plan
-	ScopeSetup     ProfileScope = "setup"     // データセットアップ
-)
-
-// ★ 有効化したいスコープを true に。空 = プロファイル無効。
-// 既定は engine（旧 ProfileCustomRun=true 相当）。bench 実行系は計測歪みを避けるため
-// 実行中だけ engine スコープを false に一時上書きする。
-var ProfileScopes = map[ProfileScope]bool{
-	ScopeEngine: true,
+// ShipStores lists the stores that receive tables with ShipRows (store.Kind name -> on). Each receives differently:
+// - MySQL: JSON_TABLE with a left outer join and GROUP BY (aggregated in the store)
+// - Neo4j: MATCH on the uuids of UNWIND rows, weighted aggregation (in the store)
+// - MongoDB: $documents -> $lookup -> $group. MongoDB 7 has no hash join with a passed table; $lookup re-reads
+// the index per row (about 340 ms for 20k rows vs about 90 ms to fetch values with $in), so it is off by default
+// - ClickHouse: no way to receive a table yet; the executor emulates it
+// - Cassandra / kvs: no way to join a table; the executor emulates it (fetch values with IN on the keys, join
+// to the table, aggregate). The store's work equals a plain value fetch
+var ShipStores = map[string]bool{
+	"relational": true,
+	"graph":      true,
+	"document":   false,
+	"columnar":   true,
+	"widecolumn": true,
+	"leveldb":    true,
+	"rocksdb":    true,
 }
 
-// ===== 生成物の出力先 =====
-// cwd = src/go での実行を前提とした相対パス（リポジトリルートの results/）。
-var ResultsDir = "../../results"
+// ShipChunkRows is the number of table rows per shipped query (the executor splits by it).
+var ShipChunkRows = 20000
+
+// StoreFetchParallelism is the number of concurrent chunks when an operator splits an IN list for one store.
+// 1 means serial.
+var StoreFetchParallelism = 4
+
+// WeightedRows makes Neo4j queries with variable-length expansions return one row per distinct output with its
+// count (weight), curbing per-path duplicate rows (Q11, ...). Results are the same.
+var WeightedRows = true
+
+// PathPredicates is how conditions on the elements inside a path (all / none / any over nodes(p) or
+// relationships(p)) are evaluated when their values are outside Neo4j. Results are the same:
+// - "post": the traversal returns the paths, element values are fetched from their stores and the coordinator filters
+// - "prefilter": the condition runs first over all entities of the element labels in their stores, and the ids that
+// pass go to the Neo4j traversal as `x.uuid IN $set` (Neo4j prunes while expanding). Nodes only; not single
+// - "stepwise": the variable-length expansion runs hop by hop from the coordinator, and partial paths whose new
+// relationship or inner node fails are dropped before the next hop. Bounded ranges from 1; all / none only
+// Shapes a strategy does not cover use "post".
+var PathPredicates = "post"
+
+// GraphFetchParallelism is the number of concurrent chunks to Neo4j. A Neo4j chunk may run variable-length
+// traversals from 50k starts, and in parallel Neo4j ran out of memory (BI9 on ldbc_sf1 was OOM-killed with
+// heap 4G / page cache 1G), so the default is serial.
+var GraphFetchParallelism = 1
+
+// KVBatchKeys is the number of ids a key-value store reads per batch: the keys of their properties go in one
+// MultiGet on RocksDB (LevelDB has none and reads key by key). 0 reads key by key.
+var KVBatchKeys = 1024
+
+// KVFetchParallelism is the number of batches a key-value store reads at once inside one store query (a scan,
+// or one chunk of ids; chunks themselves run StoreFetchParallelism at a time). 1 means serial.
+var KVFetchParallelism = 4
+
+// ===== Migration =====
+// MigrationDeleteSource deletes the source after a successful migration (lab workflow).
+var MigrationDeleteSource = true
