@@ -1,0 +1,4 @@
+MATCH (p:Person {id: $personId})-[:KNOWS]-(friend:Person)<-[:HAS_CREATOR]-(m:Message)
+RETURN friend.id, friend.firstName, count(m) AS msgCount, avg(m.length) AS avgLen, max(m.length) AS maxLen
+ORDER BY msgCount DESC, friend.id ASC
+LIMIT 20

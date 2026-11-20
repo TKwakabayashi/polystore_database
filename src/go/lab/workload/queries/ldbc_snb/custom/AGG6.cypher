@@ -1,0 +1,3 @@
+MATCH (o:Organisation)
+RETURN o.type, count(*) AS cnt, min(o.id) AS mn, max(o.id) AS mx
+ORDER BY cnt DESC

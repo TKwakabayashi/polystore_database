@@ -1,0 +1,140 @@
+{
+  "labels": {
+    "Post": [
+      "Post"
+    ],
+    "User": [
+      "User"
+    ]
+  },
+  "entities": {
+    "Post": {
+      "labels": [
+        "Post"
+      ],
+      "properties": {
+        "post_id": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "post_type": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        },
+        "score": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        },
+        "view_count": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        },
+        "creation_date": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "tags": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "body": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "PARENT_OF": {
+          "targetEntities": [
+            "Post"
+          ],
+          "database": [
+            "graph"
+          ]
+        },
+        "LINKS_TO": {
+          "targetEntities": [
+            "Post"
+          ],
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    },
+    "User": {
+      "labels": [
+        "User"
+      ],
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "display_name": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "reputation": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        },
+        "creation_date": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "AUTHORED": {
+          "targetEntities": [
+            "Post"
+          ],
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    }
+  },
+  "relationships": {
+    "AUTHORED": {
+      "labels": [
+        "AUTHORED"
+      ],
+      "properties": {}
+    },
+    "PARENT_OF": {
+      "labels": [
+        "PARENT_OF"
+      ],
+      "properties": {}
+    },
+    "LINKS_TO": {
+      "labels": [
+        "LINKS_TO"
+      ],
+      "properties": {}
+    }
+  }
+}

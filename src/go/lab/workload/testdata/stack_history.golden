@@ -1,0 +1,784 @@
+## SH1 — Two hops with start, middle and end conditions: how placing the middle condition changes the boundaries
+traits: start=filtered scan hops=2 fan-out=low aggregate Top-20 | R1 start: q.view_count | R2 end: u.reputation | R3 middle: a.score | R6 aggregate / sort: u.display_name
+
+### SH1 @graph
+StoreQuery[neo4j] out=(u.display_name, answers)
+  : Limit[20]
+  :   Sort[answers DESC, u.display_name ASC]
+  :     Aggregation[keys: u.display_name | count(*) AS answers]
+  :       GetProperty(u.display_name) [node:User]
+  :         Filter((u.reputation >= 1000))
+  :           GetProperty(u.reputation) [node:User]
+  :             Expand((a)<-[_r1:AUTHORED]-(u:User))
+  :               Filter((a.score >= 10))
+  :                 GetProperty(a.score) [node:Post]
+  :                   Expand((q)-[_r0:PARENT_OF]->(a:Post))
+  :                     Filter((q.view_count >= 10000))
+  :                       GetProperty(q.view_count) [node:Post]
+  :                         EntityScan(q:Post)
+
+### SH1 @relational
+Coord Limit[20]
+  Coord Sort[answers DESC, u.display_name ASC]
+    Coord Aggregation[keys: u.display_name | count(*) AS answers]
+      StoreQuery[mysql] in=(u) out=(u, u.display_name)
+        : GetProperty(u.display_name) [node:User]
+        :   Filter((u.reputation >= 1000))
+        :     GetProperty(u.reputation) [node:User]
+        :       Argument(u)
+        StoreQuery[mysql] in=(a) out=(a)
+          : Filter((a.score >= 10))
+          :   GetProperty(a.score) [node:Post]
+          :     Argument(a)
+          StoreQuery[neo4j] in=(q) out=(q, a, u)
+            : Expand((a)<-[_r1:AUTHORED]-(u:User))
+            :   Expand((q)-[_r0:PARENT_OF]->(a:Post))
+            :     Argument(q)
+            StoreQuery[mysql] out=(q)
+              : Filter((q.view_count >= 10000))
+              :   GetProperty(q.view_count) [node:Post]
+              :     EntityScan(q:Post)
+
+### SH1 @document
+Coord Limit[20]
+  Coord Sort[answers DESC, u.display_name ASC]
+    Coord Aggregation[keys: u.display_name | count(*) AS answers]
+      StoreQuery[mongo] in=(u) out=(u, u.display_name)
+        : GetProperty(u.display_name) [node:User]
+        :   Filter((u.reputation >= 1000))
+        :     GetProperty(u.reputation) [node:User]
+        :       Argument(u)
+        StoreQuery[mongo] in=(a) out=(a)
+          : Filter((a.score >= 10))
+          :   GetProperty(a.score) [node:Post]
+          :     Argument(a)
+          StoreQuery[neo4j] in=(q) out=(q, a, u)
+            : Expand((a)<-[_r1:AUTHORED]-(u:User))
+            :   Expand((q)-[_r0:PARENT_OF]->(a:Post))
+            :     Argument(q)
+            StoreQuery[mongo] out=(q)
+              : Filter((q.view_count >= 10000))
+              :   GetProperty(q.view_count) [node:Post]
+              :     EntityScan(q:Post)
+
+### SH1 @columnar
+Coord Limit[20]
+  Coord Sort[answers DESC, u.display_name ASC]
+    Coord Aggregation[keys: u.display_name | count(*) AS answers]
+      StoreQuery[clickhouse] in=(u) out=(u, u.display_name)
+        : GetProperty(u.display_name) [node:User]
+        :   Filter((u.reputation >= 1000))
+        :     GetProperty(u.reputation) [node:User]
+        :       Argument(u)
+        StoreQuery[clickhouse] in=(a) out=(a)
+          : Filter((a.score >= 10))
+          :   GetProperty(a.score) [node:Post]
+          :     Argument(a)
+          StoreQuery[neo4j] in=(q) out=(q, a, u)
+            : Expand((a)<-[_r1:AUTHORED]-(u:User))
+            :   Expand((q)-[_r0:PARENT_OF]->(a:Post))
+            :     Argument(q)
+            StoreQuery[clickhouse] out=(q)
+              : Filter((q.view_count >= 10000))
+              :   GetProperty(q.view_count) [node:Post]
+              :     EntityScan(q:Post)
+
+### SH1 @widecolumn
+Coord Limit[20]
+  Coord Sort[answers DESC, u.display_name ASC]
+    Coord Aggregation[keys: u.display_name | count(*) AS answers]
+      StoreQuery[cassandra] in=(u) out=(u, u.display_name)
+        : GetProperty(u.display_name) [node:User]
+        :   Filter((u.reputation >= 1000))
+        :     GetProperty(u.reputation) [node:User]
+        :       Argument(u)
+        StoreQuery[cassandra] in=(a) out=(a)
+          : Filter((a.score >= 10))
+          :   GetProperty(a.score) [node:Post]
+          :     Argument(a)
+          StoreQuery[neo4j] in=(q) out=(q, a, u)
+            : Expand((a)<-[_r1:AUTHORED]-(u:User))
+            :   Expand((q)-[_r0:PARENT_OF]->(a:Post))
+            :     Argument(q)
+            StoreQuery[cassandra] out=(q)
+              : Filter((q.view_count >= 10000))
+              :   GetProperty(q.view_count) [node:Post]
+              :     EntityScan(q:Post)
+
+### SH1 @kvs
+Coord Limit[20]
+  Coord Sort[answers DESC, u.display_name ASC]
+    Coord Aggregation[keys: u.display_name | count(*) AS answers]
+      StoreQuery[leveldb] in=(u) out=(u, u.display_name)
+        : GetProperty(u.display_name) [node:User]
+        :   Filter((u.reputation >= 1000))
+        :     GetProperty(u.reputation) [node:User]
+        :       Argument(u)
+        StoreQuery[leveldb] in=(a) out=(a)
+          : Filter((a.score >= 10))
+          :   GetProperty(a.score) [node:Post]
+          :     Argument(a)
+          StoreQuery[neo4j] in=(q) out=(q, a, u)
+            : Expand((a)<-[_r1:AUTHORED]-(u:User))
+            :   Expand((q)-[_r0:PARENT_OF]->(a:Post))
+            :     Argument(q)
+            StoreQuery[leveldb] out=(q)
+              : Filter((q.view_count >= 10000))
+              :   GetProperty(q.view_count) [node:Post]
+              :     EntityScan(q:Post)
+
+## SH2 — One hop question -> answer: fetching body after Top-k (stack_history has much more text)
+traits: start=filtered scan hops=1 fan-out=low Top-10 | R0 output: q.post_id | R1 start: q.score | R6 aggregate / sort: a.score, a.post_id | R7 text: a.body
+
+### SH2 @graph
+StoreQuery[neo4j] out=(q.post_id, a.post_id, a.body)
+  : Projection[q.post_id, a.post_id, a.body]
+  :   GetProperty(a.body) [node:Post]
+  :     GetProperty(q.post_id) [node:Post]
+  :       Limit[10]
+  :         Sort[_sort0 DESC, a.post_id ASC]
+  :           Projection[a.post_id, a.score AS _sort0, a, q]
+  :             GetProperty(a.score) [node:Post]
+  :               GetProperty(a.post_id) [node:Post]
+  :                 Expand((q)-[_r0:PARENT_OF]->(a:Post))
+  :                   Filter((q.score >= 100))
+  :                     GetProperty(q.score) [node:Post]
+  :                       EntityScan(q:Post)
+
+### SH2 @relational
+Coord Projection[q.post_id, a.post_id, a.body]
+  Fetch[mysql] in=(a) out=(a, a.body)
+    : GetProperty(a.body) [node:Post]
+    :   Argument(a)
+    Fetch[mysql] in=(q) out=(q, q.post_id)
+      : GetProperty(q.post_id) [node:Post]
+      :   Argument(q)
+      Coord Limit[10]
+        Coord Sort[_sort0 DESC, a.post_id ASC]
+          Coord Projection[a.post_id, a.score AS _sort0, a, q]
+            Fetch[mysql] in=(a) out=(a, a.post_id, a.score)
+              : GetProperty(a.score) [node:Post]
+              :   GetProperty(a.post_id) [node:Post]
+              :     Argument(a)
+              StoreQuery[neo4j] in=(q) out=(q, a)
+                : Expand((q)-[_r0:PARENT_OF]->(a:Post))
+                :   Argument(q)
+                StoreQuery[mysql] out=(q)
+                  : Filter((q.score >= 100))
+                  :   GetProperty(q.score) [node:Post]
+                  :     EntityScan(q:Post)
+
+### SH2 @document
+Coord Projection[q.post_id, a.post_id, a.body]
+  Fetch[mongo] in=(a) out=(a, a.body)
+    : GetProperty(a.body) [node:Post]
+    :   Argument(a)
+    Fetch[mongo] in=(q) out=(q, q.post_id)
+      : GetProperty(q.post_id) [node:Post]
+      :   Argument(q)
+      Coord Limit[10]
+        Coord Sort[_sort0 DESC, a.post_id ASC]
+          Coord Projection[a.post_id, a.score AS _sort0, a, q]
+            Fetch[mongo] in=(a) out=(a, a.post_id, a.score)
+              : GetProperty(a.score) [node:Post]
+              :   GetProperty(a.post_id) [node:Post]
+              :     Argument(a)
+              StoreQuery[neo4j] in=(q) out=(q, a)
+                : Expand((q)-[_r0:PARENT_OF]->(a:Post))
+                :   Argument(q)
+                StoreQuery[mongo] out=(q)
+                  : Filter((q.score >= 100))
+                  :   GetProperty(q.score) [node:Post]
+                  :     EntityScan(q:Post)
+
+### SH2 @columnar
+Coord Projection[q.post_id, a.post_id, a.body]
+  Fetch[clickhouse] in=(a) out=(a, a.body)
+    : GetProperty(a.body) [node:Post]
+    :   Argument(a)
+    Fetch[clickhouse] in=(q) out=(q, q.post_id)
+      : GetProperty(q.post_id) [node:Post]
+      :   Argument(q)
+      Coord Limit[10]
+        Coord Sort[_sort0 DESC, a.post_id ASC]
+          Coord Projection[a.post_id, a.score AS _sort0, a, q]
+            Fetch[clickhouse] in=(a) out=(a, a.post_id, a.score)
+              : GetProperty(a.score) [node:Post]
+              :   GetProperty(a.post_id) [node:Post]
+              :     Argument(a)
+              StoreQuery[neo4j] in=(q) out=(q, a)
+                : Expand((q)-[_r0:PARENT_OF]->(a:Post))
+                :   Argument(q)
+                StoreQuery[clickhouse] out=(q)
+                  : Filter((q.score >= 100))
+                  :   GetProperty(q.score) [node:Post]
+                  :     EntityScan(q:Post)
+
+### SH2 @widecolumn
+Coord Projection[q.post_id, a.post_id, a.body]
+  Fetch[cassandra] in=(a) out=(a, a.body)
+    : GetProperty(a.body) [node:Post]
+    :   Argument(a)
+    Fetch[cassandra] in=(q) out=(q, q.post_id)
+      : GetProperty(q.post_id) [node:Post]
+      :   Argument(q)
+      Coord Limit[10]
+        Coord Sort[_sort0 DESC, a.post_id ASC]
+          Coord Projection[a.post_id, a.score AS _sort0, a, q]
+            Fetch[cassandra] in=(a) out=(a, a.post_id, a.score)
+              : GetProperty(a.score) [node:Post]
+              :   GetProperty(a.post_id) [node:Post]
+              :     Argument(a)
+              StoreQuery[neo4j] in=(q) out=(q, a)
+                : Expand((q)-[_r0:PARENT_OF]->(a:Post))
+                :   Argument(q)
+                StoreQuery[cassandra] out=(q)
+                  : Filter((q.score >= 100))
+                  :   GetProperty(q.score) [node:Post]
+                  :     EntityScan(q:Post)
+
+### SH2 @kvs
+Coord Projection[q.post_id, a.post_id, a.body]
+  Fetch[leveldb] in=(a) out=(a, a.body)
+    : GetProperty(a.body) [node:Post]
+    :   Argument(a)
+    Fetch[leveldb] in=(q) out=(q, q.post_id)
+      : GetProperty(q.post_id) [node:Post]
+      :   Argument(q)
+      Coord Limit[10]
+        Coord Sort[_sort0 DESC, a.post_id ASC]
+          Coord Projection[a.post_id, a.score AS _sort0, a, q]
+            Fetch[leveldb] in=(a) out=(a, a.post_id, a.score)
+              : GetProperty(a.score) [node:Post]
+              :   GetProperty(a.post_id) [node:Post]
+              :     Argument(a)
+              StoreQuery[neo4j] in=(q) out=(q, a)
+                : Expand((q)-[_r0:PARENT_OF]->(a:Post))
+                :   Argument(q)
+                StoreQuery[leveldb] out=(q)
+                  : Filter((q.score >= 100))
+                  :   GetProperty(q.score) [node:Post]
+                  :     EntityScan(q:Post)
+
+## SH3 — Two hops over sparse links: placing the middle condition (the small fan-out control)
+traits: start=filtered scan hops=2 fan-out=low aggregate Top-20 | R1 start: q.score | R3 middle: m.view_count | R6 aggregate / sort: r.post_id
+
+### SH3 @graph
+StoreQuery[neo4j] out=(r.post_id, links)
+  : Limit[20]
+  :   Sort[links DESC, r.post_id ASC]
+  :     Aggregation[keys: r.post_id | count(*) AS links]
+  :       GetProperty(r.post_id) [node:Post]
+  :         RelUniqueFilter[_r0, _r1]
+  :           Expand((m)-[_r1:LINKS_TO]->(r:Post))
+  :             Filter((m.view_count >= 1000))
+  :               GetProperty(m.view_count) [node:Post]
+  :                 Expand((q)-[_r0:LINKS_TO]->(m:Post))
+  :                   Filter((q.score >= 5))
+  :                     GetProperty(q.score) [node:Post]
+  :                       EntityScan(q:Post)
+
+### SH3 @relational
+Coord Limit[20]
+  Coord Sort[links DESC, r.post_id ASC]
+    Coord Aggregation[keys: r.post_id | count(*) AS links]
+      Fetch[mysql] in=(r) out=(r, r.post_id)
+        : GetProperty(r.post_id) [node:Post]
+        :   Argument(r)
+        StoreQuery[mysql] in=(m) out=(m)
+          : Filter((m.view_count >= 1000))
+          :   GetProperty(m.view_count) [node:Post]
+          :     Argument(m)
+          StoreQuery[neo4j] in=(q) out=(q, m, r)
+            : RelUniqueFilter[_r0, _r1]
+            :   Expand((m)-[_r1:LINKS_TO]->(r:Post))
+            :     Expand((q)-[_r0:LINKS_TO]->(m:Post))
+            :       Argument(q)
+            StoreQuery[mysql] out=(q)
+              : Filter((q.score >= 5))
+              :   GetProperty(q.score) [node:Post]
+              :     EntityScan(q:Post)
+
+### SH3 @document
+Coord Limit[20]
+  Coord Sort[links DESC, r.post_id ASC]
+    Coord Aggregation[keys: r.post_id | count(*) AS links]
+      Fetch[mongo] in=(r) out=(r, r.post_id)
+        : GetProperty(r.post_id) [node:Post]
+        :   Argument(r)
+        StoreQuery[mongo] in=(m) out=(m)
+          : Filter((m.view_count >= 1000))
+          :   GetProperty(m.view_count) [node:Post]
+          :     Argument(m)
+          StoreQuery[neo4j] in=(q) out=(q, m, r)
+            : RelUniqueFilter[_r0, _r1]
+            :   Expand((m)-[_r1:LINKS_TO]->(r:Post))
+            :     Expand((q)-[_r0:LINKS_TO]->(m:Post))
+            :       Argument(q)
+            StoreQuery[mongo] out=(q)
+              : Filter((q.score >= 5))
+              :   GetProperty(q.score) [node:Post]
+              :     EntityScan(q:Post)
+
+### SH3 @columnar
+Coord Limit[20]
+  Coord Sort[links DESC, r.post_id ASC]
+    Coord Aggregation[keys: r.post_id | count(*) AS links]
+      Fetch[clickhouse] in=(r) out=(r, r.post_id)
+        : GetProperty(r.post_id) [node:Post]
+        :   Argument(r)
+        StoreQuery[clickhouse] in=(m) out=(m)
+          : Filter((m.view_count >= 1000))
+          :   GetProperty(m.view_count) [node:Post]
+          :     Argument(m)
+          StoreQuery[neo4j] in=(q) out=(q, m, r)
+            : RelUniqueFilter[_r0, _r1]
+            :   Expand((m)-[_r1:LINKS_TO]->(r:Post))
+            :     Expand((q)-[_r0:LINKS_TO]->(m:Post))
+            :       Argument(q)
+            StoreQuery[clickhouse] out=(q)
+              : Filter((q.score >= 5))
+              :   GetProperty(q.score) [node:Post]
+              :     EntityScan(q:Post)
+
+### SH3 @widecolumn
+Coord Limit[20]
+  Coord Sort[links DESC, r.post_id ASC]
+    Coord Aggregation[keys: r.post_id | count(*) AS links]
+      Fetch[cassandra] in=(r) out=(r, r.post_id)
+        : GetProperty(r.post_id) [node:Post]
+        :   Argument(r)
+        StoreQuery[cassandra] in=(m) out=(m)
+          : Filter((m.view_count >= 1000))
+          :   GetProperty(m.view_count) [node:Post]
+          :     Argument(m)
+          StoreQuery[neo4j] in=(q) out=(q, m, r)
+            : RelUniqueFilter[_r0, _r1]
+            :   Expand((m)-[_r1:LINKS_TO]->(r:Post))
+            :     Expand((q)-[_r0:LINKS_TO]->(m:Post))
+            :       Argument(q)
+            StoreQuery[cassandra] out=(q)
+              : Filter((q.score >= 5))
+              :   GetProperty(q.score) [node:Post]
+              :     EntityScan(q:Post)
+
+### SH3 @kvs
+Coord Limit[20]
+  Coord Sort[links DESC, r.post_id ASC]
+    Coord Aggregation[keys: r.post_id | count(*) AS links]
+      Fetch[leveldb] in=(r) out=(r, r.post_id)
+        : GetProperty(r.post_id) [node:Post]
+        :   Argument(r)
+        StoreQuery[leveldb] in=(m) out=(m)
+          : Filter((m.view_count >= 1000))
+          :   GetProperty(m.view_count) [node:Post]
+          :     Argument(m)
+          StoreQuery[neo4j] in=(q) out=(q, m, r)
+            : RelUniqueFilter[_r0, _r1]
+            :   Expand((m)-[_r1:LINKS_TO]->(r:Post))
+            :     Expand((q)-[_r0:LINKS_TO]->(m:Post))
+            :       Argument(q)
+            StoreQuery[leveldb] out=(q)
+              : Filter((q.score >= 5))
+              :   GetProperty(q.score) [node:Post]
+              :     EntityScan(q:Post)
+
+## SH4 — One hop plus an aggregation: whether it is absorbed when the aggregated value is off graph
+traits: start=filtered scan hops=1 fan-out=low aggregate Top-20 | R1 start: u.reputation | R6 aggregate / sort: u.user_id, p.score, p.view_count
+
+### SH4 @graph
+StoreQuery[neo4j] out=(u.user_id, posts, avgScore, maxViews)
+  : Limit[20]
+  :   Sort[posts DESC, u.user_id ASC]
+  :     Aggregation[keys: u.user_id | count(p) AS posts, avg(p.score) AS avgScore, max(p.view_count) AS maxViews]
+  :       GetProperty(p.view_count) [node:Post]
+  :         GetProperty(p.score) [node:Post]
+  :           GetProperty(u.user_id) [node:User]
+  :             Expand((u)-[_r0:AUTHORED]->(p:Post))
+  :               Filter((u.reputation >= 10000))
+  :                 GetProperty(u.reputation) [node:User]
+  :                   EntityScan(u:User)
+
+### SH4 @relational
+Coord Limit[20]
+  Coord Sort[posts DESC, u.user_id ASC]
+    Coord Aggregation[keys: u.user_id | count(p) AS posts, avg(p.score) AS avgScore, max(p.view_count) AS maxViews]
+      Fetch[mysql] in=(p) out=(p, p.score, p.view_count)
+        : GetProperty(p.view_count) [node:Post]
+        :   GetProperty(p.score) [node:Post]
+        :     Argument(p)
+        Fetch[mysql] in=(u) out=(u, u.user_id)
+          : GetProperty(u.user_id) [node:User]
+          :   Argument(u)
+          StoreQuery[neo4j] in=(u) out=(u, p)
+            : Expand((u)-[_r0:AUTHORED]->(p:Post))
+            :   Argument(u)
+            StoreQuery[mysql] out=(u)
+              : Filter((u.reputation >= 10000))
+              :   GetProperty(u.reputation) [node:User]
+              :     EntityScan(u:User)
+
+### SH4 @document
+Coord Limit[20]
+  Coord Sort[posts DESC, u.user_id ASC]
+    Coord Aggregation[keys: u.user_id | count(p) AS posts, avg(p.score) AS avgScore, max(p.view_count) AS maxViews]
+      Fetch[mongo] in=(p) out=(p, p.score, p.view_count)
+        : GetProperty(p.view_count) [node:Post]
+        :   GetProperty(p.score) [node:Post]
+        :     Argument(p)
+        Fetch[mongo] in=(u) out=(u, u.user_id)
+          : GetProperty(u.user_id) [node:User]
+          :   Argument(u)
+          StoreQuery[neo4j] in=(u) out=(u, p)
+            : Expand((u)-[_r0:AUTHORED]->(p:Post))
+            :   Argument(u)
+            StoreQuery[mongo] out=(u)
+              : Filter((u.reputation >= 10000))
+              :   GetProperty(u.reputation) [node:User]
+              :     EntityScan(u:User)
+
+### SH4 @columnar
+Coord Limit[20]
+  Coord Sort[posts DESC, u.user_id ASC]
+    Coord Aggregation[keys: u.user_id | count(p) AS posts, avg(p.score) AS avgScore, max(p.view_count) AS maxViews]
+      Fetch[clickhouse] in=(p) out=(p, p.score, p.view_count)
+        : GetProperty(p.view_count) [node:Post]
+        :   GetProperty(p.score) [node:Post]
+        :     Argument(p)
+        Fetch[clickhouse] in=(u) out=(u, u.user_id)
+          : GetProperty(u.user_id) [node:User]
+          :   Argument(u)
+          StoreQuery[neo4j] in=(u) out=(u, p)
+            : Expand((u)-[_r0:AUTHORED]->(p:Post))
+            :   Argument(u)
+            StoreQuery[clickhouse] out=(u)
+              : Filter((u.reputation >= 10000))
+              :   GetProperty(u.reputation) [node:User]
+              :     EntityScan(u:User)
+
+### SH4 @widecolumn
+Coord Limit[20]
+  Coord Sort[posts DESC, u.user_id ASC]
+    Coord Aggregation[keys: u.user_id | count(p) AS posts, avg(p.score) AS avgScore, max(p.view_count) AS maxViews]
+      Fetch[cassandra] in=(p) out=(p, p.score, p.view_count)
+        : GetProperty(p.view_count) [node:Post]
+        :   GetProperty(p.score) [node:Post]
+        :     Argument(p)
+        Fetch[cassandra] in=(u) out=(u, u.user_id)
+          : GetProperty(u.user_id) [node:User]
+          :   Argument(u)
+          StoreQuery[neo4j] in=(u) out=(u, p)
+            : Expand((u)-[_r0:AUTHORED]->(p:Post))
+            :   Argument(u)
+            StoreQuery[cassandra] out=(u)
+              : Filter((u.reputation >= 10000))
+              :   GetProperty(u.reputation) [node:User]
+              :     EntityScan(u:User)
+
+### SH4 @kvs
+Coord Limit[20]
+  Coord Sort[posts DESC, u.user_id ASC]
+    Coord Aggregation[keys: u.user_id | count(p) AS posts, avg(p.score) AS avgScore, max(p.view_count) AS maxViews]
+      Fetch[leveldb] in=(p) out=(p, p.score, p.view_count)
+        : GetProperty(p.view_count) [node:Post]
+        :   GetProperty(p.score) [node:Post]
+        :     Argument(p)
+        Fetch[leveldb] in=(u) out=(u, u.user_id)
+          : GetProperty(u.user_id) [node:User]
+          :   Argument(u)
+          StoreQuery[neo4j] in=(u) out=(u, p)
+            : Expand((u)-[_r0:AUTHORED]->(p:Post))
+            :   Argument(u)
+            StoreQuery[leveldb] out=(u)
+              : Filter((u.reputation >= 10000))
+              :   GetProperty(u.reputation) [node:User]
+              :     EntityScan(u:User)
+
+## SH5 — A whole-path condition (none) on the linear chain of versions: the cost of extracting paths
+traits: start=filtered scan hops=1..5 fan-out=low variable-length aggregate Top-20 | R1 start: r.creation_date | R4 path: x.history_type | R6 aggregate / sort: o.post_id
+
+### SH5 @graph
+StoreQuery[neo4j] out=(o.post_id, chains)
+  : Limit[20]
+  :   Sort[chains DESC, o.post_id ASC]
+  :     Aggregation[keys: o.post_id | count(*) AS chains]
+  :       GetProperty(o.post_id) [node:Rev]
+  :         Filter(NOT((o.history_type = 8)))
+  :           GetProperty(o.history_type) [node:Rev]
+  :             VarLengthExpand((r)-[_r0:PREV_EDIT*1..5]->(o:Rev)) seg[all(x IN nodes WHERE NOT((x.history_type = 8)))]
+  :               Filter(NOT((r.history_type = 8)))
+  :                 GetProperty(r.history_type) [node:Rev]
+  :                   Filter((r.creation_date >= "2020-01-01"))
+  :                     GetProperty(r.creation_date) [node:Rev]
+  :                       EntityScan(r:Rev)
+
+### SH5 @relational
+Coord Limit[20]
+  Coord Sort[chains DESC, o.post_id ASC]
+    Coord Aggregation[keys: o.post_id | count(*) AS chains]
+      StoreQuery[mysql] in=(o) out=(o, o.post_id)
+        : GetProperty(o.post_id) [node:Rev]
+        :   Filter(NOT((o.history_type = 8)))
+        :     GetProperty(o.history_type) [node:Rev]
+        :       Argument(o)
+        Coord Filter(all(x IN nodes(_seg__r0) WHERE NOT((x.history_type = 8))))
+          ListFetch[mysql] _seg__r0.nodes.history_type from _seg__r0 [elem:Rev]
+            StoreQuery[neo4j] in=(r) out=(r, _seg__r0, o)
+              : VarLengthExpand((r)-[_r0:PREV_EDIT*1..5]->(o:Rev)) emit _seg__r0
+              :   Argument(r)
+              StoreQuery[mysql] out=(r)
+                : Filter(NOT((r.history_type = 8)))
+                :   GetProperty(r.history_type) [node:Rev]
+                :     Filter((r.creation_date >= "2020-01-01"))
+                :       GetProperty(r.creation_date) [node:Rev]
+                :         EntityScan(r:Rev)
+
+### SH5 @document
+Coord Limit[20]
+  Coord Sort[chains DESC, o.post_id ASC]
+    Coord Aggregation[keys: o.post_id | count(*) AS chains]
+      StoreQuery[mongo] in=(o) out=(o, o.post_id)
+        : GetProperty(o.post_id) [node:Rev]
+        :   Filter(NOT((o.history_type = 8)))
+        :     GetProperty(o.history_type) [node:Rev]
+        :       Argument(o)
+        Coord Filter(all(x IN nodes(_seg__r0) WHERE NOT((x.history_type = 8))))
+          ListFetch[mongo] _seg__r0.nodes.history_type from _seg__r0 [elem:Rev]
+            StoreQuery[neo4j] in=(r) out=(r, _seg__r0, o)
+              : VarLengthExpand((r)-[_r0:PREV_EDIT*1..5]->(o:Rev)) emit _seg__r0
+              :   Argument(r)
+              StoreQuery[mongo] out=(r)
+                : Filter(NOT((r.history_type = 8)))
+                :   GetProperty(r.history_type) [node:Rev]
+                :     Filter((r.creation_date >= "2020-01-01"))
+                :       GetProperty(r.creation_date) [node:Rev]
+                :         EntityScan(r:Rev)
+
+### SH5 @columnar
+Coord Limit[20]
+  Coord Sort[chains DESC, o.post_id ASC]
+    Coord Aggregation[keys: o.post_id | count(*) AS chains]
+      StoreQuery[clickhouse] in=(o) out=(o, o.post_id)
+        : GetProperty(o.post_id) [node:Rev]
+        :   Filter(NOT((o.history_type = 8)))
+        :     GetProperty(o.history_type) [node:Rev]
+        :       Argument(o)
+        Coord Filter(all(x IN nodes(_seg__r0) WHERE NOT((x.history_type = 8))))
+          ListFetch[clickhouse] _seg__r0.nodes.history_type from _seg__r0 [elem:Rev]
+            StoreQuery[neo4j] in=(r) out=(r, _seg__r0, o)
+              : VarLengthExpand((r)-[_r0:PREV_EDIT*1..5]->(o:Rev)) emit _seg__r0
+              :   Argument(r)
+              StoreQuery[clickhouse] out=(r)
+                : Filter(NOT((r.history_type = 8)))
+                :   GetProperty(r.history_type) [node:Rev]
+                :     Filter((r.creation_date >= "2020-01-01"))
+                :       GetProperty(r.creation_date) [node:Rev]
+                :         EntityScan(r:Rev)
+
+### SH5 @widecolumn
+Coord Limit[20]
+  Coord Sort[chains DESC, o.post_id ASC]
+    Coord Aggregation[keys: o.post_id | count(*) AS chains]
+      Fetch[cassandra] in=(o) out=(o, o.post_id)
+        : GetProperty(o.post_id) [node:Rev]
+        :   Argument(o)
+        Coord Filter(NOT((o.history_type = 8)))
+          Fetch[cassandra] in=(o) out=(o, o.history_type)
+            : GetProperty(o.history_type) [node:Rev]
+            :   Argument(o)
+            Coord Filter(all(x IN nodes(_seg__r0) WHERE NOT((x.history_type = 8))))
+              ListFetch[cassandra] _seg__r0.nodes.history_type from _seg__r0 [elem:Rev]
+                StoreQuery[neo4j] in=(r) out=(r, _seg__r0, o)
+                  : VarLengthExpand((r)-[_r0:PREV_EDIT*1..5]->(o:Rev)) emit _seg__r0
+                  :   Argument(r)
+                  Coord Filter(NOT((r.history_type = 8)))
+                    StoreQuery[cassandra] out=(r, r.history_type)
+                      : GetProperty(r.history_type) [node:Rev]
+                      :   Filter((r.creation_date >= "2020-01-01"))
+                      :     GetProperty(r.creation_date) [node:Rev]
+                      :       EntityScan(r:Rev)
+
+### SH5 @kvs
+Coord Limit[20]
+  Coord Sort[chains DESC, o.post_id ASC]
+    Coord Aggregation[keys: o.post_id | count(*) AS chains]
+      Fetch[leveldb] in=(o) out=(o, o.post_id)
+        : GetProperty(o.post_id) [node:Rev]
+        :   Argument(o)
+        Coord Filter(NOT((o.history_type = 8)))
+          Fetch[leveldb] in=(o) out=(o, o.history_type)
+            : GetProperty(o.history_type) [node:Rev]
+            :   Argument(o)
+            Coord Filter(all(x IN nodes(_seg__r0) WHERE NOT((x.history_type = 8))))
+              ListFetch[leveldb] _seg__r0.nodes.history_type from _seg__r0 [elem:Rev]
+                StoreQuery[neo4j] in=(r) out=(r, _seg__r0, o)
+                  : VarLengthExpand((r)-[_r0:PREV_EDIT*1..5]->(o:Rev)) emit _seg__r0
+                  :   Argument(r)
+                  Coord Filter(NOT((r.history_type = 8)))
+                    StoreQuery[leveldb] out=(r, r.history_type)
+                      : GetProperty(r.history_type) [node:Rev]
+                      :   Filter((r.creation_date >= "2020-01-01"))
+                      :     GetProperty(r.creation_date) [node:Rev]
+                      :       EntityScan(r:Rev)
+
+## SH6 — Fetching version text (large in total) after Top-k, and the effect of a smaller graph
+traits: start=filtered scan hops=2 fan-out=low Top-10 | R0 output: p.post_id | R1 start: u.reputation | R2 end: p.score | R6 aggregate / sort: r.creation_date, r.rev_id | R7 text: r.text
+
+### SH6 @graph
+StoreQuery[neo4j] out=(p.post_id, r.rev_id, r.text)
+  : Projection[p.post_id, r.rev_id, r.text]
+  :   GetProperty(r.text) [node:Rev]
+  :     GetProperty(p.post_id) [node:Post]
+  :       Limit[10]
+  :         Sort[_sort0 DESC, r.rev_id ASC]
+  :           Projection[r.rev_id, r.creation_date AS _sort0, r, p]
+  :             GetProperty(r.creation_date) [node:Rev]
+  :               GetProperty(r.rev_id) [node:Rev]
+  :                 Filter((p.score >= 50))
+  :                   GetProperty(p.score) [node:Post]
+  :                     Expand((r)<-[_r1:HAS_EDIT]-(p:Post))
+  :                       Expand((u)-[_r0:MADE_EDIT]->(r:Rev))
+  :                         Filter((u.reputation >= 10000))
+  :                           GetProperty(u.reputation) [node:User]
+  :                             EntityScan(u:User)
+
+### SH6 @relational
+Coord Projection[p.post_id, r.rev_id, r.text]
+  Fetch[mysql] in=(r) out=(r, r.text)
+    : GetProperty(r.text) [node:Rev]
+    :   Argument(r)
+    Fetch[mysql] in=(p) out=(p, p.post_id)
+      : GetProperty(p.post_id) [node:Post]
+      :   Argument(p)
+      Coord Limit[10]
+        Coord Sort[_sort0 DESC, r.rev_id ASC]
+          Coord Projection[r.rev_id, r.creation_date AS _sort0, r, p]
+            Fetch[mysql] in=(r) out=(r, r.creation_date, r.rev_id)
+              : GetProperty(r.creation_date) [node:Rev]
+              :   GetProperty(r.rev_id) [node:Rev]
+              :     Argument(r)
+              StoreQuery[mysql] in=(p) out=(p)
+                : Filter((p.score >= 50))
+                :   GetProperty(p.score) [node:Post]
+                :     Argument(p)
+                StoreQuery[neo4j] in=(u) out=(u, p, r)
+                  : Expand((r)<-[_r1:HAS_EDIT]-(p:Post))
+                  :   Expand((u)-[_r0:MADE_EDIT]->(r:Rev))
+                  :     Argument(u)
+                  StoreQuery[mysql] out=(u)
+                    : Filter((u.reputation >= 10000))
+                    :   GetProperty(u.reputation) [node:User]
+                    :     EntityScan(u:User)
+
+### SH6 @document
+Coord Projection[p.post_id, r.rev_id, r.text]
+  Fetch[mongo] in=(r) out=(r, r.text)
+    : GetProperty(r.text) [node:Rev]
+    :   Argument(r)
+    Fetch[mongo] in=(p) out=(p, p.post_id)
+      : GetProperty(p.post_id) [node:Post]
+      :   Argument(p)
+      Coord Limit[10]
+        Coord Sort[_sort0 DESC, r.rev_id ASC]
+          Coord Projection[r.rev_id, r.creation_date AS _sort0, r, p]
+            Fetch[mongo] in=(r) out=(r, r.creation_date, r.rev_id)
+              : GetProperty(r.creation_date) [node:Rev]
+              :   GetProperty(r.rev_id) [node:Rev]
+              :     Argument(r)
+              StoreQuery[mongo] in=(p) out=(p)
+                : Filter((p.score >= 50))
+                :   GetProperty(p.score) [node:Post]
+                :     Argument(p)
+                StoreQuery[neo4j] in=(u) out=(u, p, r)
+                  : Expand((r)<-[_r1:HAS_EDIT]-(p:Post))
+                  :   Expand((u)-[_r0:MADE_EDIT]->(r:Rev))
+                  :     Argument(u)
+                  StoreQuery[mongo] out=(u)
+                    : Filter((u.reputation >= 10000))
+                    :   GetProperty(u.reputation) [node:User]
+                    :     EntityScan(u:User)
+
+### SH6 @columnar
+Coord Projection[p.post_id, r.rev_id, r.text]
+  Fetch[clickhouse] in=(r) out=(r, r.text)
+    : GetProperty(r.text) [node:Rev]
+    :   Argument(r)
+    Fetch[clickhouse] in=(p) out=(p, p.post_id)
+      : GetProperty(p.post_id) [node:Post]
+      :   Argument(p)
+      Coord Limit[10]
+        Coord Sort[_sort0 DESC, r.rev_id ASC]
+          Coord Projection[r.rev_id, r.creation_date AS _sort0, r, p]
+            Fetch[clickhouse] in=(r) out=(r, r.creation_date, r.rev_id)
+              : GetProperty(r.creation_date) [node:Rev]
+              :   GetProperty(r.rev_id) [node:Rev]
+              :     Argument(r)
+              StoreQuery[clickhouse] in=(p) out=(p)
+                : Filter((p.score >= 50))
+                :   GetProperty(p.score) [node:Post]
+                :     Argument(p)
+                StoreQuery[neo4j] in=(u) out=(u, p, r)
+                  : Expand((r)<-[_r1:HAS_EDIT]-(p:Post))
+                  :   Expand((u)-[_r0:MADE_EDIT]->(r:Rev))
+                  :     Argument(u)
+                  StoreQuery[clickhouse] out=(u)
+                    : Filter((u.reputation >= 10000))
+                    :   GetProperty(u.reputation) [node:User]
+                    :     EntityScan(u:User)
+
+### SH6 @widecolumn
+Coord Projection[p.post_id, r.rev_id, r.text]
+  Fetch[cassandra] in=(r) out=(r, r.text)
+    : GetProperty(r.text) [node:Rev]
+    :   Argument(r)
+    Fetch[cassandra] in=(p) out=(p, p.post_id)
+      : GetProperty(p.post_id) [node:Post]
+      :   Argument(p)
+      Coord Limit[10]
+        Coord Sort[_sort0 DESC, r.rev_id ASC]
+          Coord Projection[r.rev_id, r.creation_date AS _sort0, r, p]
+            Fetch[cassandra] in=(r) out=(r, r.creation_date, r.rev_id)
+              : GetProperty(r.creation_date) [node:Rev]
+              :   GetProperty(r.rev_id) [node:Rev]
+              :     Argument(r)
+              StoreQuery[cassandra] in=(p) out=(p)
+                : Filter((p.score >= 50))
+                :   GetProperty(p.score) [node:Post]
+                :     Argument(p)
+                StoreQuery[neo4j] in=(u) out=(u, p, r)
+                  : Expand((r)<-[_r1:HAS_EDIT]-(p:Post))
+                  :   Expand((u)-[_r0:MADE_EDIT]->(r:Rev))
+                  :     Argument(u)
+                  StoreQuery[cassandra] out=(u)
+                    : Filter((u.reputation >= 10000))
+                    :   GetProperty(u.reputation) [node:User]
+                    :     EntityScan(u:User)
+
+### SH6 @kvs
+Coord Projection[p.post_id, r.rev_id, r.text]
+  Fetch[leveldb] in=(r) out=(r, r.text)
+    : GetProperty(r.text) [node:Rev]
+    :   Argument(r)
+    Fetch[leveldb] in=(p) out=(p, p.post_id)
+      : GetProperty(p.post_id) [node:Post]
+      :   Argument(p)
+      Coord Limit[10]
+        Coord Sort[_sort0 DESC, r.rev_id ASC]
+          Coord Projection[r.rev_id, r.creation_date AS _sort0, r, p]
+            Fetch[leveldb] in=(r) out=(r, r.creation_date, r.rev_id)
+              : GetProperty(r.creation_date) [node:Rev]
+              :   GetProperty(r.rev_id) [node:Rev]
+              :     Argument(r)
+              StoreQuery[leveldb] in=(p) out=(p)
+                : Filter((p.score >= 50))
+                :   GetProperty(p.score) [node:Post]
+                :     Argument(p)
+                StoreQuery[neo4j] in=(u) out=(u, p, r)
+                  : Expand((r)<-[_r1:HAS_EDIT]-(p:Post))
+                  :   Expand((u)-[_r0:MADE_EDIT]->(r:Rev))
+                  :     Argument(u)
+                  StoreQuery[leveldb] out=(u)
+                    : Filter((u.reputation >= 10000))
+                    :   GetProperty(u.reputation) [node:User]
+                    :     EntityScan(u:User)
+

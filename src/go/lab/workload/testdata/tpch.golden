@@ -1,0 +1,628 @@
+## TPCH1 — A fixed two-hop analysis with a condition per hop: how the number of boundaries changes with which hop is relational
+traits: start=filtered scan hops=2 fan-out=medium aggregate Top-10 | R1 start: c.mktsegment | R2 end: l.shipdate | R3 middle: o.orderdate | R6 aggregate / sort: o.orderkey, o.orderdate, l.extendedprice
+
+### TPCH1 @graph
+StoreQuery[neo4j] out=(o.orderkey, o.orderdate, revenue)
+  : Limit[10]
+  :   Sort[revenue DESC, o.orderkey ASC]
+  :     Aggregation[keys: o.orderkey, o.orderdate | sum(l.extendedprice) AS revenue]
+  :       GetProperty(l.extendedprice) [node:Lineitem]
+  :         GetProperty(o.orderkey) [node:Order]
+  :           Filter((l.shipdate > "1995-03-15"))
+  :             GetProperty(l.shipdate) [node:Lineitem]
+  :               Expand((o)-[_r1:CONTAINS]->(l:Lineitem))
+  :                 Filter((o.orderdate < "1995-03-15"))
+  :                   GetProperty(o.orderdate) [node:Order]
+  :                     Expand((c)-[_r0:PLACED]->(o:Order))
+  :                       Filter((c.mktsegment = "BUILDING"))
+  :                         GetProperty(c.mktsegment) [node:Customer]
+  :                           EntityScan(c:Customer)
+
+### TPCH1 @relational
+Coord Limit[10]
+  Coord Sort[revenue DESC, o.orderkey ASC]
+    Coord Aggregation[keys: o.orderkey, o.orderdate | sum(l.extendedprice) AS revenue]
+      Fetch[mysql] in=(l) out=(l, l.extendedprice)
+        : GetProperty(l.extendedprice) [node:Lineitem]
+        :   Argument(l)
+        Fetch[mysql] in=(o) out=(o, o.orderkey)
+          : GetProperty(o.orderkey) [node:Order]
+          :   Argument(o)
+          StoreQuery[mysql] in=(l) out=(l)
+            : Filter((l.shipdate > "1995-03-15"))
+            :   GetProperty(l.shipdate) [node:Lineitem]
+            :     Argument(l)
+            StoreQuery[mysql] in=(o) out=(o, o.orderdate)
+              : Filter((o.orderdate < "1995-03-15"))
+              :   GetProperty(o.orderdate) [node:Order]
+              :     Argument(o)
+              StoreQuery[neo4j] in=(c) out=(c, l, o)
+                : Expand((o)-[_r1:CONTAINS]->(l:Lineitem))
+                :   Expand((c)-[_r0:PLACED]->(o:Order))
+                :     Argument(c)
+                StoreQuery[mysql] out=(c)
+                  : Filter((c.mktsegment = "BUILDING"))
+                  :   GetProperty(c.mktsegment) [node:Customer]
+                  :     EntityScan(c:Customer)
+
+### TPCH1 @document
+Coord Limit[10]
+  Coord Sort[revenue DESC, o.orderkey ASC]
+    Coord Aggregation[keys: o.orderkey, o.orderdate | sum(l.extendedprice) AS revenue]
+      Fetch[mongo] in=(l) out=(l, l.extendedprice)
+        : GetProperty(l.extendedprice) [node:Lineitem]
+        :   Argument(l)
+        Fetch[mongo] in=(o) out=(o, o.orderkey)
+          : GetProperty(o.orderkey) [node:Order]
+          :   Argument(o)
+          StoreQuery[mongo] in=(l) out=(l)
+            : Filter((l.shipdate > "1995-03-15"))
+            :   GetProperty(l.shipdate) [node:Lineitem]
+            :     Argument(l)
+            StoreQuery[mongo] in=(o) out=(o, o.orderdate)
+              : Filter((o.orderdate < "1995-03-15"))
+              :   GetProperty(o.orderdate) [node:Order]
+              :     Argument(o)
+              StoreQuery[neo4j] in=(c) out=(c, l, o)
+                : Expand((o)-[_r1:CONTAINS]->(l:Lineitem))
+                :   Expand((c)-[_r0:PLACED]->(o:Order))
+                :     Argument(c)
+                StoreQuery[mongo] out=(c)
+                  : Filter((c.mktsegment = "BUILDING"))
+                  :   GetProperty(c.mktsegment) [node:Customer]
+                  :     EntityScan(c:Customer)
+
+### TPCH1 @columnar
+Coord Limit[10]
+  Coord Sort[revenue DESC, o.orderkey ASC]
+    Coord Aggregation[keys: o.orderkey, o.orderdate | sum(l.extendedprice) AS revenue]
+      Fetch[clickhouse] in=(l) out=(l, l.extendedprice)
+        : GetProperty(l.extendedprice) [node:Lineitem]
+        :   Argument(l)
+        Fetch[clickhouse] in=(o) out=(o, o.orderkey)
+          : GetProperty(o.orderkey) [node:Order]
+          :   Argument(o)
+          StoreQuery[clickhouse] in=(l) out=(l)
+            : Filter((l.shipdate > "1995-03-15"))
+            :   GetProperty(l.shipdate) [node:Lineitem]
+            :     Argument(l)
+            StoreQuery[clickhouse] in=(o) out=(o, o.orderdate)
+              : Filter((o.orderdate < "1995-03-15"))
+              :   GetProperty(o.orderdate) [node:Order]
+              :     Argument(o)
+              StoreQuery[neo4j] in=(c) out=(c, l, o)
+                : Expand((o)-[_r1:CONTAINS]->(l:Lineitem))
+                :   Expand((c)-[_r0:PLACED]->(o:Order))
+                :     Argument(c)
+                StoreQuery[clickhouse] out=(c)
+                  : Filter((c.mktsegment = "BUILDING"))
+                  :   GetProperty(c.mktsegment) [node:Customer]
+                  :     EntityScan(c:Customer)
+
+### TPCH1 @widecolumn
+Coord Limit[10]
+  Coord Sort[revenue DESC, o.orderkey ASC]
+    Coord Aggregation[keys: o.orderkey, o.orderdate | sum(l.extendedprice) AS revenue]
+      Fetch[cassandra] in=(l) out=(l, l.extendedprice)
+        : GetProperty(l.extendedprice) [node:Lineitem]
+        :   Argument(l)
+        Fetch[cassandra] in=(o) out=(o, o.orderkey)
+          : GetProperty(o.orderkey) [node:Order]
+          :   Argument(o)
+          StoreQuery[cassandra] in=(l) out=(l)
+            : Filter((l.shipdate > "1995-03-15"))
+            :   GetProperty(l.shipdate) [node:Lineitem]
+            :     Argument(l)
+            StoreQuery[cassandra] in=(o) out=(o, o.orderdate)
+              : Filter((o.orderdate < "1995-03-15"))
+              :   GetProperty(o.orderdate) [node:Order]
+              :     Argument(o)
+              StoreQuery[neo4j] in=(c) out=(c, l, o)
+                : Expand((o)-[_r1:CONTAINS]->(l:Lineitem))
+                :   Expand((c)-[_r0:PLACED]->(o:Order))
+                :     Argument(c)
+                StoreQuery[cassandra] out=(c)
+                  : Filter((c.mktsegment = "BUILDING"))
+                  :   GetProperty(c.mktsegment) [node:Customer]
+                  :     EntityScan(c:Customer)
+
+### TPCH1 @kvs
+Coord Limit[10]
+  Coord Sort[revenue DESC, o.orderkey ASC]
+    Coord Aggregation[keys: o.orderkey, o.orderdate | sum(l.extendedprice) AS revenue]
+      Fetch[leveldb] in=(l) out=(l, l.extendedprice)
+        : GetProperty(l.extendedprice) [node:Lineitem]
+        :   Argument(l)
+        Fetch[leveldb] in=(o) out=(o, o.orderkey)
+          : GetProperty(o.orderkey) [node:Order]
+          :   Argument(o)
+          StoreQuery[leveldb] in=(l) out=(l)
+            : Filter((l.shipdate > "1995-03-15"))
+            :   GetProperty(l.shipdate) [node:Lineitem]
+            :     Argument(l)
+            StoreQuery[leveldb] in=(o) out=(o, o.orderdate)
+              : Filter((o.orderdate < "1995-03-15"))
+              :   GetProperty(o.orderdate) [node:Order]
+              :     Argument(o)
+              StoreQuery[neo4j] in=(c) out=(c, l, o)
+                : Expand((o)-[_r1:CONTAINS]->(l:Lineitem))
+                :   Expand((c)-[_r0:PLACED]->(o:Order))
+                :     Argument(c)
+                StoreQuery[leveldb] out=(c)
+                  : Filter((c.mktsegment = "BUILDING"))
+                  :   GetProperty(c.mktsegment) [node:Customer]
+                  :     EntityScan(c:Customer)
+
+## TPCH2 — A three-hop analysis with middle conditions on two hops: the number of boundaries and aggregation absorption
+traits: start=filtered scan hops=3 fan-out=medium aggregate Top-10 | R1 start: c.mktsegment | R3 middle: o.orderdate, l.discount | R6 aggregate / sort: p.brand, l.extendedprice
+
+### TPCH2 @graph
+StoreQuery[neo4j] out=(p.brand, lines, revenue)
+  : Limit[10]
+  :   Sort[revenue DESC, p.brand ASC]
+  :     Aggregation[keys: p.brand | count(*) AS lines, sum(l.extendedprice) AS revenue]
+  :       GetProperty(l.extendedprice) [node:Lineitem]
+  :         GetProperty(p.brand) [node:Part]
+  :           Expand((l)-[_r2:OF_PART]->(p:Part))
+  :             Filter((l.discount >= 0.05))
+  :               GetProperty(l.discount) [node:Lineitem]
+  :                 Expand((o)-[_r1:CONTAINS]->(l:Lineitem))
+  :                   Filter((o.orderdate < "1995-01-01"))
+  :                     Filter((o.orderdate >= "1994-01-01"))
+  :                       GetProperty(o.orderdate) [node:Order]
+  :                         Expand((c)-[_r0:PLACED]->(o:Order))
+  :                           Filter((c.mktsegment = "AUTOMOBILE"))
+  :                             GetProperty(c.mktsegment) [node:Customer]
+  :                               EntityScan(c:Customer)
+
+### TPCH2 @relational
+Coord Limit[10]
+  Coord Sort[revenue DESC, p.brand ASC]
+    Coord Aggregation[keys: p.brand | count(*) AS lines, sum(l.extendedprice) AS revenue]
+      Fetch[mysql] in=(l) out=(l, l.extendedprice)
+        : GetProperty(l.extendedprice) [node:Lineitem]
+        :   Argument(l)
+        Fetch[mysql] in=(p) out=(p, p.brand)
+          : GetProperty(p.brand) [node:Part]
+          :   Argument(p)
+          StoreQuery[mysql] in=(l) out=(l)
+            : Filter((l.discount >= 0.05))
+            :   GetProperty(l.discount) [node:Lineitem]
+            :     Argument(l)
+            StoreQuery[mysql] in=(o) out=(o)
+              : Filter((o.orderdate < "1995-01-01"))
+              :   Filter((o.orderdate >= "1994-01-01"))
+              :     GetProperty(o.orderdate) [node:Order]
+              :       Argument(o)
+              StoreQuery[neo4j] in=(c) out=(c, l, o, p)
+                : Expand((l)-[_r2:OF_PART]->(p:Part))
+                :   Expand((o)-[_r1:CONTAINS]->(l:Lineitem))
+                :     Expand((c)-[_r0:PLACED]->(o:Order))
+                :       Argument(c)
+                StoreQuery[mysql] out=(c)
+                  : Filter((c.mktsegment = "AUTOMOBILE"))
+                  :   GetProperty(c.mktsegment) [node:Customer]
+                  :     EntityScan(c:Customer)
+
+### TPCH2 @document
+Coord Limit[10]
+  Coord Sort[revenue DESC, p.brand ASC]
+    Coord Aggregation[keys: p.brand | count(*) AS lines, sum(l.extendedprice) AS revenue]
+      Fetch[mongo] in=(l) out=(l, l.extendedprice)
+        : GetProperty(l.extendedprice) [node:Lineitem]
+        :   Argument(l)
+        Fetch[mongo] in=(p) out=(p, p.brand)
+          : GetProperty(p.brand) [node:Part]
+          :   Argument(p)
+          StoreQuery[mongo] in=(l) out=(l)
+            : Filter((l.discount >= 0.05))
+            :   GetProperty(l.discount) [node:Lineitem]
+            :     Argument(l)
+            StoreQuery[mongo] in=(o) out=(o)
+              : Filter((o.orderdate < "1995-01-01"))
+              :   Filter((o.orderdate >= "1994-01-01"))
+              :     GetProperty(o.orderdate) [node:Order]
+              :       Argument(o)
+              StoreQuery[neo4j] in=(c) out=(c, l, o, p)
+                : Expand((l)-[_r2:OF_PART]->(p:Part))
+                :   Expand((o)-[_r1:CONTAINS]->(l:Lineitem))
+                :     Expand((c)-[_r0:PLACED]->(o:Order))
+                :       Argument(c)
+                StoreQuery[mongo] out=(c)
+                  : Filter((c.mktsegment = "AUTOMOBILE"))
+                  :   GetProperty(c.mktsegment) [node:Customer]
+                  :     EntityScan(c:Customer)
+
+### TPCH2 @columnar
+Coord Limit[10]
+  Coord Sort[revenue DESC, p.brand ASC]
+    Coord Aggregation[keys: p.brand | count(*) AS lines, sum(l.extendedprice) AS revenue]
+      Fetch[clickhouse] in=(l) out=(l, l.extendedprice)
+        : GetProperty(l.extendedprice) [node:Lineitem]
+        :   Argument(l)
+        Fetch[clickhouse] in=(p) out=(p, p.brand)
+          : GetProperty(p.brand) [node:Part]
+          :   Argument(p)
+          StoreQuery[clickhouse] in=(l) out=(l)
+            : Filter((l.discount >= 0.05))
+            :   GetProperty(l.discount) [node:Lineitem]
+            :     Argument(l)
+            StoreQuery[clickhouse] in=(o) out=(o)
+              : Filter((o.orderdate < "1995-01-01"))
+              :   Filter((o.orderdate >= "1994-01-01"))
+              :     GetProperty(o.orderdate) [node:Order]
+              :       Argument(o)
+              StoreQuery[neo4j] in=(c) out=(c, l, o, p)
+                : Expand((l)-[_r2:OF_PART]->(p:Part))
+                :   Expand((o)-[_r1:CONTAINS]->(l:Lineitem))
+                :     Expand((c)-[_r0:PLACED]->(o:Order))
+                :       Argument(c)
+                StoreQuery[clickhouse] out=(c)
+                  : Filter((c.mktsegment = "AUTOMOBILE"))
+                  :   GetProperty(c.mktsegment) [node:Customer]
+                  :     EntityScan(c:Customer)
+
+### TPCH2 @widecolumn
+Coord Limit[10]
+  Coord Sort[revenue DESC, p.brand ASC]
+    Coord Aggregation[keys: p.brand | count(*) AS lines, sum(l.extendedprice) AS revenue]
+      Fetch[cassandra] in=(l) out=(l, l.extendedprice)
+        : GetProperty(l.extendedprice) [node:Lineitem]
+        :   Argument(l)
+        Fetch[cassandra] in=(p) out=(p, p.brand)
+          : GetProperty(p.brand) [node:Part]
+          :   Argument(p)
+          StoreQuery[cassandra] in=(l) out=(l)
+            : Filter((l.discount >= 0.05))
+            :   GetProperty(l.discount) [node:Lineitem]
+            :     Argument(l)
+            StoreQuery[cassandra] in=(o) out=(o)
+              : Filter((o.orderdate < "1995-01-01"))
+              :   Filter((o.orderdate >= "1994-01-01"))
+              :     GetProperty(o.orderdate) [node:Order]
+              :       Argument(o)
+              StoreQuery[neo4j] in=(c) out=(c, l, o, p)
+                : Expand((l)-[_r2:OF_PART]->(p:Part))
+                :   Expand((o)-[_r1:CONTAINS]->(l:Lineitem))
+                :     Expand((c)-[_r0:PLACED]->(o:Order))
+                :       Argument(c)
+                StoreQuery[cassandra] out=(c)
+                  : Filter((c.mktsegment = "AUTOMOBILE"))
+                  :   GetProperty(c.mktsegment) [node:Customer]
+                  :     EntityScan(c:Customer)
+
+### TPCH2 @kvs
+Coord Limit[10]
+  Coord Sort[revenue DESC, p.brand ASC]
+    Coord Aggregation[keys: p.brand | count(*) AS lines, sum(l.extendedprice) AS revenue]
+      Fetch[leveldb] in=(l) out=(l, l.extendedprice)
+        : GetProperty(l.extendedprice) [node:Lineitem]
+        :   Argument(l)
+        Fetch[leveldb] in=(p) out=(p, p.brand)
+          : GetProperty(p.brand) [node:Part]
+          :   Argument(p)
+          StoreQuery[leveldb] in=(l) out=(l)
+            : Filter((l.discount >= 0.05))
+            :   GetProperty(l.discount) [node:Lineitem]
+            :     Argument(l)
+            StoreQuery[leveldb] in=(o) out=(o)
+              : Filter((o.orderdate < "1995-01-01"))
+              :   Filter((o.orderdate >= "1994-01-01"))
+              :     GetProperty(o.orderdate) [node:Order]
+              :       Argument(o)
+              StoreQuery[neo4j] in=(c) out=(c, l, o, p)
+                : Expand((l)-[_r2:OF_PART]->(p:Part))
+                :   Expand((o)-[_r1:CONTAINS]->(l:Lineitem))
+                :     Expand((c)-[_r0:PLACED]->(o:Order))
+                :       Argument(c)
+                StoreQuery[leveldb] out=(c)
+                  : Filter((c.mktsegment = "AUTOMOBILE"))
+                  :   GetProperty(c.mktsegment) [node:Customer]
+                  :     EntityScan(c:Customer)
+
+## TPCH3 — Four hops from one unique-key start: with a small start, boundaries cost round trips
+traits: start=unique key hops=4 fan-out=low aggregate | R1 start: c.custkey | R3 middle: l.returnflag | R6 aggregate / sort: n.name, s.suppkey, l.quantity
+
+### TPCH3 @graph
+StoreQuery[neo4j] out=(n.name, suppliers, qty)
+  : Sort[qty DESC, n.name ASC]
+  :   Aggregation[keys: n.name | count(DISTINCT s.suppkey) AS suppliers, sum(l.quantity) AS qty]
+  :     GetProperty(l.quantity) [node:Lineitem]
+  :       GetProperty(s.suppkey) [node:Supplier]
+  :         GetProperty(n.name) [node:Nation]
+  :           Expand((s)-[_r3:SUPP_IN]->(n:Nation))
+  :             Expand((l)-[_r2:SUPPLIED_BY]->(s:Supplier))
+  :               Filter((l.returnflag = "N"))
+  :                 GetProperty(l.returnflag) [node:Lineitem]
+  :                   Expand((o)-[_r1:CONTAINS]->(l:Lineitem))
+  :                     Expand((c)-[_r0:PLACED]->(o:Order))
+  :                       Filter((c.custkey = "1"))
+  :                         GetProperty(c.custkey) [node:Customer]
+  :                           EntityScan(c:Customer)
+
+### TPCH3 @relational
+Coord Sort[qty DESC, n.name ASC]
+  Coord Aggregation[keys: n.name | count(DISTINCT s.suppkey) AS suppliers, sum(l.quantity) AS qty]
+    Fetch[mysql] in=(l) out=(l, l.quantity)
+      : GetProperty(l.quantity) [node:Lineitem]
+      :   Argument(l)
+      Fetch[mysql] in=(s) out=(s, s.suppkey)
+        : GetProperty(s.suppkey) [node:Supplier]
+        :   Argument(s)
+        Fetch[mysql] in=(n) out=(n, n.name)
+          : GetProperty(n.name) [node:Nation]
+          :   Argument(n)
+          StoreQuery[mysql] in=(l) out=(l)
+            : Filter((l.returnflag = "N"))
+            :   GetProperty(l.returnflag) [node:Lineitem]
+            :     Argument(l)
+            StoreQuery[neo4j] in=(c) out=(c, l, n, s)
+              : Expand((s)-[_r3:SUPP_IN]->(n:Nation))
+              :   Expand((l)-[_r2:SUPPLIED_BY]->(s:Supplier))
+              :     Expand((o)-[_r1:CONTAINS]->(l:Lineitem))
+              :       Expand((c)-[_r0:PLACED]->(o:Order))
+              :         Argument(c)
+              StoreQuery[mysql] out=(c)
+                : Filter((c.custkey = "1"))
+                :   GetProperty(c.custkey) [node:Customer]
+                :     EntityScan(c:Customer)
+
+### TPCH3 @document
+Coord Sort[qty DESC, n.name ASC]
+  Coord Aggregation[keys: n.name | count(DISTINCT s.suppkey) AS suppliers, sum(l.quantity) AS qty]
+    Fetch[mongo] in=(l) out=(l, l.quantity)
+      : GetProperty(l.quantity) [node:Lineitem]
+      :   Argument(l)
+      Fetch[mongo] in=(s) out=(s, s.suppkey)
+        : GetProperty(s.suppkey) [node:Supplier]
+        :   Argument(s)
+        Fetch[mongo] in=(n) out=(n, n.name)
+          : GetProperty(n.name) [node:Nation]
+          :   Argument(n)
+          StoreQuery[mongo] in=(l) out=(l)
+            : Filter((l.returnflag = "N"))
+            :   GetProperty(l.returnflag) [node:Lineitem]
+            :     Argument(l)
+            StoreQuery[neo4j] in=(c) out=(c, l, n, s)
+              : Expand((s)-[_r3:SUPP_IN]->(n:Nation))
+              :   Expand((l)-[_r2:SUPPLIED_BY]->(s:Supplier))
+              :     Expand((o)-[_r1:CONTAINS]->(l:Lineitem))
+              :       Expand((c)-[_r0:PLACED]->(o:Order))
+              :         Argument(c)
+              StoreQuery[mongo] out=(c)
+                : Filter((c.custkey = "1"))
+                :   GetProperty(c.custkey) [node:Customer]
+                :     EntityScan(c:Customer)
+
+### TPCH3 @columnar
+Coord Sort[qty DESC, n.name ASC]
+  Coord Aggregation[keys: n.name | count(DISTINCT s.suppkey) AS suppliers, sum(l.quantity) AS qty]
+    Fetch[clickhouse] in=(l) out=(l, l.quantity)
+      : GetProperty(l.quantity) [node:Lineitem]
+      :   Argument(l)
+      Fetch[clickhouse] in=(s) out=(s, s.suppkey)
+        : GetProperty(s.suppkey) [node:Supplier]
+        :   Argument(s)
+        Fetch[clickhouse] in=(n) out=(n, n.name)
+          : GetProperty(n.name) [node:Nation]
+          :   Argument(n)
+          StoreQuery[clickhouse] in=(l) out=(l)
+            : Filter((l.returnflag = "N"))
+            :   GetProperty(l.returnflag) [node:Lineitem]
+            :     Argument(l)
+            StoreQuery[neo4j] in=(c) out=(c, l, n, s)
+              : Expand((s)-[_r3:SUPP_IN]->(n:Nation))
+              :   Expand((l)-[_r2:SUPPLIED_BY]->(s:Supplier))
+              :     Expand((o)-[_r1:CONTAINS]->(l:Lineitem))
+              :       Expand((c)-[_r0:PLACED]->(o:Order))
+              :         Argument(c)
+              StoreQuery[clickhouse] out=(c)
+                : Filter((c.custkey = "1"))
+                :   GetProperty(c.custkey) [node:Customer]
+                :     EntityScan(c:Customer)
+
+### TPCH3 @widecolumn
+Coord Sort[qty DESC, n.name ASC]
+  Coord Aggregation[keys: n.name | count(DISTINCT s.suppkey) AS suppliers, sum(l.quantity) AS qty]
+    Fetch[cassandra] in=(l) out=(l, l.quantity)
+      : GetProperty(l.quantity) [node:Lineitem]
+      :   Argument(l)
+      Fetch[cassandra] in=(s) out=(s, s.suppkey)
+        : GetProperty(s.suppkey) [node:Supplier]
+        :   Argument(s)
+        Fetch[cassandra] in=(n) out=(n, n.name)
+          : GetProperty(n.name) [node:Nation]
+          :   Argument(n)
+          StoreQuery[cassandra] in=(l) out=(l)
+            : Filter((l.returnflag = "N"))
+            :   GetProperty(l.returnflag) [node:Lineitem]
+            :     Argument(l)
+            StoreQuery[neo4j] in=(c) out=(c, l, n, s)
+              : Expand((s)-[_r3:SUPP_IN]->(n:Nation))
+              :   Expand((l)-[_r2:SUPPLIED_BY]->(s:Supplier))
+              :     Expand((o)-[_r1:CONTAINS]->(l:Lineitem))
+              :       Expand((c)-[_r0:PLACED]->(o:Order))
+              :         Argument(c)
+              StoreQuery[cassandra] out=(c)
+                : Filter((c.custkey = "1"))
+                :   GetProperty(c.custkey) [node:Customer]
+                :     EntityScan(c:Customer)
+
+### TPCH3 @kvs
+Coord Sort[qty DESC, n.name ASC]
+  Coord Aggregation[keys: n.name | count(DISTINCT s.suppkey) AS suppliers, sum(l.quantity) AS qty]
+    Fetch[leveldb] in=(l) out=(l, l.quantity)
+      : GetProperty(l.quantity) [node:Lineitem]
+      :   Argument(l)
+      Fetch[leveldb] in=(s) out=(s, s.suppkey)
+        : GetProperty(s.suppkey) [node:Supplier]
+        :   Argument(s)
+        Fetch[leveldb] in=(n) out=(n, n.name)
+          : GetProperty(n.name) [node:Nation]
+          :   Argument(n)
+          StoreQuery[leveldb] in=(l) out=(l)
+            : Filter((l.returnflag = "N"))
+            :   GetProperty(l.returnflag) [node:Lineitem]
+            :     Argument(l)
+            StoreQuery[neo4j] in=(c) out=(c, l, n, s)
+              : Expand((s)-[_r3:SUPP_IN]->(n:Nation))
+              :   Expand((l)-[_r2:SUPPLIED_BY]->(s:Supplier))
+              :     Expand((o)-[_r1:CONTAINS]->(l:Lineitem))
+              :       Expand((c)-[_r0:PLACED]->(o:Order))
+              :         Argument(c)
+              StoreQuery[leveldb] out=(c)
+                : Filter((c.custkey = "1"))
+                :   GetProperty(c.custkey) [node:Customer]
+                :     EntityScan(c:Customer)
+
+## TPCH4 — A six-hop chain narrowed at both ends: middle conditions and whether to expand from both sides
+traits: start=both ends hops=6 fan-out=high aggregate | R1 start: cn.name | R2 end: sn.name | R3 middle: l.shipdate | R6 aggregate / sort: l.extendedprice
+
+### TPCH4 @graph
+StoreQuery[neo4j] out=(lines, revenue)
+  : Aggregation[keys: ∅ | count(*) AS lines, sum(l.extendedprice) AS revenue]
+  :   GetProperty(l.extendedprice) [node:Lineitem]
+  :     Filter((sn.name = "FRANCE"))
+  :       GetProperty(sn.name) [node:Nation]
+  :         Expand((s)-[_r4:SUPP_IN]->(sn:Nation))
+  :           Expand((l)-[_r3:SUPPLIED_BY]->(s:Supplier))
+  :             Filter((l.shipdate <= "1996-12-31"))
+  :               Filter((l.shipdate >= "1995-01-01"))
+  :                 GetProperty(l.shipdate) [node:Lineitem]
+  :                   Expand((o)-[_r2:CONTAINS]->(l:Lineitem))
+  :                     Expand((c)-[_r1:PLACED]->(o:Order))
+  :                       Expand((cn)<-[_r0:CUST_IN]-(c:Customer))
+  :                         Filter((cn.name = "GERMANY"))
+  :                           GetProperty(cn.name) [node:Nation]
+  :                             EntityScan(cn:Nation)
+
+### TPCH4 @relational
+Coord Aggregation[keys: ∅ | count(*) AS lines, sum(l.extendedprice) AS revenue]
+  Fetch[mysql] in=(l) out=(l, l.extendedprice)
+    : GetProperty(l.extendedprice) [node:Lineitem]
+    :   Argument(l)
+    StoreQuery[mysql] in=(sn) out=(sn)
+      : Filter((sn.name = "FRANCE"))
+      :   GetProperty(sn.name) [node:Nation]
+      :     Argument(sn)
+      StoreQuery[mysql] in=(l) out=(l)
+        : Filter((l.shipdate <= "1996-12-31"))
+        :   Filter((l.shipdate >= "1995-01-01"))
+        :     GetProperty(l.shipdate) [node:Lineitem]
+        :       Argument(l)
+        StoreQuery[neo4j] in=(cn) out=(cn, l, sn)
+          : Expand((s)-[_r4:SUPP_IN]->(sn:Nation))
+          :   Expand((l)-[_r3:SUPPLIED_BY]->(s:Supplier))
+          :     Expand((o)-[_r2:CONTAINS]->(l:Lineitem))
+          :       Expand((c)-[_r1:PLACED]->(o:Order))
+          :         Expand((cn)<-[_r0:CUST_IN]-(c:Customer))
+          :           Argument(cn)
+          StoreQuery[mysql] out=(cn)
+            : Filter((cn.name = "GERMANY"))
+            :   GetProperty(cn.name) [node:Nation]
+            :     EntityScan(cn:Nation)
+
+### TPCH4 @document
+Coord Aggregation[keys: ∅ | count(*) AS lines, sum(l.extendedprice) AS revenue]
+  Fetch[mongo] in=(l) out=(l, l.extendedprice)
+    : GetProperty(l.extendedprice) [node:Lineitem]
+    :   Argument(l)
+    StoreQuery[mongo] in=(sn) out=(sn)
+      : Filter((sn.name = "FRANCE"))
+      :   GetProperty(sn.name) [node:Nation]
+      :     Argument(sn)
+      StoreQuery[mongo] in=(l) out=(l)
+        : Filter((l.shipdate <= "1996-12-31"))
+        :   Filter((l.shipdate >= "1995-01-01"))
+        :     GetProperty(l.shipdate) [node:Lineitem]
+        :       Argument(l)
+        StoreQuery[neo4j] in=(cn) out=(cn, l, sn)
+          : Expand((s)-[_r4:SUPP_IN]->(sn:Nation))
+          :   Expand((l)-[_r3:SUPPLIED_BY]->(s:Supplier))
+          :     Expand((o)-[_r2:CONTAINS]->(l:Lineitem))
+          :       Expand((c)-[_r1:PLACED]->(o:Order))
+          :         Expand((cn)<-[_r0:CUST_IN]-(c:Customer))
+          :           Argument(cn)
+          StoreQuery[mongo] out=(cn)
+            : Filter((cn.name = "GERMANY"))
+            :   GetProperty(cn.name) [node:Nation]
+            :     EntityScan(cn:Nation)
+
+### TPCH4 @columnar
+Coord Aggregation[keys: ∅ | count(*) AS lines, sum(l.extendedprice) AS revenue]
+  Fetch[clickhouse] in=(l) out=(l, l.extendedprice)
+    : GetProperty(l.extendedprice) [node:Lineitem]
+    :   Argument(l)
+    StoreQuery[clickhouse] in=(sn) out=(sn)
+      : Filter((sn.name = "FRANCE"))
+      :   GetProperty(sn.name) [node:Nation]
+      :     Argument(sn)
+      StoreQuery[clickhouse] in=(l) out=(l)
+        : Filter((l.shipdate <= "1996-12-31"))
+        :   Filter((l.shipdate >= "1995-01-01"))
+        :     GetProperty(l.shipdate) [node:Lineitem]
+        :       Argument(l)
+        StoreQuery[neo4j] in=(cn) out=(cn, l, sn)
+          : Expand((s)-[_r4:SUPP_IN]->(sn:Nation))
+          :   Expand((l)-[_r3:SUPPLIED_BY]->(s:Supplier))
+          :     Expand((o)-[_r2:CONTAINS]->(l:Lineitem))
+          :       Expand((c)-[_r1:PLACED]->(o:Order))
+          :         Expand((cn)<-[_r0:CUST_IN]-(c:Customer))
+          :           Argument(cn)
+          StoreQuery[clickhouse] out=(cn)
+            : Filter((cn.name = "GERMANY"))
+            :   GetProperty(cn.name) [node:Nation]
+            :     EntityScan(cn:Nation)
+
+### TPCH4 @widecolumn
+Coord Aggregation[keys: ∅ | count(*) AS lines, sum(l.extendedprice) AS revenue]
+  Fetch[cassandra] in=(l) out=(l, l.extendedprice)
+    : GetProperty(l.extendedprice) [node:Lineitem]
+    :   Argument(l)
+    StoreQuery[cassandra] in=(sn) out=(sn)
+      : Filter((sn.name = "FRANCE"))
+      :   GetProperty(sn.name) [node:Nation]
+      :     Argument(sn)
+      StoreQuery[cassandra] in=(l) out=(l)
+        : Filter((l.shipdate <= "1996-12-31"))
+        :   Filter((l.shipdate >= "1995-01-01"))
+        :     GetProperty(l.shipdate) [node:Lineitem]
+        :       Argument(l)
+        StoreQuery[neo4j] in=(cn) out=(cn, l, sn)
+          : Expand((s)-[_r4:SUPP_IN]->(sn:Nation))
+          :   Expand((l)-[_r3:SUPPLIED_BY]->(s:Supplier))
+          :     Expand((o)-[_r2:CONTAINS]->(l:Lineitem))
+          :       Expand((c)-[_r1:PLACED]->(o:Order))
+          :         Expand((cn)<-[_r0:CUST_IN]-(c:Customer))
+          :           Argument(cn)
+          StoreQuery[cassandra] out=(cn)
+            : Filter((cn.name = "GERMANY"))
+            :   GetProperty(cn.name) [node:Nation]
+            :     EntityScan(cn:Nation)
+
+### TPCH4 @kvs
+Coord Aggregation[keys: ∅ | count(*) AS lines, sum(l.extendedprice) AS revenue]
+  Fetch[leveldb] in=(l) out=(l, l.extendedprice)
+    : GetProperty(l.extendedprice) [node:Lineitem]
+    :   Argument(l)
+    StoreQuery[leveldb] in=(sn) out=(sn)
+      : Filter((sn.name = "FRANCE"))
+      :   GetProperty(sn.name) [node:Nation]
+      :     Argument(sn)
+      StoreQuery[leveldb] in=(l) out=(l)
+        : Filter((l.shipdate <= "1996-12-31"))
+        :   Filter((l.shipdate >= "1995-01-01"))
+        :     GetProperty(l.shipdate) [node:Lineitem]
+        :       Argument(l)
+        StoreQuery[neo4j] in=(cn) out=(cn, l, sn)
+          : Expand((s)-[_r4:SUPP_IN]->(sn:Nation))
+          :   Expand((l)-[_r3:SUPPLIED_BY]->(s:Supplier))
+          :     Expand((o)-[_r2:CONTAINS]->(l:Lineitem))
+          :       Expand((c)-[_r1:PLACED]->(o:Order))
+          :         Expand((cn)<-[_r0:CUST_IN]-(c:Customer))
+          :           Argument(cn)
+          StoreQuery[leveldb] out=(cn)
+            : Filter((cn.name = "GERMANY"))
+            :   GetProperty(cn.name) [node:Nation]
+            :     EntityScan(cn:Nation)
+

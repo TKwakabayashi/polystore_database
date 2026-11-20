@@ -1,0 +1,136 @@
+{
+  "labels": {
+    "Item": [
+      "Item"
+    ],
+    "User": [
+      "User"
+    ]
+  },
+  "entities": {
+    "Item": {
+      "labels": [
+        "Item"
+      ],
+      "properties": {
+        "parent_asin": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "price": {
+          "type": "double",
+          "database": [
+            "graph"
+          ]
+        },
+        "average_rating": {
+          "type": "double",
+          "database": [
+            "graph"
+          ]
+        },
+        "rating_number": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        },
+        "main_category": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "image_urls": {
+          "type": "string[]",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {}
+    },
+    "User": {
+      "labels": [
+        "User"
+      ],
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "REVIEWED": {
+          "targetEntities": [
+            "Item"
+          ],
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    }
+  },
+  "relationships": {
+    "REVIEWED": {
+      "labels": [
+        "REVIEWED"
+      ],
+      "properties": {
+        "timestamp": {
+          "type": "long",
+          "database": [
+            "graph"
+          ]
+        },
+        "rating": {
+          "type": "float",
+          "database": [
+            "graph"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "helpful_vote": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        },
+        "verified_purchase": {
+          "type": "boolean",
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "name": "isv1",
+  "workloads": [
+    "ISV1"
+  ],
+  "queries": [
+    "current"
+  ],
+  "cases": [
+    {
+      "label": "1h",
+      "params": {
+        "start": "2012-11-01T12:00:00.000Z",
+        "end": "2012-11-01T13:00:00.000Z"
+      }
+    },
+    {
+      "label": "6h",
+      "params": {
+        "start": "2012-11-01T06:00:00.000Z",
+        "end": "2012-11-01T12:00:00.000Z"
+      }
+    },
+    {
+      "label": "1d",
+      "params": {
+        "start": "2012-11-01T00:00:00.000Z",
+        "end": "2012-11-02T00:00:00.000Z"
+      }
+    },
+    {
+      "label": "1w",
+      "params": {
+        "start": "2012-11-01T00:00:00.000Z",
+        "end": "2012-11-08T00:00:00.000Z"
+      }
+    }
+  ],
+  "placements": [
+    "graph",
+    "rdb",
+    "doc",
+    "col",
+    "kvs"
+  ],
+  "models": [
+    "vecstream"
+  ],
+  "warmup": 1,
+  "trials": 3,
+  "timeout": "120s",
+  "verify": true
+}

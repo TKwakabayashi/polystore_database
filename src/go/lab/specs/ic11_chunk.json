@@ -1,0 +1,112 @@
+{
+  "name": "ic11_chunk",
+  "workloads": [
+    "IC11"
+  ],
+  "queries": [
+    "official"
+  ],
+  "cases": [
+    {
+      "label": "deg5",
+      "params": {
+        "personId": "8796093027315",
+        "countryName": "India",
+        "workFromYear": "2008"
+      }
+    },
+    {
+      "label": "deg79",
+      "params": {
+        "personId": "19791209306095",
+        "countryName": "India",
+        "workFromYear": "2008"
+      }
+    },
+    {
+      "label": "deg828",
+      "params": {
+        "personId": "15393162799448",
+        "countryName": "India",
+        "workFromYear": "2008"
+      }
+    },
+    {
+      "label": "slovenia",
+      "params": {
+        "personId": "15393162799448",
+        "countryName": "Slovenia",
+        "workFromYear": "2008"
+      }
+    }
+  ],
+  "placements": [
+    "rdb",
+    "doc",
+    "col",
+    "kvs"
+  ],
+  "models": [
+    "vecstream"
+  ],
+  "tunings": [
+    {
+      "label": "1k",
+      "vector": 1024,
+      "chunk": 0
+    },
+    {
+      "label": "4k",
+      "vector": 4096,
+      "chunk": 4096
+    },
+    {
+      "label": "16k",
+      "vector": 16384,
+      "chunk": 16384
+    },
+    {
+      "label": "65k",
+      "vector": 65535,
+      "chunk": 65535
+    }
+  ],
+  "migrate": [
+    {
+      "kind": "node",
+      "entity": "Person",
+      "props": [
+        "id",
+        "firstName",
+        "lastName"
+      ]
+    },
+    {
+      "kind": "node",
+      "entity": "Organisation",
+      "props": [
+        "type",
+        "name"
+      ]
+    },
+    {
+      "kind": "node",
+      "entity": "Place",
+      "props": [
+        "type",
+        "name"
+      ]
+    },
+    {
+      "kind": "edge",
+      "entity": "WORK_AT",
+      "props": [
+        "workFrom"
+      ]
+    }
+  ],
+  "warmup": 1,
+  "trials": 5,
+  "timeout": "90s",
+  "verify": true
+}

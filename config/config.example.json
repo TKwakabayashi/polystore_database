@@ -1,0 +1,26 @@
+{
+  "dataset": "ldbc_snb_sf1",
+  "datastore": "../datastore",
+  "neo4j": {
+    "uri": "bolt://127.0.0.1:7687",
+    "user": "neo4j",
+    "password": ""
+  },
+  "mongo": {
+    "uri": "mongodb://127.0.0.1:27018",
+    "dbname": "polystore_document"
+  },
+  "mysql": {
+    "dsn": "user:pass@tcp(127.0.0.1:3306)/polystore_relational"
+  },
+  "clickhouse": {
+    "addr": ["127.0.0.1:9000"],
+    "database": "polystore_columnar",
+    "user": "default",
+    "password": ""
+  },
+  "cassandra": {
+    "hosts": ["127.0.0.1"],
+    "keyspace": "polystore_widecolumn"
+  }
+}

@@ -1,0 +1,88 @@
+{
+  "labels": {
+    "Movie": [
+      "Movie"
+    ],
+    "User": [
+      "User"
+    ]
+  },
+  "entities": {
+    "Movie": {
+      "labels": [
+        "Movie"
+      ],
+      "properties": {
+        "movie_id": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "year": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        },
+        "genres": {
+          "type": "string[]",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {}
+    },
+    "User": {
+      "labels": [
+        "User"
+      ],
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "RATED": {
+          "targetEntities": [
+            "Movie"
+          ],
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    }
+  },
+  "relationships": {
+    "RATED": {
+      "labels": [
+        "RATED"
+      ],
+      "properties": {
+        "rating": {
+          "type": "float",
+          "database": [
+            "graph"
+          ]
+        },
+        "timestamp": {
+          "type": "long",
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,171 @@
+{
+  "name": "ic11_official",
+  "workloads": [
+    "IC11"
+  ],
+  "queries": [
+    "official"
+  ],
+  "cases": [
+    {
+      "label": "deg5",
+      "params": {
+        "personId": "8796093027315",
+        "countryName": "India",
+        "workFromYear": "2008"
+      }
+    },
+    {
+      "label": "deg42",
+      "params": {
+        "personId": "32985348841684",
+        "countryName": "India",
+        "workFromYear": "2008"
+      }
+    },
+    {
+      "label": "deg79",
+      "params": {
+        "personId": "19791209306095",
+        "countryName": "India",
+        "workFromYear": "2008"
+      }
+    },
+    {
+      "label": "deg141",
+      "params": {
+        "personId": "1511",
+        "countryName": "India",
+        "workFromYear": "2008"
+      }
+    },
+    {
+      "label": "deg243",
+      "params": {
+        "personId": "17592186047024",
+        "countryName": "India",
+        "workFromYear": "2008"
+      }
+    },
+    {
+      "label": "deg828",
+      "params": {
+        "personId": "15393162799448",
+        "countryName": "India",
+        "workFromYear": "2008"
+      }
+    },
+    {
+      "label": "year2000",
+      "params": {
+        "personId": "15393162799448",
+        "countryName": "India",
+        "workFromYear": "2000"
+      }
+    },
+    {
+      "label": "year2005",
+      "params": {
+        "personId": "15393162799448",
+        "countryName": "India",
+        "workFromYear": "2005"
+      }
+    },
+    {
+      "label": "year2010",
+      "params": {
+        "personId": "15393162799448",
+        "countryName": "India",
+        "workFromYear": "2010"
+      }
+    },
+    {
+      "label": "year2013",
+      "params": {
+        "personId": "15393162799448",
+        "countryName": "India",
+        "workFromYear": "2013"
+      }
+    },
+    {
+      "label": "slovenia",
+      "params": {
+        "personId": "15393162799448",
+        "countryName": "Slovenia",
+        "workFromYear": "2008"
+      }
+    },
+    {
+      "label": "chile",
+      "params": {
+        "personId": "15393162799448",
+        "countryName": "Chile",
+        "workFromYear": "2008"
+      }
+    },
+    {
+      "label": "germany",
+      "params": {
+        "personId": "15393162799448",
+        "countryName": "Germany",
+        "workFromYear": "2008"
+      }
+    },
+    {
+      "label": "china",
+      "params": {
+        "personId": "15393162799448",
+        "countryName": "China",
+        "workFromYear": "2008"
+      }
+    }
+  ],
+  "placements": [
+    "graph",
+    "rdb",
+    "doc",
+    "col",
+    "kvs"
+  ],
+  "models": [
+    "vecstream"
+  ],
+  "migrate": [
+    {
+      "kind": "node",
+      "entity": "Person",
+      "props": [
+        "id",
+        "firstName",
+        "lastName"
+      ]
+    },
+    {
+      "kind": "node",
+      "entity": "Organisation",
+      "props": [
+        "type",
+        "name"
+      ]
+    },
+    {
+      "kind": "node",
+      "entity": "Place",
+      "props": [
+        "type",
+        "name"
+      ]
+    },
+    {
+      "kind": "edge",
+      "entity": "WORK_AT",
+      "props": [
+        "workFrom"
+      ]
+    }
+  ],
+  "warmup": 1,
+  "trials": 3,
+  "timeout": "90s",
+  "verify": true
+}

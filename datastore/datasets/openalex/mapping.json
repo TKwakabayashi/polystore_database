@@ -1,0 +1,96 @@
+{
+  "labels": {
+    "Work": [
+      "Work"
+    ],
+    "Author": [
+      "Author"
+    ]
+  },
+  "entities": {
+    "Work": {
+      "labels": [
+        "Work"
+      ],
+      "properties": {
+        "work_id": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "year": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        },
+        "cited_by_count": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        },
+        "venue": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "CITES": {
+          "targetEntities": [
+            "Work"
+          ],
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    },
+    "Author": {
+      "labels": [
+        "Author"
+      ],
+      "properties": {
+        "author_id": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "AUTHORED": {
+          "targetEntities": [
+            "Work"
+          ],
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    }
+  },
+  "relationships": {
+    "AUTHORED": {
+      "labels": [
+        "AUTHORED"
+      ],
+      "properties": {}
+    },
+    "CITES": {
+      "labels": [
+        "CITES"
+      ],
+      "properties": {}
+    }
+  }
+}

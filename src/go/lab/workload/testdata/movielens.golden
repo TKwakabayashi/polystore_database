@@ -1,0 +1,520 @@
+## ML1 — A high-degree bipartite graph: the cost of edge uuids crossing stores when the edge condition is off graph
+traits: start=unique key hops=2 fan-out=high aggregate Top-20 | R1 start: u.user_id | R5 edge: r1.rating, r2.rating | R6 aggregate / sort: v.user_id
+
+### ML1 @graph
+StoreQuery[neo4j] out=(v.user_id, common)
+  : Limit[20]
+  :   Sort[common DESC, v.user_id ASC]
+  :     Aggregation[keys: v.user_id | count(*) AS common]
+  :       GetProperty(v.user_id) [node:User]
+  :         RelUniqueFilter[r1, r2]
+  :           Filter((r2.rating >= 4.5))
+  :             GetProperty(r2.rating) [rel:RATED]
+  :               Expand((m)<-[r2:RATED]-(v:User))
+  :                 Filter((r1.rating >= 4.5))
+  :                   GetProperty(r1.rating) [rel:RATED]
+  :                     Expand((u)-[r1:RATED]->(m:Movie))
+  :                       Filter((u.user_id = "1"))
+  :                         GetProperty(u.user_id) [node:User]
+  :                           EntityScan(u:User)
+
+### ML1 @relational
+Coord Limit[20]
+  Coord Sort[common DESC, v.user_id ASC]
+    Coord Aggregation[keys: v.user_id | count(*) AS common]
+      Fetch[mysql] in=(v) out=(v, v.user_id)
+        : GetProperty(v.user_id) [node:User]
+        :   Argument(v)
+        StoreQuery[mysql] in=(r2) out=(r2)
+          : Filter((r2.rating >= 4.5))
+          :   GetProperty(r2.rating) [rel:RATED]
+          :     Argument(r2)
+          StoreQuery[mysql] in=(r1) out=(r1)
+            : Filter((r1.rating >= 4.5))
+            :   GetProperty(r1.rating) [rel:RATED]
+            :     Argument(r1)
+            StoreQuery[neo4j] in=(u) out=(u, r1, r2, v)
+              : RelUniqueFilter[r1, r2]
+              :   Expand((m)<-[r2:RATED]-(v:User))
+              :     Expand((u)-[r1:RATED]->(m:Movie))
+              :       Argument(u)
+              StoreQuery[mysql] out=(u)
+                : Filter((u.user_id = "1"))
+                :   GetProperty(u.user_id) [node:User]
+                :     EntityScan(u:User)
+
+### ML1 @document
+Coord Limit[20]
+  Coord Sort[common DESC, v.user_id ASC]
+    Coord Aggregation[keys: v.user_id | count(*) AS common]
+      Fetch[mongo] in=(v) out=(v, v.user_id)
+        : GetProperty(v.user_id) [node:User]
+        :   Argument(v)
+        StoreQuery[mongo] in=(r2) out=(r2)
+          : Filter((r2.rating >= 4.5))
+          :   GetProperty(r2.rating) [rel:RATED]
+          :     Argument(r2)
+          StoreQuery[mongo] in=(r1) out=(r1)
+            : Filter((r1.rating >= 4.5))
+            :   GetProperty(r1.rating) [rel:RATED]
+            :     Argument(r1)
+            StoreQuery[neo4j] in=(u) out=(u, r1, r2, v)
+              : RelUniqueFilter[r1, r2]
+              :   Expand((m)<-[r2:RATED]-(v:User))
+              :     Expand((u)-[r1:RATED]->(m:Movie))
+              :       Argument(u)
+              StoreQuery[mongo] out=(u)
+                : Filter((u.user_id = "1"))
+                :   GetProperty(u.user_id) [node:User]
+                :     EntityScan(u:User)
+
+### ML1 @columnar
+Coord Limit[20]
+  Coord Sort[common DESC, v.user_id ASC]
+    Coord Aggregation[keys: v.user_id | count(*) AS common]
+      Fetch[clickhouse] in=(v) out=(v, v.user_id)
+        : GetProperty(v.user_id) [node:User]
+        :   Argument(v)
+        StoreQuery[clickhouse] in=(r2) out=(r2)
+          : Filter((r2.rating >= 4.5))
+          :   GetProperty(r2.rating) [rel:RATED]
+          :     Argument(r2)
+          StoreQuery[clickhouse] in=(r1) out=(r1)
+            : Filter((r1.rating >= 4.5))
+            :   GetProperty(r1.rating) [rel:RATED]
+            :     Argument(r1)
+            StoreQuery[neo4j] in=(u) out=(u, r1, r2, v)
+              : RelUniqueFilter[r1, r2]
+              :   Expand((m)<-[r2:RATED]-(v:User))
+              :     Expand((u)-[r1:RATED]->(m:Movie))
+              :       Argument(u)
+              StoreQuery[clickhouse] out=(u)
+                : Filter((u.user_id = "1"))
+                :   GetProperty(u.user_id) [node:User]
+                :     EntityScan(u:User)
+
+### ML1 @widecolumn
+Coord Limit[20]
+  Coord Sort[common DESC, v.user_id ASC]
+    Coord Aggregation[keys: v.user_id | count(*) AS common]
+      Fetch[cassandra] in=(v) out=(v, v.user_id)
+        : GetProperty(v.user_id) [node:User]
+        :   Argument(v)
+        StoreQuery[cassandra] in=(r2) out=(r2)
+          : Filter((r2.rating >= 4.5))
+          :   GetProperty(r2.rating) [rel:RATED]
+          :     Argument(r2)
+          StoreQuery[cassandra] in=(r1) out=(r1)
+            : Filter((r1.rating >= 4.5))
+            :   GetProperty(r1.rating) [rel:RATED]
+            :     Argument(r1)
+            StoreQuery[neo4j] in=(u) out=(u, r1, r2, v)
+              : RelUniqueFilter[r1, r2]
+              :   Expand((m)<-[r2:RATED]-(v:User))
+              :     Expand((u)-[r1:RATED]->(m:Movie))
+              :       Argument(u)
+              StoreQuery[cassandra] out=(u)
+                : Filter((u.user_id = "1"))
+                :   GetProperty(u.user_id) [node:User]
+                :     EntityScan(u:User)
+
+### ML1 @kvs
+Coord Limit[20]
+  Coord Sort[common DESC, v.user_id ASC]
+    Coord Aggregation[keys: v.user_id | count(*) AS common]
+      Fetch[leveldb] in=(v) out=(v, v.user_id)
+        : GetProperty(v.user_id) [node:User]
+        :   Argument(v)
+        StoreQuery[leveldb] in=(r2) out=(r2)
+          : Filter((r2.rating >= 4.5))
+          :   GetProperty(r2.rating) [rel:RATED]
+          :     Argument(r2)
+          StoreQuery[leveldb] in=(r1) out=(r1)
+            : Filter((r1.rating >= 4.5))
+            :   GetProperty(r1.rating) [rel:RATED]
+            :     Argument(r1)
+            StoreQuery[neo4j] in=(u) out=(u, r1, r2, v)
+              : RelUniqueFilter[r1, r2]
+              :   Expand((m)<-[r2:RATED]-(v:User))
+              :     Expand((u)-[r1:RATED]->(m:Movie))
+              :       Argument(u)
+              StoreQuery[leveldb] out=(u)
+                : Filter((u.user_id = "1"))
+                :   GetProperty(u.user_id) [node:User]
+                :     EntityScan(u:User)
+
+## ML2 — Two hops with exploding fan-out: where placing the edge and end conditions starts to pay off
+traits: start=unique key hops=2 fan-out=explosive aggregate Top-20 | R1 start: m.movie_id | R2 end: o.year | R5 edge: r.rating, r.timestamp, r2.rating | R6 aggregate / sort: o.title
+
+### ML2 @graph
+StoreQuery[neo4j] out=(o.title, c)
+  : Limit[20]
+  :   Sort[c DESC, o.title ASC]
+  :     Aggregation[keys: o.title | count(*) AS c]
+  :       GetProperty(o.title) [node:Movie]
+  :         RelUniqueFilter[r, r2]
+  :           Filter((o.year >= 2010))
+  :             GetProperty(o.year) [node:Movie]
+  :               Filter((r2.rating >= 5))
+  :                 GetProperty(r2.rating) [rel:RATED]
+  :                   Expand((u)-[r2:RATED]->(o:Movie))
+  :                     Filter((r.timestamp >= 1500000000))
+  :                       GetProperty(r.timestamp) [rel:RATED]
+  :                         Filter((r.rating >= 5))
+  :                           GetProperty(r.rating) [rel:RATED]
+  :                             Expand((m)<-[r:RATED]-(u:User))
+  :                               Filter((m.movie_id = "1"))
+  :                                 GetProperty(m.movie_id) [node:Movie]
+  :                                   EntityScan(m:Movie)
+
+### ML2 @relational
+Coord Limit[20]
+  Coord Sort[c DESC, o.title ASC]
+    Coord Aggregation[keys: o.title | count(*) AS c]
+      StoreQuery[mysql] in=(o) out=(o, o.title)
+        : GetProperty(o.title) [node:Movie]
+        :   Filter((o.year >= 2010))
+        :     GetProperty(o.year) [node:Movie]
+        :       Argument(o)
+        StoreQuery[mysql] in=(r2) out=(r2)
+          : Filter((r2.rating >= 5))
+          :   GetProperty(r2.rating) [rel:RATED]
+          :     Argument(r2)
+          StoreQuery[mysql] in=(r) out=(r)
+            : Filter((r.timestamp >= 1500000000))
+            :   GetProperty(r.timestamp) [rel:RATED]
+            :     Filter((r.rating >= 5))
+            :       GetProperty(r.rating) [rel:RATED]
+            :         Argument(r)
+            StoreQuery[neo4j] in=(m) out=(m, o, r, r2)
+              : RelUniqueFilter[r, r2]
+              :   Expand((u)-[r2:RATED]->(o:Movie))
+              :     Expand((m)<-[r:RATED]-(u:User))
+              :       Argument(m)
+              StoreQuery[mysql] out=(m)
+                : Filter((m.movie_id = "1"))
+                :   GetProperty(m.movie_id) [node:Movie]
+                :     EntityScan(m:Movie)
+
+### ML2 @document
+Coord Limit[20]
+  Coord Sort[c DESC, o.title ASC]
+    Coord Aggregation[keys: o.title | count(*) AS c]
+      StoreQuery[mongo] in=(o) out=(o, o.title)
+        : GetProperty(o.title) [node:Movie]
+        :   Filter((o.year >= 2010))
+        :     GetProperty(o.year) [node:Movie]
+        :       Argument(o)
+        StoreQuery[mongo] in=(r2) out=(r2)
+          : Filter((r2.rating >= 5))
+          :   GetProperty(r2.rating) [rel:RATED]
+          :     Argument(r2)
+          StoreQuery[mongo] in=(r) out=(r)
+            : Filter((r.timestamp >= 1500000000))
+            :   GetProperty(r.timestamp) [rel:RATED]
+            :     Filter((r.rating >= 5))
+            :       GetProperty(r.rating) [rel:RATED]
+            :         Argument(r)
+            StoreQuery[neo4j] in=(m) out=(m, o, r, r2)
+              : RelUniqueFilter[r, r2]
+              :   Expand((u)-[r2:RATED]->(o:Movie))
+              :     Expand((m)<-[r:RATED]-(u:User))
+              :       Argument(m)
+              StoreQuery[mongo] out=(m)
+                : Filter((m.movie_id = "1"))
+                :   GetProperty(m.movie_id) [node:Movie]
+                :     EntityScan(m:Movie)
+
+### ML2 @columnar
+Coord Limit[20]
+  Coord Sort[c DESC, o.title ASC]
+    Coord Aggregation[keys: o.title | count(*) AS c]
+      StoreQuery[clickhouse] in=(o) out=(o, o.title)
+        : GetProperty(o.title) [node:Movie]
+        :   Filter((o.year >= 2010))
+        :     GetProperty(o.year) [node:Movie]
+        :       Argument(o)
+        StoreQuery[clickhouse] in=(r2) out=(r2)
+          : Filter((r2.rating >= 5))
+          :   GetProperty(r2.rating) [rel:RATED]
+          :     Argument(r2)
+          StoreQuery[clickhouse] in=(r) out=(r)
+            : Filter((r.timestamp >= 1500000000))
+            :   GetProperty(r.timestamp) [rel:RATED]
+            :     Filter((r.rating >= 5))
+            :       GetProperty(r.rating) [rel:RATED]
+            :         Argument(r)
+            StoreQuery[neo4j] in=(m) out=(m, o, r, r2)
+              : RelUniqueFilter[r, r2]
+              :   Expand((u)-[r2:RATED]->(o:Movie))
+              :     Expand((m)<-[r:RATED]-(u:User))
+              :       Argument(m)
+              StoreQuery[clickhouse] out=(m)
+                : Filter((m.movie_id = "1"))
+                :   GetProperty(m.movie_id) [node:Movie]
+                :     EntityScan(m:Movie)
+
+### ML2 @widecolumn
+Coord Limit[20]
+  Coord Sort[c DESC, o.title ASC]
+    Coord Aggregation[keys: o.title | count(*) AS c]
+      StoreQuery[cassandra] in=(o) out=(o, o.title)
+        : GetProperty(o.title) [node:Movie]
+        :   Filter((o.year >= 2010))
+        :     GetProperty(o.year) [node:Movie]
+        :       Argument(o)
+        StoreQuery[cassandra] in=(r2) out=(r2)
+          : Filter((r2.rating >= 5))
+          :   GetProperty(r2.rating) [rel:RATED]
+          :     Argument(r2)
+          StoreQuery[cassandra] in=(r) out=(r)
+            : Filter((r.timestamp >= 1500000000))
+            :   GetProperty(r.timestamp) [rel:RATED]
+            :     Filter((r.rating >= 5))
+            :       GetProperty(r.rating) [rel:RATED]
+            :         Argument(r)
+            StoreQuery[neo4j] in=(m) out=(m, o, r, r2)
+              : RelUniqueFilter[r, r2]
+              :   Expand((u)-[r2:RATED]->(o:Movie))
+              :     Expand((m)<-[r:RATED]-(u:User))
+              :       Argument(m)
+              StoreQuery[cassandra] out=(m)
+                : Filter((m.movie_id = "1"))
+                :   GetProperty(m.movie_id) [node:Movie]
+                :     EntityScan(m:Movie)
+
+### ML2 @kvs
+Coord Limit[20]
+  Coord Sort[c DESC, o.title ASC]
+    Coord Aggregation[keys: o.title | count(*) AS c]
+      StoreQuery[leveldb] in=(o) out=(o, o.title)
+        : GetProperty(o.title) [node:Movie]
+        :   Filter((o.year >= 2010))
+        :     GetProperty(o.year) [node:Movie]
+        :       Argument(o)
+        StoreQuery[leveldb] in=(r2) out=(r2)
+          : Filter((r2.rating >= 5))
+          :   GetProperty(r2.rating) [rel:RATED]
+          :     Argument(r2)
+          StoreQuery[leveldb] in=(r) out=(r)
+            : Filter((r.timestamp >= 1500000000))
+            :   GetProperty(r.timestamp) [rel:RATED]
+            :     Filter((r.rating >= 5))
+            :       GetProperty(r.rating) [rel:RATED]
+            :         Argument(r)
+            StoreQuery[neo4j] in=(m) out=(m, o, r, r2)
+              : RelUniqueFilter[r, r2]
+              :   Expand((u)-[r2:RATED]->(o:Movie))
+              :     Expand((m)<-[r:RATED]-(u:User))
+              :       Argument(m)
+              StoreQuery[leveldb] out=(m)
+                : Filter((m.movie_id = "1"))
+                :   GetProperty(m.movie_id) [node:Movie]
+                :     EntityScan(m:Movie)
+
+## ML3 — One hop aggregating an edge property: absorption when the aggregated value is on the edge
+traits: start=filtered scan hops=1 fan-out=medium aggregate Top-20 | R1 start: m.year | R6 aggregate / sort: m.title, r.rating
+
+### ML3 @graph
+StoreQuery[neo4j] out=(m.title, ratings, avgRating)
+  : Limit[20]
+  :   Sort[ratings DESC, m.title ASC]
+  :     Aggregation[keys: m.title | count(r) AS ratings, avg(r.rating) AS avgRating]
+  :       GetProperty(r.rating) [rel:RATED]
+  :         GetProperty(m.title) [node:Movie]
+  :           Expand((m)<-[r:RATED]-(u:User))
+  :             Filter((m.year = 1995))
+  :               GetProperty(m.year) [node:Movie]
+  :                 EntityScan(m:Movie)
+
+### ML3 @relational
+Coord Limit[20]
+  Coord Sort[ratings DESC, m.title ASC]
+    Coord Aggregation[keys: m.title | count(r) AS ratings, avg(r.rating) AS avgRating]
+      Fetch[mysql] in=(r) out=(r, r.rating)
+        : GetProperty(r.rating) [rel:RATED]
+        :   Argument(r)
+        Fetch[mysql] in=(m) out=(m, m.title)
+          : GetProperty(m.title) [node:Movie]
+          :   Argument(m)
+          StoreQuery[neo4j] in=(m) out=(m, r)
+            : Expand((m)<-[r:RATED]-(u:User))
+            :   Argument(m)
+            StoreQuery[mysql] out=(m)
+              : Filter((m.year = 1995))
+              :   GetProperty(m.year) [node:Movie]
+              :     EntityScan(m:Movie)
+
+### ML3 @document
+Coord Limit[20]
+  Coord Sort[ratings DESC, m.title ASC]
+    Coord Aggregation[keys: m.title | count(r) AS ratings, avg(r.rating) AS avgRating]
+      Fetch[mongo] in=(r) out=(r, r.rating)
+        : GetProperty(r.rating) [rel:RATED]
+        :   Argument(r)
+        Fetch[mongo] in=(m) out=(m, m.title)
+          : GetProperty(m.title) [node:Movie]
+          :   Argument(m)
+          StoreQuery[neo4j] in=(m) out=(m, r)
+            : Expand((m)<-[r:RATED]-(u:User))
+            :   Argument(m)
+            StoreQuery[mongo] out=(m)
+              : Filter((m.year = 1995))
+              :   GetProperty(m.year) [node:Movie]
+              :     EntityScan(m:Movie)
+
+### ML3 @columnar
+Coord Limit[20]
+  Coord Sort[ratings DESC, m.title ASC]
+    Coord Aggregation[keys: m.title | count(r) AS ratings, avg(r.rating) AS avgRating]
+      Fetch[clickhouse] in=(r) out=(r, r.rating)
+        : GetProperty(r.rating) [rel:RATED]
+        :   Argument(r)
+        Fetch[clickhouse] in=(m) out=(m, m.title)
+          : GetProperty(m.title) [node:Movie]
+          :   Argument(m)
+          StoreQuery[neo4j] in=(m) out=(m, r)
+            : Expand((m)<-[r:RATED]-(u:User))
+            :   Argument(m)
+            StoreQuery[clickhouse] out=(m)
+              : Filter((m.year = 1995))
+              :   GetProperty(m.year) [node:Movie]
+              :     EntityScan(m:Movie)
+
+### ML3 @widecolumn
+Coord Limit[20]
+  Coord Sort[ratings DESC, m.title ASC]
+    Coord Aggregation[keys: m.title | count(r) AS ratings, avg(r.rating) AS avgRating]
+      Fetch[cassandra] in=(r) out=(r, r.rating)
+        : GetProperty(r.rating) [rel:RATED]
+        :   Argument(r)
+        Fetch[cassandra] in=(m) out=(m, m.title)
+          : GetProperty(m.title) [node:Movie]
+          :   Argument(m)
+          StoreQuery[neo4j] in=(m) out=(m, r)
+            : Expand((m)<-[r:RATED]-(u:User))
+            :   Argument(m)
+            StoreQuery[cassandra] out=(m)
+              : Filter((m.year = 1995))
+              :   GetProperty(m.year) [node:Movie]
+              :     EntityScan(m:Movie)
+
+### ML3 @kvs
+Coord Limit[20]
+  Coord Sort[ratings DESC, m.title ASC]
+    Coord Aggregation[keys: m.title | count(r) AS ratings, avg(r.rating) AS avgRating]
+      Fetch[leveldb] in=(r) out=(r, r.rating)
+        : GetProperty(r.rating) [rel:RATED]
+        :   Argument(r)
+        Fetch[leveldb] in=(m) out=(m, m.title)
+          : GetProperty(m.title) [node:Movie]
+          :   Argument(m)
+          StoreQuery[neo4j] in=(m) out=(m, r)
+            : Expand((m)<-[r:RATED]-(u:User))
+            :   Argument(m)
+            StoreQuery[leveldb] out=(m)
+              : Filter((m.year = 1995))
+              :   GetProperty(m.year) [node:Movie]
+              :     EntityScan(m:Movie)
+
+## ML4 — No vertex condition, only an edge condition: the cost of plans starting from an edge scan
+traits: start=narrowed by edges hops=1 fan-out=high aggregate Top-20 | R5 edge: r.timestamp, r.rating | R6 aggregate / sort: m.movie_id
+
+### ML4 @graph
+StoreQuery[neo4j] out=(m.movie_id, c)
+  : Limit[20]
+  :   Sort[c DESC, m.movie_id ASC]
+  :     Aggregation[keys: m.movie_id | count(*) AS c]
+  :       GetProperty(m.movie_id) [node:Movie]
+  :         Filter((r.rating = 0.5))
+  :           GetProperty(r.rating) [rel:RATED]
+  :             Filter((r.timestamp >= 1560000000))
+  :               GetProperty(r.timestamp) [rel:RATED]
+  :                 Expand((u)-[r:RATED]->(m:Movie))
+  :                   EntityScan(u:User)
+
+### ML4 @relational
+Coord Limit[20]
+  Coord Sort[c DESC, m.movie_id ASC]
+    Coord Aggregation[keys: m.movie_id | count(*) AS c]
+      Fetch[mysql] in=(m) out=(m, m.movie_id)
+        : GetProperty(m.movie_id) [node:Movie]
+        :   Argument(m)
+        StoreQuery[mysql] in=(r) out=(r)
+          : Filter((r.rating = 0.5))
+          :   GetProperty(r.rating) [rel:RATED]
+          :     Filter((r.timestamp >= 1560000000))
+          :       GetProperty(r.timestamp) [rel:RATED]
+          :         Argument(r)
+          StoreQuery[neo4j] out=(m, r)
+            : Expand((u)-[r:RATED]->(m:Movie))
+            :   EntityScan(u:User)
+
+### ML4 @document
+Coord Limit[20]
+  Coord Sort[c DESC, m.movie_id ASC]
+    Coord Aggregation[keys: m.movie_id | count(*) AS c]
+      Fetch[mongo] in=(m) out=(m, m.movie_id)
+        : GetProperty(m.movie_id) [node:Movie]
+        :   Argument(m)
+        StoreQuery[mongo] in=(r) out=(r)
+          : Filter((r.rating = 0.5))
+          :   GetProperty(r.rating) [rel:RATED]
+          :     Filter((r.timestamp >= 1560000000))
+          :       GetProperty(r.timestamp) [rel:RATED]
+          :         Argument(r)
+          StoreQuery[neo4j] out=(m, r)
+            : Expand((u)-[r:RATED]->(m:Movie))
+            :   EntityScan(u:User)
+
+### ML4 @columnar
+Coord Limit[20]
+  Coord Sort[c DESC, m.movie_id ASC]
+    Coord Aggregation[keys: m.movie_id | count(*) AS c]
+      Fetch[clickhouse] in=(m) out=(m, m.movie_id)
+        : GetProperty(m.movie_id) [node:Movie]
+        :   Argument(m)
+        StoreQuery[clickhouse] in=(r) out=(r)
+          : Filter((r.rating = 0.5))
+          :   GetProperty(r.rating) [rel:RATED]
+          :     Filter((r.timestamp >= 1560000000))
+          :       GetProperty(r.timestamp) [rel:RATED]
+          :         Argument(r)
+          StoreQuery[neo4j] out=(m, r)
+            : Expand((u)-[r:RATED]->(m:Movie))
+            :   EntityScan(u:User)
+
+### ML4 @widecolumn
+Coord Limit[20]
+  Coord Sort[c DESC, m.movie_id ASC]
+    Coord Aggregation[keys: m.movie_id | count(*) AS c]
+      Fetch[cassandra] in=(m) out=(m, m.movie_id)
+        : GetProperty(m.movie_id) [node:Movie]
+        :   Argument(m)
+        StoreQuery[cassandra] in=(r) out=(r)
+          : Filter((r.rating = 0.5))
+          :   GetProperty(r.rating) [rel:RATED]
+          :     Filter((r.timestamp >= 1560000000))
+          :       GetProperty(r.timestamp) [rel:RATED]
+          :         Argument(r)
+          StoreQuery[neo4j] out=(m, r)
+            : Expand((u)-[r:RATED]->(m:Movie))
+            :   EntityScan(u:User)
+
+### ML4 @kvs
+Coord Limit[20]
+  Coord Sort[c DESC, m.movie_id ASC]
+    Coord Aggregation[keys: m.movie_id | count(*) AS c]
+      Fetch[leveldb] in=(m) out=(m, m.movie_id)
+        : GetProperty(m.movie_id) [node:Movie]
+        :   Argument(m)
+        StoreQuery[leveldb] in=(r) out=(r)
+          : Filter((r.rating = 0.5))
+          :   GetProperty(r.rating) [rel:RATED]
+          :     Filter((r.timestamp >= 1560000000))
+          :       GetProperty(r.timestamp) [rel:RATED]
+          :         Argument(r)
+          StoreQuery[neo4j] out=(m, r)
+            : Expand((u)-[r:RATED]->(m:Movie))
+            :   EntityScan(u:User)
+

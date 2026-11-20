@@ -1,0 +1,5 @@
+{
+  "_comment": "uuid leases handed out to datasets (copy to uuid_leases.json; not in git). Lease numbers are one sequence across all datasets, so uuids never collide between datasets. Bulk assignment (admin setup on data without uuids) takes a new lease and records it here; a dump with uuids keeps its leases, so keep this file with the dumps.",
+  "next": 0,
+  "leases": []
+}

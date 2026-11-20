@@ -1,0 +1,142 @@
+# The polystore stack, switchable by dataset. Run from datastore/docker/ with a dataset's env file:
+#
+#   docker compose --env-file ../datasets/ldbc_snb_sf1/dataset.env up -d
+#   docker compose --env-file ../datasets/openalex/dataset.env up -d
+#
+# Without --env-file, ./.env (ldbc_snb_sf1) is used.
+# The project and volume names contain the dataset (VOLUMES when set, else DATASET), so every dataset has
+# its own containers and volumes and switching needs no reload. The ports are shared, so only one dataset
+# can be up at a time. After switching, run `admin setup` to rebuild datastore/runtime/.
+#
+# Neo4j runs neo4j:5 (Community, GPLv3) for every dataset; the database name and memory are in the
+# dataset's env file. The image must match the major version of the Neo4j that made the dump (stores are
+# not compatible across versions and cannot be downgraded).
+#
+# Restoring a dump from datastore/datasets/<dataset>/dumps/ (with neo4j stopped):
+#   docker compose --env-file ../datasets/openalex/dataset.env --profile load run --rm neo4j-load
+#
+# ClickHouse's (columnar) database is created by the application on connect (conn.EnsureClickHouseDatabase).
+#
+# Cassandra's (widecolumn) keyspace must be created once:
+#   docker compose --env-file ../datasets/openalex/dataset.env --profile init run --rm cassandra-init
+
+name: polystore-${VOLUMES:-${DATASET:-ldbc_snb_sf1}}
+
+services:
+  neo4j:
+    image: ${NEO4J_IMAGE:-neo4j:5}
+    ports:
+      - "${NEO4J_BOLT_PORT:-7687}:7687"   # bolt
+      - "${NEO4J_HTTP_PORT:-7474}:7474"   # browser
+    environment:
+      NEO4J_AUTH: ${NEO4J_AUTH:-neo4j/password123}
+      # Ignored by Community; only the enterprise image uses it
+      # (e.g. to read a dump made by 2025-enterprise before the move).
+      NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes"
+      NEO4J_PLUGINS: '["apoc"]'
+      # The dump file is named after the database, so the default database follows the dataset
+      # (ldbc_snb_sf1's dump is neo4j.dump, so it stays neo4j).
+      NEO4J_initial_dbms_default__database: ${NEO4J_DATABASE:-neo4j}
+      # More heap and transaction memory so large intermediate results (e.g. Q9's KNOWS*1..2) do not run out.
+      # Neo4j refuses to start when heap + pagecache exceed the Docker VM's memory (7.7G now).
+      # Override per dataset size in env/*.env.
+      NEO4J_server_memory_heap_initial__size: ${NEO4J_HEAP_INITIAL:-2G}
+      NEO4J_server_memory_heap_max__size: ${NEO4J_HEAP_MAX:-4G}
+      NEO4J_server_memory_pagecache_size: ${NEO4J_PAGECACHE:-1G}
+      NEO4J_dbms_memory_transaction_total_max: ${NEO4J_TX_TOTAL_MAX:-4G}
+      # APOC CSV import / export, off by default.
+      # e.g. NEO4J_APOC_EXPORT=true docker compose --env-file ../datasets/ldbc_snb_sf1/dataset.env up -d neo4j
+      # (the export step of migrate_ldbc_to_neo4j5.sh runs with it on)
+      NEO4J_apoc_export_file_enabled: ${NEO4J_APOC_EXPORT:-false}
+      NEO4J_apoc_import_file_enabled: ${NEO4J_APOC_IMPORT:-false}
+    volumes:
+      - neo4j_data:/data
+      - neo4j_import:/var/lib/neo4j/import
+
+  # One-shot dump restore; run while neo4j is stopped.
+  # /dumps is the selected dataset's dumps directory.
+  neo4j-load:
+    image: ${NEO4J_IMAGE:-neo4j:5}
+    profiles: ["load"]
+    environment:
+      NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes"
+    volumes:
+      - neo4j_data:/data
+      - ../datasets/${DATASET:-ldbc_snb_sf1}/dumps:/dumps
+    entrypoint: ["neo4j-admin"]
+    command:
+      - database
+      - load
+      - ${NEO4J_DATABASE:-neo4j}
+      - --from-path=/dumps
+      - --overwrite-destination
+
+  mongo:
+    image: ${MONGO_IMAGE:-mongo:7}
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  mysql:
+    image: ${MYSQL_IMAGE:-mysql:8}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-polystore_relational}
+      MYSQL_USER: ${MYSQL_USER:-user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-pass}
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  cassandra:
+    image: ${CASSANDRA_IMAGE:-cassandra:4}
+    ports:
+      - "${CASSANDRA_PORT:-9042}:9042"
+    environment:
+      MAX_HEAP_SIZE: ${CASSANDRA_HEAP:-1G}
+      HEAP_NEWSIZE: ${CASSANDRA_HEAP_NEW:-200M}
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+
+  # columnar (ClickHouse). Only the native protocol (9000) is used. The default user has no password (local experiments).
+  clickhouse:
+    image: ${CLICKHOUSE_IMAGE:-clickhouse/clickhouse-server:25.8}
+    ports:
+      - "${CLICKHOUSE_PORT:-9000}:9000"
+    environment:
+      CLICKHOUSE_SKIP_USER_SETUP: "1"
+    mem_limit: ${CLICKHOUSE_MEM_LIMIT:-2g}
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+
+  # The application has no code to create the keyspace, so run this once.
+  #   docker compose --env-file env/openalex.env --profile init run --rm cassandra-init
+  cassandra-init:
+    image: ${CASSANDRA_IMAGE:-cassandra:4}
+    profiles: ["init"]
+    depends_on:
+      - cassandra
+    entrypoint: ["cqlsh", "cassandra", "9042", "-e"]
+    command:
+      - "CREATE KEYSPACE IF NOT EXISTS ${CASSANDRA_KEYSPACE:-polystore_widecolumn} WITH replication={'class':'SimpleStrategy','replication_factor':1};"
+
+volumes:
+  # The volume names contain the dataset (VOLUMES when set, else DATASET), so every dataset has its own.
+  neo4j_data:
+    name: polystore_${VOLUMES:-${DATASET:-ldbc_snb_sf1}}_neo4j_data
+  neo4j_import:
+    name: polystore_${VOLUMES:-${DATASET:-ldbc_snb_sf1}}_neo4j_import
+  mongo_data:
+    name: polystore_${VOLUMES:-${DATASET:-ldbc_snb_sf1}}_mongo_data
+  mysql_data:
+    name: polystore_${VOLUMES:-${DATASET:-ldbc_snb_sf1}}_mysql_data
+  cassandra_data:
+    name: polystore_${VOLUMES:-${DATASET:-ldbc_snb_sf1}}_cassandra_data
+  clickhouse_data:
+    name: polystore_${VOLUMES:-${DATASET:-ldbc_snb_sf1}}_clickhouse_data

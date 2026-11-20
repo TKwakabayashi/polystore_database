@@ -1,0 +1,3 @@
+MATCH (p:Person {id: $personId})-[:KNOWS]-(friend:Person)<-[:HAS_CREATOR]-(m:Message)
+RETURN count(*) AS total, count(DISTINCT friend.id) AS friends,
+       sum(m.length) AS totLen, avg(m.length) AS avgLen, min(m.length) AS minLen, max(m.length) AS maxLen

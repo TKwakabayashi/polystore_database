@@ -1,0 +1,395 @@
+## AMZ1 — The shape of ML3 at low degree and large scale, to separate the effects of degree and scale
+traits: start=filtered scan hops=1 fan-out=medium aggregate Top-20 | R1 start: i.main_category | R5 edge: r.rating | R6 aggregate / sort: i.parent_asin, r.rating
+
+### AMZ1 @graph
+StoreQuery[neo4j] out=(i.parent_asin, reviews, avgRating)
+  : Limit[20]
+  :   Sort[reviews DESC, i.parent_asin ASC]
+  :     Aggregation[keys: i.parent_asin | count(*) AS reviews, avg(r.rating) AS avgRating]
+  :       GetProperty(i.parent_asin) [node:Item]
+  :         Filter((r.rating >= 4))
+  :           GetProperty(r.rating) [rel:REVIEWED]
+  :             Expand((i)<-[r:REVIEWED]-(u:User))
+  :               Filter((i.main_category = "All Beauty"))
+  :                 GetProperty(i.main_category) [node:Item]
+  :                   EntityScan(i:Item)
+
+### AMZ1 @relational
+Coord Limit[20]
+  Coord Sort[reviews DESC, i.parent_asin ASC]
+    Coord Aggregation[keys: i.parent_asin | count(*) AS reviews, avg(r.rating) AS avgRating]
+      Fetch[mysql] in=(i) out=(i, i.parent_asin)
+        : GetProperty(i.parent_asin) [node:Item]
+        :   Argument(i)
+        StoreQuery[mysql] in=(r) out=(r, r.rating)
+          : Filter((r.rating >= 4))
+          :   GetProperty(r.rating) [rel:REVIEWED]
+          :     Argument(r)
+          StoreQuery[neo4j] in=(i) out=(i, r)
+            : Expand((i)<-[r:REVIEWED]-(u:User))
+            :   Argument(i)
+            StoreQuery[mysql] out=(i)
+              : Filter((i.main_category = "All Beauty"))
+              :   GetProperty(i.main_category) [node:Item]
+              :     EntityScan(i:Item)
+
+### AMZ1 @document
+Coord Limit[20]
+  Coord Sort[reviews DESC, i.parent_asin ASC]
+    Coord Aggregation[keys: i.parent_asin | count(*) AS reviews, avg(r.rating) AS avgRating]
+      Fetch[mongo] in=(i) out=(i, i.parent_asin)
+        : GetProperty(i.parent_asin) [node:Item]
+        :   Argument(i)
+        StoreQuery[mongo] in=(r) out=(r, r.rating)
+          : Filter((r.rating >= 4))
+          :   GetProperty(r.rating) [rel:REVIEWED]
+          :     Argument(r)
+          StoreQuery[neo4j] in=(i) out=(i, r)
+            : Expand((i)<-[r:REVIEWED]-(u:User))
+            :   Argument(i)
+            StoreQuery[mongo] out=(i)
+              : Filter((i.main_category = "All Beauty"))
+              :   GetProperty(i.main_category) [node:Item]
+              :     EntityScan(i:Item)
+
+### AMZ1 @columnar
+Coord Limit[20]
+  Coord Sort[reviews DESC, i.parent_asin ASC]
+    Coord Aggregation[keys: i.parent_asin | count(*) AS reviews, avg(r.rating) AS avgRating]
+      Fetch[clickhouse] in=(i) out=(i, i.parent_asin)
+        : GetProperty(i.parent_asin) [node:Item]
+        :   Argument(i)
+        StoreQuery[clickhouse] in=(r) out=(r, r.rating)
+          : Filter((r.rating >= 4))
+          :   GetProperty(r.rating) [rel:REVIEWED]
+          :     Argument(r)
+          StoreQuery[neo4j] in=(i) out=(i, r)
+            : Expand((i)<-[r:REVIEWED]-(u:User))
+            :   Argument(i)
+            StoreQuery[clickhouse] out=(i)
+              : Filter((i.main_category = "All Beauty"))
+              :   GetProperty(i.main_category) [node:Item]
+              :     EntityScan(i:Item)
+
+### AMZ1 @widecolumn
+Coord Limit[20]
+  Coord Sort[reviews DESC, i.parent_asin ASC]
+    Coord Aggregation[keys: i.parent_asin | count(*) AS reviews, avg(r.rating) AS avgRating]
+      Fetch[cassandra] in=(i) out=(i, i.parent_asin)
+        : GetProperty(i.parent_asin) [node:Item]
+        :   Argument(i)
+        StoreQuery[cassandra] in=(r) out=(r, r.rating)
+          : Filter((r.rating >= 4))
+          :   GetProperty(r.rating) [rel:REVIEWED]
+          :     Argument(r)
+          StoreQuery[neo4j] in=(i) out=(i, r)
+            : Expand((i)<-[r:REVIEWED]-(u:User))
+            :   Argument(i)
+            StoreQuery[cassandra] out=(i)
+              : Filter((i.main_category = "All Beauty"))
+              :   GetProperty(i.main_category) [node:Item]
+              :     EntityScan(i:Item)
+
+### AMZ1 @kvs
+Coord Limit[20]
+  Coord Sort[reviews DESC, i.parent_asin ASC]
+    Coord Aggregation[keys: i.parent_asin | count(*) AS reviews, avg(r.rating) AS avgRating]
+      Fetch[leveldb] in=(i) out=(i, i.parent_asin)
+        : GetProperty(i.parent_asin) [node:Item]
+        :   Argument(i)
+        StoreQuery[leveldb] in=(r) out=(r, r.rating)
+          : Filter((r.rating >= 4))
+          :   GetProperty(r.rating) [rel:REVIEWED]
+          :     Argument(r)
+          StoreQuery[neo4j] in=(i) out=(i, r)
+            : Expand((i)<-[r:REVIEWED]-(u:User))
+            :   Argument(i)
+            StoreQuery[leveldb] out=(i)
+              : Filter((i.main_category = "All Beauty"))
+              :   GetProperty(i.main_category) [node:Item]
+              :     EntityScan(i:Item)
+
+## AMZ2 — The shape of ML2 at low degree and large scale: how the cost of an edge condition changes with degree
+traits: start=filtered scan hops=2 fan-out=medium aggregate Top-20 | R1 start: i.rating_number | R5 edge: r1.helpful_vote, r2.rating | R6 aggregate / sort: j.parent_asin
+
+### AMZ2 @graph
+StoreQuery[neo4j] out=(j.parent_asin, c)
+  : Limit[20]
+  :   Sort[c DESC, j.parent_asin ASC]
+  :     Aggregation[keys: j.parent_asin | count(*) AS c]
+  :       GetProperty(j.parent_asin) [node:Item]
+  :         RelUniqueFilter[r1, r2]
+  :           Filter((r2.rating >= 5))
+  :             GetProperty(r2.rating) [rel:REVIEWED]
+  :               Expand((u)-[r2:REVIEWED]->(j:Item))
+  :                 Filter((r1.helpful_vote >= 10))
+  :                   GetProperty(r1.helpful_vote) [rel:REVIEWED]
+  :                     Expand((i)<-[r1:REVIEWED]-(u:User))
+  :                       Filter((i.rating_number >= 50000))
+  :                         GetProperty(i.rating_number) [node:Item]
+  :                           EntityScan(i:Item)
+
+### AMZ2 @relational
+Coord Limit[20]
+  Coord Sort[c DESC, j.parent_asin ASC]
+    Coord Aggregation[keys: j.parent_asin | count(*) AS c]
+      Fetch[mysql] in=(j) out=(j, j.parent_asin)
+        : GetProperty(j.parent_asin) [node:Item]
+        :   Argument(j)
+        StoreQuery[mysql] in=(r2) out=(r2)
+          : Filter((r2.rating >= 5))
+          :   GetProperty(r2.rating) [rel:REVIEWED]
+          :     Argument(r2)
+          StoreQuery[mysql] in=(r1) out=(r1)
+            : Filter((r1.helpful_vote >= 10))
+            :   GetProperty(r1.helpful_vote) [rel:REVIEWED]
+            :     Argument(r1)
+            StoreQuery[neo4j] in=(i) out=(i, j, r1, r2)
+              : RelUniqueFilter[r1, r2]
+              :   Expand((u)-[r2:REVIEWED]->(j:Item))
+              :     Expand((i)<-[r1:REVIEWED]-(u:User))
+              :       Argument(i)
+              StoreQuery[mysql] out=(i)
+                : Filter((i.rating_number >= 50000))
+                :   GetProperty(i.rating_number) [node:Item]
+                :     EntityScan(i:Item)
+
+### AMZ2 @document
+Coord Limit[20]
+  Coord Sort[c DESC, j.parent_asin ASC]
+    Coord Aggregation[keys: j.parent_asin | count(*) AS c]
+      Fetch[mongo] in=(j) out=(j, j.parent_asin)
+        : GetProperty(j.parent_asin) [node:Item]
+        :   Argument(j)
+        StoreQuery[mongo] in=(r2) out=(r2)
+          : Filter((r2.rating >= 5))
+          :   GetProperty(r2.rating) [rel:REVIEWED]
+          :     Argument(r2)
+          StoreQuery[mongo] in=(r1) out=(r1)
+            : Filter((r1.helpful_vote >= 10))
+            :   GetProperty(r1.helpful_vote) [rel:REVIEWED]
+            :     Argument(r1)
+            StoreQuery[neo4j] in=(i) out=(i, j, r1, r2)
+              : RelUniqueFilter[r1, r2]
+              :   Expand((u)-[r2:REVIEWED]->(j:Item))
+              :     Expand((i)<-[r1:REVIEWED]-(u:User))
+              :       Argument(i)
+              StoreQuery[mongo] out=(i)
+                : Filter((i.rating_number >= 50000))
+                :   GetProperty(i.rating_number) [node:Item]
+                :     EntityScan(i:Item)
+
+### AMZ2 @columnar
+Coord Limit[20]
+  Coord Sort[c DESC, j.parent_asin ASC]
+    Coord Aggregation[keys: j.parent_asin | count(*) AS c]
+      Fetch[clickhouse] in=(j) out=(j, j.parent_asin)
+        : GetProperty(j.parent_asin) [node:Item]
+        :   Argument(j)
+        StoreQuery[clickhouse] in=(r2) out=(r2)
+          : Filter((r2.rating >= 5))
+          :   GetProperty(r2.rating) [rel:REVIEWED]
+          :     Argument(r2)
+          StoreQuery[clickhouse] in=(r1) out=(r1)
+            : Filter((r1.helpful_vote >= 10))
+            :   GetProperty(r1.helpful_vote) [rel:REVIEWED]
+            :     Argument(r1)
+            StoreQuery[neo4j] in=(i) out=(i, j, r1, r2)
+              : RelUniqueFilter[r1, r2]
+              :   Expand((u)-[r2:REVIEWED]->(j:Item))
+              :     Expand((i)<-[r1:REVIEWED]-(u:User))
+              :       Argument(i)
+              StoreQuery[clickhouse] out=(i)
+                : Filter((i.rating_number >= 50000))
+                :   GetProperty(i.rating_number) [node:Item]
+                :     EntityScan(i:Item)
+
+### AMZ2 @widecolumn
+Coord Limit[20]
+  Coord Sort[c DESC, j.parent_asin ASC]
+    Coord Aggregation[keys: j.parent_asin | count(*) AS c]
+      Fetch[cassandra] in=(j) out=(j, j.parent_asin)
+        : GetProperty(j.parent_asin) [node:Item]
+        :   Argument(j)
+        StoreQuery[cassandra] in=(r2) out=(r2)
+          : Filter((r2.rating >= 5))
+          :   GetProperty(r2.rating) [rel:REVIEWED]
+          :     Argument(r2)
+          StoreQuery[cassandra] in=(r1) out=(r1)
+            : Filter((r1.helpful_vote >= 10))
+            :   GetProperty(r1.helpful_vote) [rel:REVIEWED]
+            :     Argument(r1)
+            StoreQuery[neo4j] in=(i) out=(i, j, r1, r2)
+              : RelUniqueFilter[r1, r2]
+              :   Expand((u)-[r2:REVIEWED]->(j:Item))
+              :     Expand((i)<-[r1:REVIEWED]-(u:User))
+              :       Argument(i)
+              StoreQuery[cassandra] out=(i)
+                : Filter((i.rating_number >= 50000))
+                :   GetProperty(i.rating_number) [node:Item]
+                :     EntityScan(i:Item)
+
+### AMZ2 @kvs
+Coord Limit[20]
+  Coord Sort[c DESC, j.parent_asin ASC]
+    Coord Aggregation[keys: j.parent_asin | count(*) AS c]
+      Fetch[leveldb] in=(j) out=(j, j.parent_asin)
+        : GetProperty(j.parent_asin) [node:Item]
+        :   Argument(j)
+        StoreQuery[leveldb] in=(r2) out=(r2)
+          : Filter((r2.rating >= 5))
+          :   GetProperty(r2.rating) [rel:REVIEWED]
+          :     Argument(r2)
+          StoreQuery[leveldb] in=(r1) out=(r1)
+            : Filter((r1.helpful_vote >= 10))
+            :   GetProperty(r1.helpful_vote) [rel:REVIEWED]
+            :     Argument(r1)
+            StoreQuery[neo4j] in=(i) out=(i, j, r1, r2)
+              : RelUniqueFilter[r1, r2]
+              :   Expand((u)-[r2:REVIEWED]->(j:Item))
+              :     Expand((i)<-[r1:REVIEWED]-(u:User))
+              :       Argument(i)
+              StoreQuery[leveldb] out=(i)
+                : Filter((i.rating_number >= 50000))
+                :   GetProperty(i.rating_number) [node:Item]
+                :     EntityScan(i:Item)
+
+## AMZ3 — Fetching review text on edges after Top-k (deferred materialization of edge properties)
+traits: start=filtered scan hops=1 fan-out=medium Top-10 | R0 output: i.title | R1 start: i.average_rating | R5 edge: r.helpful_vote | R6 aggregate / sort: r.helpful_vote, i.title | R7 text: r.text, r.title
+
+### AMZ3 @graph
+StoreQuery[neo4j] out=(i.title, r.title, r.text)
+  : Projection[i.title, r.title, r.text]
+  :   GetProperty(r.text) [rel:REVIEWED]
+  :     GetProperty(r.title) [rel:REVIEWED]
+  :       Limit[10]
+  :         Sort[_sort0 DESC, i.title ASC]
+  :           Projection[i.title, r.helpful_vote AS _sort0, r]
+  :             GetProperty(i.title) [node:Item]
+  :               Filter((r.helpful_vote >= 100))
+  :                 GetProperty(r.helpful_vote) [rel:REVIEWED]
+  :                   Expand((i)<-[r:REVIEWED]-(u:User))
+  :                     Filter((i.average_rating <= 2))
+  :                       GetProperty(i.average_rating) [node:Item]
+  :                         EntityScan(i:Item)
+
+### AMZ3 @relational
+Coord Projection[i.title, r.title, r.text]
+  Fetch[mysql] in=(r) out=(r, r.text, r.title)
+    : GetProperty(r.text) [rel:REVIEWED]
+    :   GetProperty(r.title) [rel:REVIEWED]
+    :     Argument(r)
+    Coord Limit[10]
+      Coord Sort[_sort0 DESC, i.title ASC]
+        Coord Projection[i.title, r.helpful_vote AS _sort0, r]
+          Fetch[mysql] in=(i) out=(i, i.title)
+            : GetProperty(i.title) [node:Item]
+            :   Argument(i)
+            StoreQuery[mysql] in=(r) out=(r, r.helpful_vote)
+              : Filter((r.helpful_vote >= 100))
+              :   GetProperty(r.helpful_vote) [rel:REVIEWED]
+              :     Argument(r)
+              StoreQuery[neo4j] in=(i) out=(i, r)
+                : Expand((i)<-[r:REVIEWED]-(u:User))
+                :   Argument(i)
+                StoreQuery[mysql] out=(i)
+                  : Filter((i.average_rating <= 2))
+                  :   GetProperty(i.average_rating) [node:Item]
+                  :     EntityScan(i:Item)
+
+### AMZ3 @document
+Coord Projection[i.title, r.title, r.text]
+  Fetch[mongo] in=(r) out=(r, r.text, r.title)
+    : GetProperty(r.text) [rel:REVIEWED]
+    :   GetProperty(r.title) [rel:REVIEWED]
+    :     Argument(r)
+    Coord Limit[10]
+      Coord Sort[_sort0 DESC, i.title ASC]
+        Coord Projection[i.title, r.helpful_vote AS _sort0, r]
+          Fetch[mongo] in=(i) out=(i, i.title)
+            : GetProperty(i.title) [node:Item]
+            :   Argument(i)
+            StoreQuery[mongo] in=(r) out=(r, r.helpful_vote)
+              : Filter((r.helpful_vote >= 100))
+              :   GetProperty(r.helpful_vote) [rel:REVIEWED]
+              :     Argument(r)
+              StoreQuery[neo4j] in=(i) out=(i, r)
+                : Expand((i)<-[r:REVIEWED]-(u:User))
+                :   Argument(i)
+                StoreQuery[mongo] out=(i)
+                  : Filter((i.average_rating <= 2))
+                  :   GetProperty(i.average_rating) [node:Item]
+                  :     EntityScan(i:Item)
+
+### AMZ3 @columnar
+Coord Projection[i.title, r.title, r.text]
+  Fetch[clickhouse] in=(r) out=(r, r.text, r.title)
+    : GetProperty(r.text) [rel:REVIEWED]
+    :   GetProperty(r.title) [rel:REVIEWED]
+    :     Argument(r)
+    Coord Limit[10]
+      Coord Sort[_sort0 DESC, i.title ASC]
+        Coord Projection[i.title, r.helpful_vote AS _sort0, r]
+          Fetch[clickhouse] in=(i) out=(i, i.title)
+            : GetProperty(i.title) [node:Item]
+            :   Argument(i)
+            StoreQuery[clickhouse] in=(r) out=(r, r.helpful_vote)
+              : Filter((r.helpful_vote >= 100))
+              :   GetProperty(r.helpful_vote) [rel:REVIEWED]
+              :     Argument(r)
+              StoreQuery[neo4j] in=(i) out=(i, r)
+                : Expand((i)<-[r:REVIEWED]-(u:User))
+                :   Argument(i)
+                StoreQuery[clickhouse] out=(i)
+                  : Filter((i.average_rating <= 2))
+                  :   GetProperty(i.average_rating) [node:Item]
+                  :     EntityScan(i:Item)
+
+### AMZ3 @widecolumn
+Coord Projection[i.title, r.title, r.text]
+  Fetch[cassandra] in=(r) out=(r, r.text, r.title)
+    : GetProperty(r.text) [rel:REVIEWED]
+    :   GetProperty(r.title) [rel:REVIEWED]
+    :     Argument(r)
+    Coord Limit[10]
+      Coord Sort[_sort0 DESC, i.title ASC]
+        Coord Projection[i.title, r.helpful_vote AS _sort0, r]
+          Fetch[cassandra] in=(i) out=(i, i.title)
+            : GetProperty(i.title) [node:Item]
+            :   Argument(i)
+            StoreQuery[cassandra] in=(r) out=(r, r.helpful_vote)
+              : Filter((r.helpful_vote >= 100))
+              :   GetProperty(r.helpful_vote) [rel:REVIEWED]
+              :     Argument(r)
+              StoreQuery[neo4j] in=(i) out=(i, r)
+                : Expand((i)<-[r:REVIEWED]-(u:User))
+                :   Argument(i)
+                StoreQuery[cassandra] out=(i)
+                  : Filter((i.average_rating <= 2))
+                  :   GetProperty(i.average_rating) [node:Item]
+                  :     EntityScan(i:Item)
+
+### AMZ3 @kvs
+Coord Projection[i.title, r.title, r.text]
+  Fetch[leveldb] in=(r) out=(r, r.text, r.title)
+    : GetProperty(r.text) [rel:REVIEWED]
+    :   GetProperty(r.title) [rel:REVIEWED]
+    :     Argument(r)
+    Coord Limit[10]
+      Coord Sort[_sort0 DESC, i.title ASC]
+        Coord Projection[i.title, r.helpful_vote AS _sort0, r]
+          Fetch[leveldb] in=(i) out=(i, i.title)
+            : GetProperty(i.title) [node:Item]
+            :   Argument(i)
+            StoreQuery[leveldb] in=(r) out=(r, r.helpful_vote)
+              : Filter((r.helpful_vote >= 100))
+              :   GetProperty(r.helpful_vote) [rel:REVIEWED]
+              :     Argument(r)
+              StoreQuery[neo4j] in=(i) out=(i, r)
+                : Expand((i)<-[r:REVIEWED]-(u:User))
+                :   Argument(i)
+                StoreQuery[leveldb] out=(i)
+                  : Filter((i.average_rating <= 2))
+                  :   GetProperty(i.average_rating) [node:Item]
+                  :     EntityScan(i:Item)
+

@@ -1,0 +1,236 @@
+{
+  "labels": {
+    "Post": [
+      "Post"
+    ],
+    "User": [
+      "User"
+    ],
+    "Rev": [
+      "Rev"
+    ]
+  },
+  "entities": {
+    "Post": {
+      "labels": [
+        "Post"
+      ],
+      "properties": {
+        "post_id": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "post_type": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        },
+        "score": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        },
+        "view_count": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        },
+        "creation_date": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "tags": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "body": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "PARENT_OF": {
+          "targetEntities": [
+            "Post"
+          ],
+          "database": [
+            "graph"
+          ]
+        },
+        "LINKS_TO": {
+          "targetEntities": [
+            "Post"
+          ],
+          "database": [
+            "graph"
+          ]
+        },
+        "HAS_EDIT": {
+          "targetEntities": [
+            "Rev"
+          ],
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    },
+    "User": {
+      "labels": [
+        "User"
+      ],
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "display_name": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "reputation": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        },
+        "creation_date": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "AUTHORED": {
+          "targetEntities": [
+            "Post"
+          ],
+          "database": [
+            "graph"
+          ]
+        },
+        "MADE_EDIT": {
+          "targetEntities": [
+            "Rev"
+          ],
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    },
+    "Rev": {
+      "labels": [
+        "Rev"
+      ],
+      "properties": {
+        "rev_id": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "post_id": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "history_type": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        },
+        "creation_date": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "comment": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "PREV_EDIT": {
+          "targetEntities": [
+            "Rev"
+          ],
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    }
+  },
+  "relationships": {
+    "AUTHORED": {
+      "labels": [
+        "AUTHORED"
+      ],
+      "properties": {}
+    },
+    "PARENT_OF": {
+      "labels": [
+        "PARENT_OF"
+      ],
+      "properties": {}
+    },
+    "LINKS_TO": {
+      "labels": [
+        "LINKS_TO"
+      ],
+      "properties": {}
+    },
+    "HAS_EDIT": {
+      "labels": [
+        "HAS_EDIT"
+      ],
+      "properties": {}
+    },
+    "PREV_EDIT": {
+      "labels": [
+        "PREV_EDIT"
+      ],
+      "properties": {}
+    },
+    "MADE_EDIT": {
+      "labels": [
+        "MADE_EDIT"
+      ],
+      "properties": {}
+    }
+  }
+}

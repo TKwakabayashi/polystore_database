@@ -1,0 +1,182 @@
+{
+  "labels": {
+    "Commit": [
+      "Commit"
+    ],
+    "Author": [
+      "Author"
+    ],
+    "File": [
+      "File"
+    ]
+  },
+  "entities": {
+    "Commit": {
+      "labels": [
+        "Commit"
+      ],
+      "properties": {
+        "sha": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "author_name": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "author_email": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "authored_date": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "committer_name": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "committed_date": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "subject": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "files_changed": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        },
+        "insertions": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        },
+        "deletions": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "PARENT": {
+          "targetEntities": [
+            "Commit"
+          ],
+          "database": [
+            "graph"
+          ]
+        },
+        "TOUCHED": {
+          "targetEntities": [
+            "File"
+          ],
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    },
+    "Author": {
+      "labels": [
+        "Author"
+      ],
+      "properties": {
+        "email": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "AUTHORED": {
+          "targetEntities": [
+            "Commit"
+          ],
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    },
+    "File": {
+      "labels": [
+        "File"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {}
+    }
+  },
+  "relationships": {
+    "PARENT": {
+      "labels": [
+        "PARENT"
+      ],
+      "properties": {}
+    },
+    "AUTHORED": {
+      "labels": [
+        "AUTHORED"
+      ],
+      "properties": {}
+    },
+    "TOUCHED": {
+      "labels": [
+        "TOUCHED"
+      ],
+      "properties": {
+        "insertions": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        },
+        "deletions": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    }
+  }
+}

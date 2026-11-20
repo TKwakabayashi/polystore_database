@@ -1,0 +1,524 @@
+## WIKI1 — A whole-path condition over up to 10 hops of chains thousands long: a larger GIT2, the cost of extracting paths
+traits: start=filtered scan hops=1..10 fan-out=low variable-length aggregate Top-20 | R1 start: r.text_bytes | R4 path: x.text_bytes | R6 aggregate / sort: o.page_id
+
+### WIKI1 @graph
+StoreQuery[neo4j] out=(o.page_id, chains)
+  : Limit[20]
+  :   Sort[chains DESC, o.page_id ASC]
+  :     Aggregation[keys: o.page_id | count(*) AS chains]
+  :       GetProperty(o.page_id) [node:Revision]
+  :         Filter((o.text_bytes >= 100000))
+  :           GetProperty(o.text_bytes) [node:Revision]
+  :             VarLengthExpand((r)-[_r0:PREV*1..10]->(o:Revision)) seg[all(x IN nodes WHERE (x.text_bytes >= 100000))]
+  :               Filter((r.text_bytes >= 100000))
+  :                 Filter((r.text_bytes >= 500000))
+  :                   GetProperty(r.text_bytes) [node:Revision]
+  :                     EntityScan(r:Revision)
+
+### WIKI1 @relational
+Coord Limit[20]
+  Coord Sort[chains DESC, o.page_id ASC]
+    Coord Aggregation[keys: o.page_id | count(*) AS chains]
+      StoreQuery[mysql] in=(o) out=(o, o.page_id)
+        : GetProperty(o.page_id) [node:Revision]
+        :   Filter((o.text_bytes >= 100000))
+        :     GetProperty(o.text_bytes) [node:Revision]
+        :       Argument(o)
+        Coord Filter(all(x IN nodes(_seg__r0) WHERE (x.text_bytes >= 100000)))
+          ListFetch[mysql] _seg__r0.nodes.text_bytes from _seg__r0 [elem:Revision]
+            StoreQuery[neo4j] in=(r) out=(r, _seg__r0, o)
+              : VarLengthExpand((r)-[_r0:PREV*1..10]->(o:Revision)) emit _seg__r0
+              :   Argument(r)
+              StoreQuery[mysql] out=(r)
+                : Filter((r.text_bytes >= 100000))
+                :   Filter((r.text_bytes >= 500000))
+                :     GetProperty(r.text_bytes) [node:Revision]
+                :       EntityScan(r:Revision)
+
+### WIKI1 @document
+Coord Limit[20]
+  Coord Sort[chains DESC, o.page_id ASC]
+    Coord Aggregation[keys: o.page_id | count(*) AS chains]
+      StoreQuery[mongo] in=(o) out=(o, o.page_id)
+        : GetProperty(o.page_id) [node:Revision]
+        :   Filter((o.text_bytes >= 100000))
+        :     GetProperty(o.text_bytes) [node:Revision]
+        :       Argument(o)
+        Coord Filter(all(x IN nodes(_seg__r0) WHERE (x.text_bytes >= 100000)))
+          ListFetch[mongo] _seg__r0.nodes.text_bytes from _seg__r0 [elem:Revision]
+            StoreQuery[neo4j] in=(r) out=(r, _seg__r0, o)
+              : VarLengthExpand((r)-[_r0:PREV*1..10]->(o:Revision)) emit _seg__r0
+              :   Argument(r)
+              StoreQuery[mongo] out=(r)
+                : Filter((r.text_bytes >= 100000))
+                :   Filter((r.text_bytes >= 500000))
+                :     GetProperty(r.text_bytes) [node:Revision]
+                :       EntityScan(r:Revision)
+
+### WIKI1 @columnar
+Coord Limit[20]
+  Coord Sort[chains DESC, o.page_id ASC]
+    Coord Aggregation[keys: o.page_id | count(*) AS chains]
+      StoreQuery[clickhouse] in=(o) out=(o, o.page_id)
+        : GetProperty(o.page_id) [node:Revision]
+        :   Filter((o.text_bytes >= 100000))
+        :     GetProperty(o.text_bytes) [node:Revision]
+        :       Argument(o)
+        Coord Filter(all(x IN nodes(_seg__r0) WHERE (x.text_bytes >= 100000)))
+          ListFetch[clickhouse] _seg__r0.nodes.text_bytes from _seg__r0 [elem:Revision]
+            StoreQuery[neo4j] in=(r) out=(r, _seg__r0, o)
+              : VarLengthExpand((r)-[_r0:PREV*1..10]->(o:Revision)) emit _seg__r0
+              :   Argument(r)
+              StoreQuery[clickhouse] out=(r)
+                : Filter((r.text_bytes >= 100000))
+                :   Filter((r.text_bytes >= 500000))
+                :     GetProperty(r.text_bytes) [node:Revision]
+                :       EntityScan(r:Revision)
+
+### WIKI1 @widecolumn
+Coord Limit[20]
+  Coord Sort[chains DESC, o.page_id ASC]
+    Coord Aggregation[keys: o.page_id | count(*) AS chains]
+      StoreQuery[cassandra] in=(o) out=(o, o.page_id)
+        : GetProperty(o.page_id) [node:Revision]
+        :   Filter((o.text_bytes >= 100000))
+        :     GetProperty(o.text_bytes) [node:Revision]
+        :       Argument(o)
+        Coord Filter(all(x IN nodes(_seg__r0) WHERE (x.text_bytes >= 100000)))
+          ListFetch[cassandra] _seg__r0.nodes.text_bytes from _seg__r0 [elem:Revision]
+            StoreQuery[neo4j] in=(r) out=(r, _seg__r0, o)
+              : VarLengthExpand((r)-[_r0:PREV*1..10]->(o:Revision)) emit _seg__r0
+              :   Argument(r)
+              StoreQuery[cassandra] out=(r)
+                : Filter((r.text_bytes >= 100000))
+                :   Filter((r.text_bytes >= 500000))
+                :     GetProperty(r.text_bytes) [node:Revision]
+                :       EntityScan(r:Revision)
+
+### WIKI1 @kvs
+Coord Limit[20]
+  Coord Sort[chains DESC, o.page_id ASC]
+    Coord Aggregation[keys: o.page_id | count(*) AS chains]
+      StoreQuery[leveldb] in=(o) out=(o, o.page_id)
+        : GetProperty(o.page_id) [node:Revision]
+        :   Filter((o.text_bytes >= 100000))
+        :     GetProperty(o.text_bytes) [node:Revision]
+        :       Argument(o)
+        Coord Filter(all(x IN nodes(_seg__r0) WHERE (x.text_bytes >= 100000)))
+          ListFetch[leveldb] _seg__r0.nodes.text_bytes from _seg__r0 [elem:Revision]
+            StoreQuery[neo4j] in=(r) out=(r, _seg__r0, o)
+              : VarLengthExpand((r)-[_r0:PREV*1..10]->(o:Revision)) emit _seg__r0
+              :   Argument(r)
+              StoreQuery[leveldb] out=(r)
+                : Filter((r.text_bytes >= 100000))
+                :   Filter((r.text_bytes >= 500000))
+                :     GetProperty(r.text_bytes) [node:Revision]
+                :       EntityScan(r:Revision)
+
+## WIKI2 — Fetching full text (17.5GB in total) after Top-k, and the effect of a smaller graph, at their strongest
+traits: start=filtered scan hops=2 fan-out=high Top-10 | R0 output: p.title, c.name | R1 start: p.namespace | R3 middle: r.timestamp | R6 aggregate / sort: r.text_bytes, r.rev_id | R7 text: r.text
+
+### WIKI2 @graph
+StoreQuery[neo4j] out=(p.title, c.name, r.text)
+  : Projection[p.title, c.name, r.text]
+  :   GetProperty(r.text) [node:Revision]
+  :     GetProperty(c.name) [node:Contributor]
+  :       GetProperty(p.title) [node:Page]
+  :         Limit[10]
+  :           Sort[_sort0 DESC, _sort1 ASC]
+  :             Projection[r.text_bytes AS _sort0, r.rev_id AS _sort1, r, c, p]
+  :               GetProperty(r.rev_id) [node:Revision]
+  :                 GetProperty(r.text_bytes) [node:Revision]
+  :                   Expand((r)<-[_r1:EDITED]-(c:Contributor))
+  :                     Filter((r.timestamp >= "2023-01-01"))
+  :                       GetProperty(r.timestamp) [node:Revision]
+  :                         Expand((p)-[_r0:HAS_REVISION]->(r:Revision))
+  :                           Filter((p.namespace = 0))
+  :                             GetProperty(p.namespace) [node:Page]
+  :                               EntityScan(p:Page)
+
+### WIKI2 @relational
+Coord Projection[p.title, c.name, r.text]
+  Fetch[mysql] in=(r) out=(r, r.text)
+    : GetProperty(r.text) [node:Revision]
+    :   Argument(r)
+    Fetch[mysql] in=(c) out=(c, c.name)
+      : GetProperty(c.name) [node:Contributor]
+      :   Argument(c)
+      Fetch[mysql] in=(p) out=(p, p.title)
+        : GetProperty(p.title) [node:Page]
+        :   Argument(p)
+        Coord Limit[10]
+          Coord Sort[_sort0 DESC, _sort1 ASC]
+            Coord Projection[r.text_bytes AS _sort0, r.rev_id AS _sort1, r, c, p]
+              StoreQuery[mysql] in=(r) out=(r, r.rev_id, r.text_bytes)
+                : GetProperty(r.rev_id) [node:Revision]
+                :   GetProperty(r.text_bytes) [node:Revision]
+                :     Filter((r.timestamp >= "2023-01-01"))
+                :       GetProperty(r.timestamp) [node:Revision]
+                :         Argument(r)
+                StoreQuery[neo4j] in=(p) out=(p, c, r)
+                  : Expand((r)<-[_r1:EDITED]-(c:Contributor))
+                  :   Expand((p)-[_r0:HAS_REVISION]->(r:Revision))
+                  :     Argument(p)
+                  StoreQuery[mysql] out=(p)
+                    : Filter((p.namespace = 0))
+                    :   GetProperty(p.namespace) [node:Page]
+                    :     EntityScan(p:Page)
+
+### WIKI2 @document
+Coord Projection[p.title, c.name, r.text]
+  Fetch[mongo] in=(r) out=(r, r.text)
+    : GetProperty(r.text) [node:Revision]
+    :   Argument(r)
+    Fetch[mongo] in=(c) out=(c, c.name)
+      : GetProperty(c.name) [node:Contributor]
+      :   Argument(c)
+      Fetch[mongo] in=(p) out=(p, p.title)
+        : GetProperty(p.title) [node:Page]
+        :   Argument(p)
+        Coord Limit[10]
+          Coord Sort[_sort0 DESC, _sort1 ASC]
+            Coord Projection[r.text_bytes AS _sort0, r.rev_id AS _sort1, r, c, p]
+              StoreQuery[mongo] in=(r) out=(r, r.rev_id, r.text_bytes)
+                : GetProperty(r.rev_id) [node:Revision]
+                :   GetProperty(r.text_bytes) [node:Revision]
+                :     Filter((r.timestamp >= "2023-01-01"))
+                :       GetProperty(r.timestamp) [node:Revision]
+                :         Argument(r)
+                StoreQuery[neo4j] in=(p) out=(p, c, r)
+                  : Expand((r)<-[_r1:EDITED]-(c:Contributor))
+                  :   Expand((p)-[_r0:HAS_REVISION]->(r:Revision))
+                  :     Argument(p)
+                  StoreQuery[mongo] out=(p)
+                    : Filter((p.namespace = 0))
+                    :   GetProperty(p.namespace) [node:Page]
+                    :     EntityScan(p:Page)
+
+### WIKI2 @columnar
+Coord Projection[p.title, c.name, r.text]
+  Fetch[clickhouse] in=(r) out=(r, r.text)
+    : GetProperty(r.text) [node:Revision]
+    :   Argument(r)
+    Fetch[clickhouse] in=(c) out=(c, c.name)
+      : GetProperty(c.name) [node:Contributor]
+      :   Argument(c)
+      Fetch[clickhouse] in=(p) out=(p, p.title)
+        : GetProperty(p.title) [node:Page]
+        :   Argument(p)
+        Coord Limit[10]
+          Coord Sort[_sort0 DESC, _sort1 ASC]
+            Coord Projection[r.text_bytes AS _sort0, r.rev_id AS _sort1, r, c, p]
+              StoreQuery[clickhouse] in=(r) out=(r, r.rev_id, r.text_bytes)
+                : GetProperty(r.rev_id) [node:Revision]
+                :   GetProperty(r.text_bytes) [node:Revision]
+                :     Filter((r.timestamp >= "2023-01-01"))
+                :       GetProperty(r.timestamp) [node:Revision]
+                :         Argument(r)
+                StoreQuery[neo4j] in=(p) out=(p, c, r)
+                  : Expand((r)<-[_r1:EDITED]-(c:Contributor))
+                  :   Expand((p)-[_r0:HAS_REVISION]->(r:Revision))
+                  :     Argument(p)
+                  StoreQuery[clickhouse] out=(p)
+                    : Filter((p.namespace = 0))
+                    :   GetProperty(p.namespace) [node:Page]
+                    :     EntityScan(p:Page)
+
+### WIKI2 @widecolumn
+Coord Projection[p.title, c.name, r.text]
+  Fetch[cassandra] in=(r) out=(r, r.text)
+    : GetProperty(r.text) [node:Revision]
+    :   Argument(r)
+    Fetch[cassandra] in=(c) out=(c, c.name)
+      : GetProperty(c.name) [node:Contributor]
+      :   Argument(c)
+      Fetch[cassandra] in=(p) out=(p, p.title)
+        : GetProperty(p.title) [node:Page]
+        :   Argument(p)
+        Coord Limit[10]
+          Coord Sort[_sort0 DESC, _sort1 ASC]
+            Coord Projection[r.text_bytes AS _sort0, r.rev_id AS _sort1, r, c, p]
+              StoreQuery[cassandra] in=(r) out=(r, r.rev_id, r.text_bytes)
+                : GetProperty(r.rev_id) [node:Revision]
+                :   GetProperty(r.text_bytes) [node:Revision]
+                :     Filter((r.timestamp >= "2023-01-01"))
+                :       GetProperty(r.timestamp) [node:Revision]
+                :         Argument(r)
+                StoreQuery[neo4j] in=(p) out=(p, c, r)
+                  : Expand((r)<-[_r1:EDITED]-(c:Contributor))
+                  :   Expand((p)-[_r0:HAS_REVISION]->(r:Revision))
+                  :     Argument(p)
+                  StoreQuery[cassandra] out=(p)
+                    : Filter((p.namespace = 0))
+                    :   GetProperty(p.namespace) [node:Page]
+                    :     EntityScan(p:Page)
+
+### WIKI2 @kvs
+Coord Projection[p.title, c.name, r.text]
+  Fetch[leveldb] in=(r) out=(r, r.text)
+    : GetProperty(r.text) [node:Revision]
+    :   Argument(r)
+    Fetch[leveldb] in=(c) out=(c, c.name)
+      : GetProperty(c.name) [node:Contributor]
+      :   Argument(c)
+      Fetch[leveldb] in=(p) out=(p, p.title)
+        : GetProperty(p.title) [node:Page]
+        :   Argument(p)
+        Coord Limit[10]
+          Coord Sort[_sort0 DESC, _sort1 ASC]
+            Coord Projection[r.text_bytes AS _sort0, r.rev_id AS _sort1, r, c, p]
+              StoreQuery[leveldb] in=(r) out=(r, r.rev_id, r.text_bytes)
+                : GetProperty(r.rev_id) [node:Revision]
+                :   GetProperty(r.text_bytes) [node:Revision]
+                :     Filter((r.timestamp >= "2023-01-01"))
+                :       GetProperty(r.timestamp) [node:Revision]
+                :         Argument(r)
+                StoreQuery[neo4j] in=(p) out=(p, c, r)
+                  : Expand((r)<-[_r1:EDITED]-(c:Contributor))
+                  :   Expand((p)-[_r0:HAS_REVISION]->(r:Revision))
+                  :     Argument(p)
+                  StoreQuery[leveldb] out=(p)
+                    : Filter((p.namespace = 0))
+                    :   GetProperty(p.namespace) [node:Page]
+                    :     EntityScan(p:Page)
+
+## WIKI3 — Two hops narrowed only by a middle version: the cost when the middle condition is off graph and no start is fixed
+traits: start=narrowed in the middle hops=2 fan-out=medium aggregate Top-20 | R3 middle: r.timestamp, r.text_bytes | R6 aggregate / sort: c.name, p.page_id
+
+### WIKI3 @graph
+StoreQuery[neo4j] out=(c.name, pages)
+  : Limit[20]
+  :   Sort[pages DESC, c.name ASC]
+  :     Aggregation[keys: c.name | count(DISTINCT p.page_id) AS pages]
+  :       GetProperty(p.page_id) [node:Page]
+  :         GetProperty(c.name) [node:Contributor]
+  :           Expand((r)<-[_r1:HAS_REVISION]-(p:Page))
+  :             Expand((r)<-[_r0:EDITED]-(c:Contributor))
+  :               Filter((r.text_bytes >= 100000))
+  :                 GetProperty(r.text_bytes) [node:Revision]
+  :                   Filter((r.timestamp >= "2023-01-01"))
+  :                     GetProperty(r.timestamp) [node:Revision]
+  :                       EntityScan(r:Revision)
+
+### WIKI3 @relational
+Coord Limit[20]
+  Coord Sort[pages DESC, c.name ASC]
+    Coord Aggregation[keys: c.name | count(DISTINCT p.page_id) AS pages]
+      Fetch[mysql] in=(p) out=(p, p.page_id)
+        : GetProperty(p.page_id) [node:Page]
+        :   Argument(p)
+        Fetch[mysql] in=(c) out=(c, c.name)
+          : GetProperty(c.name) [node:Contributor]
+          :   Argument(c)
+          StoreQuery[neo4j] in=(r) out=(r, c, p)
+            : Expand((r)<-[_r1:HAS_REVISION]-(p:Page))
+            :   Expand((r)<-[_r0:EDITED]-(c:Contributor))
+            :     Argument(r)
+            StoreQuery[mysql] out=(r)
+              : Filter((r.text_bytes >= 100000))
+              :   GetProperty(r.text_bytes) [node:Revision]
+              :     Filter((r.timestamp >= "2023-01-01"))
+              :       GetProperty(r.timestamp) [node:Revision]
+              :         EntityScan(r:Revision)
+
+### WIKI3 @document
+Coord Limit[20]
+  Coord Sort[pages DESC, c.name ASC]
+    Coord Aggregation[keys: c.name | count(DISTINCT p.page_id) AS pages]
+      Fetch[mongo] in=(p) out=(p, p.page_id)
+        : GetProperty(p.page_id) [node:Page]
+        :   Argument(p)
+        Fetch[mongo] in=(c) out=(c, c.name)
+          : GetProperty(c.name) [node:Contributor]
+          :   Argument(c)
+          StoreQuery[neo4j] in=(r) out=(r, c, p)
+            : Expand((r)<-[_r1:HAS_REVISION]-(p:Page))
+            :   Expand((r)<-[_r0:EDITED]-(c:Contributor))
+            :     Argument(r)
+            StoreQuery[mongo] out=(r)
+              : Filter((r.text_bytes >= 100000))
+              :   GetProperty(r.text_bytes) [node:Revision]
+              :     Filter((r.timestamp >= "2023-01-01"))
+              :       GetProperty(r.timestamp) [node:Revision]
+              :         EntityScan(r:Revision)
+
+### WIKI3 @columnar
+Coord Limit[20]
+  Coord Sort[pages DESC, c.name ASC]
+    Coord Aggregation[keys: c.name | count(DISTINCT p.page_id) AS pages]
+      Fetch[clickhouse] in=(p) out=(p, p.page_id)
+        : GetProperty(p.page_id) [node:Page]
+        :   Argument(p)
+        Fetch[clickhouse] in=(c) out=(c, c.name)
+          : GetProperty(c.name) [node:Contributor]
+          :   Argument(c)
+          StoreQuery[neo4j] in=(r) out=(r, c, p)
+            : Expand((r)<-[_r1:HAS_REVISION]-(p:Page))
+            :   Expand((r)<-[_r0:EDITED]-(c:Contributor))
+            :     Argument(r)
+            StoreQuery[clickhouse] out=(r)
+              : Filter((r.text_bytes >= 100000))
+              :   GetProperty(r.text_bytes) [node:Revision]
+              :     Filter((r.timestamp >= "2023-01-01"))
+              :       GetProperty(r.timestamp) [node:Revision]
+              :         EntityScan(r:Revision)
+
+### WIKI3 @widecolumn
+Coord Limit[20]
+  Coord Sort[pages DESC, c.name ASC]
+    Coord Aggregation[keys: c.name | count(DISTINCT p.page_id) AS pages]
+      Fetch[cassandra] in=(p) out=(p, p.page_id)
+        : GetProperty(p.page_id) [node:Page]
+        :   Argument(p)
+        Fetch[cassandra] in=(c) out=(c, c.name)
+          : GetProperty(c.name) [node:Contributor]
+          :   Argument(c)
+          StoreQuery[neo4j] in=(r) out=(r, c, p)
+            : Expand((r)<-[_r1:HAS_REVISION]-(p:Page))
+            :   Expand((r)<-[_r0:EDITED]-(c:Contributor))
+            :     Argument(r)
+            StoreQuery[cassandra] out=(r)
+              : Filter((r.text_bytes >= 100000))
+              :   GetProperty(r.text_bytes) [node:Revision]
+              :     Filter((r.timestamp >= "2023-01-01"))
+              :       GetProperty(r.timestamp) [node:Revision]
+              :         EntityScan(r:Revision)
+
+### WIKI3 @kvs
+Coord Limit[20]
+  Coord Sort[pages DESC, c.name ASC]
+    Coord Aggregation[keys: c.name | count(DISTINCT p.page_id) AS pages]
+      Fetch[leveldb] in=(p) out=(p, p.page_id)
+        : GetProperty(p.page_id) [node:Page]
+        :   Argument(p)
+        Fetch[leveldb] in=(c) out=(c, c.name)
+          : GetProperty(c.name) [node:Contributor]
+          :   Argument(c)
+          StoreQuery[neo4j] in=(r) out=(r, c, p)
+            : Expand((r)<-[_r1:HAS_REVISION]-(p:Page))
+            :   Expand((r)<-[_r0:EDITED]-(c:Contributor))
+            :     Argument(r)
+            StoreQuery[leveldb] out=(r)
+              : Filter((r.text_bytes >= 100000))
+              :   GetProperty(r.text_bytes) [node:Revision]
+              :     Filter((r.timestamp >= "2023-01-01"))
+              :       GetProperty(r.timestamp) [node:Revision]
+              :         EntityScan(r:Revision)
+
+## WIKI4 — A condition on the vertex after a variable-length chain (middle): how chain expansion and boundaries combine
+traits: start=filtered scan hops=2..4 fan-out=low variable-length aggregate Top-20 | R1 start: r.text_bytes | R3 middle: o.timestamp | R6 aggregate / sort: d.name
+
+### WIKI4 @graph
+StoreQuery[neo4j] out=(d.name, edits)
+  : Limit[20]
+  :   Sort[edits DESC, d.name ASC]
+  :     Aggregation[keys: d.name | count(*) AS edits]
+  :       GetProperty(d.name) [node:Contributor]
+  :         Expand((o)<-[_r1:EDITED]-(d:Contributor))
+  :           Filter((o.timestamp >= "2020-01-01"))
+  :             GetProperty(o.timestamp) [node:Revision]
+  :               VarLengthExpand((r)-[_r0:PREV*1..3]->(o:Revision))
+  :                 Filter((r.text_bytes >= 500000))
+  :                   GetProperty(r.text_bytes) [node:Revision]
+  :                     EntityScan(r:Revision)
+
+### WIKI4 @relational
+Coord Limit[20]
+  Coord Sort[edits DESC, d.name ASC]
+    Coord Aggregation[keys: d.name | count(*) AS edits]
+      Fetch[mysql] in=(d) out=(d, d.name)
+        : GetProperty(d.name) [node:Contributor]
+        :   Argument(d)
+        StoreQuery[mysql] in=(o) out=(o)
+          : Filter((o.timestamp >= "2020-01-01"))
+          :   GetProperty(o.timestamp) [node:Revision]
+          :     Argument(o)
+          StoreQuery[neo4j] in=(r) out=(r, d, o) weighted
+            : Expand((o)<-[_r1:EDITED]-(d:Contributor))
+            :   VarLengthExpand((r)-[_r0:PREV*1..3]->(o:Revision))
+            :     Argument(r)
+            StoreQuery[mysql] out=(r)
+              : Filter((r.text_bytes >= 500000))
+              :   GetProperty(r.text_bytes) [node:Revision]
+              :     EntityScan(r:Revision)
+
+### WIKI4 @document
+Coord Limit[20]
+  Coord Sort[edits DESC, d.name ASC]
+    Coord Aggregation[keys: d.name | count(*) AS edits]
+      Fetch[mongo] in=(d) out=(d, d.name)
+        : GetProperty(d.name) [node:Contributor]
+        :   Argument(d)
+        StoreQuery[mongo] in=(o) out=(o)
+          : Filter((o.timestamp >= "2020-01-01"))
+          :   GetProperty(o.timestamp) [node:Revision]
+          :     Argument(o)
+          StoreQuery[neo4j] in=(r) out=(r, d, o) weighted
+            : Expand((o)<-[_r1:EDITED]-(d:Contributor))
+            :   VarLengthExpand((r)-[_r0:PREV*1..3]->(o:Revision))
+            :     Argument(r)
+            StoreQuery[mongo] out=(r)
+              : Filter((r.text_bytes >= 500000))
+              :   GetProperty(r.text_bytes) [node:Revision]
+              :     EntityScan(r:Revision)
+
+### WIKI4 @columnar
+Coord Limit[20]
+  Coord Sort[edits DESC, d.name ASC]
+    Coord Aggregation[keys: d.name | count(*) AS edits]
+      Fetch[clickhouse] in=(d) out=(d, d.name)
+        : GetProperty(d.name) [node:Contributor]
+        :   Argument(d)
+        StoreQuery[clickhouse] in=(o) out=(o)
+          : Filter((o.timestamp >= "2020-01-01"))
+          :   GetProperty(o.timestamp) [node:Revision]
+          :     Argument(o)
+          StoreQuery[neo4j] in=(r) out=(r, d, o) weighted
+            : Expand((o)<-[_r1:EDITED]-(d:Contributor))
+            :   VarLengthExpand((r)-[_r0:PREV*1..3]->(o:Revision))
+            :     Argument(r)
+            StoreQuery[clickhouse] out=(r)
+              : Filter((r.text_bytes >= 500000))
+              :   GetProperty(r.text_bytes) [node:Revision]
+              :     EntityScan(r:Revision)
+
+### WIKI4 @widecolumn
+Coord Limit[20]
+  Coord Sort[edits DESC, d.name ASC]
+    Coord Aggregation[keys: d.name | count(*) AS edits]
+      Fetch[cassandra] in=(d) out=(d, d.name)
+        : GetProperty(d.name) [node:Contributor]
+        :   Argument(d)
+        StoreQuery[cassandra] in=(o) out=(o)
+          : Filter((o.timestamp >= "2020-01-01"))
+          :   GetProperty(o.timestamp) [node:Revision]
+          :     Argument(o)
+          StoreQuery[neo4j] in=(r) out=(r, d, o) weighted
+            : Expand((o)<-[_r1:EDITED]-(d:Contributor))
+            :   VarLengthExpand((r)-[_r0:PREV*1..3]->(o:Revision))
+            :     Argument(r)
+            StoreQuery[cassandra] out=(r)
+              : Filter((r.text_bytes >= 500000))
+              :   GetProperty(r.text_bytes) [node:Revision]
+              :     EntityScan(r:Revision)
+
+### WIKI4 @kvs
+Coord Limit[20]
+  Coord Sort[edits DESC, d.name ASC]
+    Coord Aggregation[keys: d.name | count(*) AS edits]
+      Fetch[leveldb] in=(d) out=(d, d.name)
+        : GetProperty(d.name) [node:Contributor]
+        :   Argument(d)
+        StoreQuery[leveldb] in=(o) out=(o)
+          : Filter((o.timestamp >= "2020-01-01"))
+          :   GetProperty(o.timestamp) [node:Revision]
+          :     Argument(o)
+          StoreQuery[neo4j] in=(r) out=(r, d, o) weighted
+            : Expand((o)<-[_r1:EDITED]-(d:Contributor))
+            :   VarLengthExpand((r)-[_r0:PREV*1..3]->(o:Revision))
+            :     Argument(r)
+            StoreQuery[leveldb] out=(r)
+              : Filter((r.text_bytes >= 500000))
+              :   GetProperty(r.text_bytes) [node:Revision]
+              :     EntityScan(r:Revision)
+

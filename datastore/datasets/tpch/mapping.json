@@ -1,0 +1,330 @@
+{
+  "labels": {
+    "Customer": [
+      "Customer"
+    ],
+    "Order": [
+      "Order"
+    ],
+    "Lineitem": [
+      "Lineitem"
+    ],
+    "Part": [
+      "Part"
+    ],
+    "Supplier": [
+      "Supplier"
+    ],
+    "Nation": [
+      "Nation"
+    ]
+  },
+  "entities": {
+    "Customer": {
+      "labels": [
+        "Customer"
+      ],
+      "properties": {
+        "custkey": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "mktsegment": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "acctbal": {
+          "type": "double",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "PLACED": {
+          "targetEntities": [
+            "Order"
+          ],
+          "database": [
+            "graph"
+          ]
+        },
+        "CUST_IN": {
+          "targetEntities": [
+            "Nation"
+          ],
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    },
+    "Order": {
+      "labels": [
+        "Order"
+      ],
+      "properties": {
+        "orderkey": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "orderstatus": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "totalprice": {
+          "type": "double",
+          "database": [
+            "graph"
+          ]
+        },
+        "orderdate": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "orderpriority": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "CONTAINS": {
+          "targetEntities": [
+            "Lineitem"
+          ],
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    },
+    "Lineitem": {
+      "labels": [
+        "Lineitem"
+      ],
+      "properties": {
+        "linekey": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "orderkey": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "quantity": {
+          "type": "double",
+          "database": [
+            "graph"
+          ]
+        },
+        "extendedprice": {
+          "type": "double",
+          "database": [
+            "graph"
+          ]
+        },
+        "discount": {
+          "type": "double",
+          "database": [
+            "graph"
+          ]
+        },
+        "shipdate": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "returnflag": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "OF_PART": {
+          "targetEntities": [
+            "Part"
+          ],
+          "database": [
+            "graph"
+          ]
+        },
+        "SUPPLIED_BY": {
+          "targetEntities": [
+            "Supplier"
+          ],
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    },
+    "Part": {
+      "labels": [
+        "Part"
+      ],
+      "properties": {
+        "partkey": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "mfgr": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "brand": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "retailprice": {
+          "type": "double",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {}
+    },
+    "Supplier": {
+      "labels": [
+        "Supplier"
+      ],
+      "properties": {
+        "suppkey": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "acctbal": {
+          "type": "double",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "SUPP_IN": {
+          "targetEntities": [
+            "Nation"
+          ],
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    },
+    "Nation": {
+      "labels": [
+        "Nation"
+      ],
+      "properties": {
+        "nationkey": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "regionkey": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {}
+    }
+  },
+  "relationships": {
+    "PLACED": {
+      "labels": [
+        "PLACED"
+      ],
+      "properties": {}
+    },
+    "CONTAINS": {
+      "labels": [
+        "CONTAINS"
+      ],
+      "properties": {}
+    },
+    "OF_PART": {
+      "labels": [
+        "OF_PART"
+      ],
+      "properties": {}
+    },
+    "SUPPLIED_BY": {
+      "labels": [
+        "SUPPLIED_BY"
+      ],
+      "properties": {}
+    },
+    "CUST_IN": {
+      "labels": [
+        "CUST_IN"
+      ],
+      "properties": {}
+    },
+    "SUPP_IN": {
+      "labels": [
+        "SUPP_IN"
+      ],
+      "properties": {}
+    }
+  }
+}

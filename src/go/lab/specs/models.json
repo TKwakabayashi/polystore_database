@@ -1,0 +1,8 @@
+{
+  "name": "models",
+  "mode": "run",
+  "workloads": ["IS1", "INLIST", "AGG5"],
+  "placements": ["neo4j", "mysql", "mongo", "clickhouse", "cassandra", "kvs"],
+  "models": ["bulk", "volcano", "vectorized", "stream", "vecstream"],
+  "verify": true
+}

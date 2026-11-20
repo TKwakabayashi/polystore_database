@@ -1,167 +1,165 @@
 # polystore_database
 
-異種データベース（Neo4j / MongoDB / MySQL / Cassandra / LevelDB）を横断する
-ポリストア統合システム。Cypher クエリを受け取り、U-Schema[1] に基づくデータカタログを
-参照して、データ配置に応じたサブクエリを各ストアへ発行する。データ配置（placement）と
-実行モデル（execution model）を切り替えて性能を比較できる研究用システム。
+A research polystore that runs Cypher queries across heterogeneous databases: Neo4j, MongoDB, MySQL,
+ClickHouse, Cassandra and LevelDB / RocksDB. It plans each query against a data catalog based on
+U-Schema [1], which records where every property is placed, and sends one native query per store. Data
+placement and the iteration model can be switched to compare performance.
 
 ---
 
-## アーキテクチャ
+## Architecture
 
 ```
-Cypher クエリ
+Cypher
    │
    ▼
-┌──────────┐   パーサー：Cypher → 抽象構文木（AST）
-│ parser   │
-└────┬─────┘
-     ▼
-┌──────────┐   プランナー：AST → 論理計画（演算子ツリー）。
-│ planner  │   schema（データカタログ）を見て scan/filter/集約 pushdown の配置を決める
-└────┬─────┘
-     ▼
-┌──────────┐   実行エンジン：論理計画を実行し、各ストアへサブクエリを発行。
-│ engine   │   実行モデルは stream / bulk / volcano / vectorized から選択（結果は同一）
-│  ├ core  │     エンジン共通型（Record / Result / 条件評価 / 集約 pushdown ビルダ）
-│  └ access│     ストアごとの scan/filter/fetch。ここがドライバ境界
-└────┬─────┘
-     ▼
-  各データストア（storage 経由で接続）
+query/cypher     parse (ANTLR) → AST → a declarative logical tree (query/ir)
+   │
+   ▼
+query/logical    pattern planning (start vertex, edge order, anchored splits; rules or statistics)
+                 and logical rewrites
+   │
+   ▼
+query/physical   placement (which store reads each property), merging consecutive operators of one
+                 store into one store query, absorption, deferred fetches
+   │
+   ▼
+query/exec       five iteration models over the same plan; coordinator operators
+   │
+   ▼
+stores/<db>      per database: capabilities, compilation to the native query, execution,
+                 its own profile (L4) and migration reads / writes
 ```
 
-### 主要コンポーネント
-
-| 層 | 役割 |
+| Package | Role |
 |---|---|
-| **schema（データカタログ）** | U-Schema[1] に基づき異種DBを横断したデータモデルを定義。各データオブジェクトの構造とデータ配置（どのプロパティがどのストアにあるか）を保持 |
-| **parser** | Cypher クエリをパースして AST を生成 |
-| **planner / plan** | AST から演算子（EntityScan / Filter / Expand / Projection / StorePushdown …）で構成した論理計画を作成。集約は単一ストアへ委譲（pushdown）して往復を削減 |
-| **engine** | 論理計画を実行する 4 つの実行モデル。統一 `Engine`/`Instance` インターフェース + 名前引きレジストリ。中間結果は `core.Record{Slots []id.UUID}`（列指向 volcano は `Batch [][]id.UUID`） |
-| **migrator** | 異種DB間のデータ移行（graph ⇄ rdb/doc/col/kvs）。移行後に mapping を更新して配置を切り替える |
-| **id** | UUID の唯一の権威。採番・境界変換・順序・プロパティ名を集約。**識別子の内部表現はこのパッケージに閉じ、他層は `id.UUID` 型で扱う**（表現変更が id/ だけで済む不変条件） |
-| **storage** | 各ストアの接続レジストリ（Neo4j/Mongo/MySQL/Cassandra/LevelDB） |
-| **codec** | 値エンコード・KVS 複合キー生成 |
-| **store** | ストア種別 enum（`store.Kind`） |
+| `query/` | Cypher to result: `query.Plan` / `query.Run` / `query.RenderPlan` |
+| `stores/` | The database boundary. `stores.DB` (capabilities, `Compile`, `Stream`), `Shipper`, `Profiler`, `Mover`; `stores/dbs` dispatches by kind and runs queries through a `Session` |
+| `catalog/` | Knowledge about an instance: the mapping (placement, types, unique keys, uuid storage form) and statistics |
+| `data/` | Maintenance that rewrites data: migrations between stores, consolidation back to Neo4j, setup |
+| `lab/` | Experiments: the spec-driven runner (`lab run`), the operator benchmark, workload definitions |
+| `base/` | Foundations: `id` (the only authority on UUIDs), `codec` (value encoding, KV keys), `kind` (database kinds and limits) |
+| `settings/` | Default values of internal switches (read only by `cmd` and `lab`) |
 
-### 実行モデル（execution model）
+Iteration models (`exec.Model`) all give the same result:
 
-同じ論理計画を、イテレーションモデルだけを変えて実行できる。結果（行集合）は全モデルで一致する。
-
-| モデル | 方式 |
+| Model | How rows flow |
 |---|---|
-| `stream` | channel + goroutine のストリーミング（並列度を制御） |
-| `bulk` | 全件マテリアライズの逐次実行（計測がクリーン） |
-| `volcano` | pull 型・列指向 Batch（tuple-at-a-time） |
-| `vectorized` | volcano をベクトル幅 N で（`settings.VectorSize`） |
+| `bulk` | every operator's full output is materialized |
+| `volcano` | pull, one input row per store round trip |
+| `vectorized` | pull, `VectorSize` rows per round trip |
+| `stream` | push, one goroutine per operator |
+| `vecstream` | pull with an exchange of parallel workers |
+
+`docs/EXTENDING.md` (local) describes the layers, the UUID invariants and how to add a database,
+operator, iteration model or workload.
 
 ---
 
-## ディレクトリ構成
+## Layout
 
 ```
 polystore_database/
-├── src/go/               本体（Go）
-│   ├── cmd/polystore/    単一エントリポイント（CLI）
-│   ├── parser/ planner/ plan/      クエリ→AST→論理計画
-│   ├── engine/           実行エンジン（core / stream / bulk / volcano / all）
-│   ├── schema/ migrator/ storage/ codec/ id/ store/
-│   ├── workload/         ワークロード定義（Cypher + params + 移行設定）
-│   ├── bench/            計測ハーネス（RunEngine / RunModelBenchmark …）
-│   ├── settings/         内部挙動の切替（実行モデル・pushdown・スイープ軸 …）
-│   └── integration/      結合テスト（//go:build integration、実DB必要）
-├── datastore/            各DBの Docker 定義（compose.yaml + データセット別 env/）
-├── config/               config.json（config_expample.json をコピーして作成）
-├── docs/                 設計ドキュメント（EXTENDING.md 等・ローカル管理）
-└── results/              ベンチ結果（ローカル管理）
+├── src/go/                 the system (Go module polystore_database/src/go)
+│   ├── cmd/{query,admin,lab}/   entry points: one query / instance maintenance / experiments
+│   ├── query/ stores/ catalog/ data/ lab/ base/ settings/ internal/
+│   └── tests/              tests that need databases: db/ (the docker stack), throwaway/ (a throwaway environment)
+├── config/                 config.json (copy config.example.json): connections and the dataset
+├── datastore/              the data: docker/, datasets/<dataset>/ (static), runtime/ (the running dataset), shared/
+├── tools/antlr/            the ANTLR jar (parser generation)
+├── analysis/               scripts that read lab run results
+├── docs/                   design documents (local)
+└── results/                experiment results (local)
 ```
+
+Unit tests and goldens sit next to the code (`*_test.go`, `testdata/`), as Go expects.
 
 ---
 
-## セットアップと実行
+## Setup and running
 
-前提: Docker、Go。コマンドは断りがなければ **`src/go/` を作業ディレクトリ**として実行する。
+Requirements: Docker and Go. Commands run from `src/go/` unless noted.
 
-### 1. データストアを起動（`datastore/` で実行）
+### 1. Start the databases (from `datastore/docker/`)
 
 ```bash
-cd datastore
-docker compose --env-file env/ldbc_sf1.env up -d          # 全ストア起動
-docker compose --env-file env/ldbc_sf1.env --profile init run --rm cassandra-init   # 初回のみ: Cassandra keyspace 作成
-# dump からの Neo4j 復元（初回・neo4j 停止中）:
-#   docker compose --env-file env/ldbc_sf1.env --profile load run --rm neo4j-load
+cd datastore/docker
+docker compose --env-file ../datasets/ldbc_snb_sf1/dataset.env up -d
+# restore Neo4j from a dump (first time, with neo4j stopped):
+#   docker compose --env-file ../datasets/ldbc_snb_sf1/dataset.env --profile load run --rm neo4j-load
 ```
 
-データセットは `env/<dataset>.env` で切替（ldbc_sf1 / openalex / amazon / movielens）。
-ポートは共通のため**同時に起動できるのは 1 データセットだけ**。停止は `... stop`。
+The ports are shared, so only one dataset can be up at a time. LevelDB / RocksDB are embedded (no
+container). See `datastore/README.md`.
 
-### 2. 設定ファイル
+### 2. Configuration
 
-`config/config_expample.json` を `config/config.json` にコピーし、各DBの接続情報を記入する。
+Copy `config/config.example.json` to `config/config.json` and fill in the connections and the dataset.
+Paths in it are relative to the config file. RocksDB needs a `-tags rocksdb` build (cgo; see
+`src/go/stores/conn/rocksdb.go`).
 
-### 3. データセットアップ（初回）
+### 3. Data setup (after starting or switching a dataset)
 
 ```bash
 cd src/go
-go run ./cmd/polystore -mode setup      # Neo4j にUUID付与・インデックス作成 + 他4ストア初期化
+go run ./cmd/admin setup   # rebuild datastore/runtime/: the record, uuids and indexes on Neo4j, empty other stores
+go run ./cmd/admin stats   # statistics for cost-based planning (again after changing data)
 ```
 
-### 4. クエリ実行
+### 4. One query
 
 ```bash
-# 単発実行（settings のエンジン・出力形式に従う）
-go run ./cmd/polystore -mode run -workload Q11
+go run ./cmd/query -workload IC11 [-target custom|neo4j|both] [-format rows|timing|detail]
 ```
 
-### 5. データ移行
+### 5. Migrations
 
 ```bash
-# graph → rdb へ指定ワークロードのプロパティを移行し、時間・件数を出力
-go run ./cmd/polystore -mode migrate  -workload AGG5 -migmode graph_to_rdb
-# 移行 → クエリ実行（Neo4j 比較）まで通し
-go run ./cmd/polystore -mode workflow -workload AGG5 -migmode graph_to_rdb
+go run ./cmd/admin migrate -workload AGG5 -migmode graph_to_rdb   # move a workload's properties
+go run ./cmd/admin consolidate [-exclude Label.prop]              # bring everything back to Neo4j
+go run ./cmd/lab workflow -workload AGG5 -migmode graph_to_rdb    # Neo4j baseline, migration, this system
 ```
 
-`-migmode` は `a_to_b`（例: `graph_to_rdb` / `graph_to_doc` / `graph_to_col` / `graph_to_kvs` と逆方向）。
+`-migmode` is `<from>_to_<to>`, with database names (`neo4j`, `mysql`, `mongo`, `clickhouse`,
+`cassandra`, `leveldb`) or short names (`graph`, `rdb`, `doc`, `col`, `wide`, `kvs`).
 
-### 6. ベンチマーク
+### 6. Experiments
 
 ```bash
-# baseline(Neo4j直) と placement×pushdown を計測し CSV へ追記
-go run ./cmd/polystore -mode bench        -workload all -out ../../results/bench/bench.csv
-# placement × 実行モデル（stream/bulk/volcano/vectorized）を計測（long 形式 CSV）
-go run ./cmd/polystore -mode bench-models -workload Q11,AGG5 -out ../../results/bench/models.csv
+go run ./cmd/lab run -spec lab/specs/models.json
+python3 ../../analysis/summarize.py ../../results/<folder>
 ```
 
-利用可能なワークロード: `Q2 Q8 Q9 Q11 IS1..IS6 AGG1..AGG6`（`-workload all` で全件、カンマ区切りで複数）。
+A spec (fields: `Spec` in `src/go/lab/runner/spec.go`, examples in `src/go/lab/specs/`) runs workloads
+× query versions × parameter cases × placements × iteration models × tunings. `"verify": true` compares
+every result with Neo4j running the original Cypher; `"mode": "profile"` records spans per operator, with
+store calls split into first row / receive / decode; `"store_profile": true` records each database's own
+profile (Neo4j PROFILE, MySQL EXPLAIN ANALYZE, MongoDB explain, ClickHouse query_log, Cassandra tracing);
+`"pprof": true` writes Go profiles. Specs with `"mode": "opbench"` run the per-operator benchmark
+(`src/go/lab/opbench/specs/`). Results go to `results/<date>_<name>/`.
 
-### 内部挙動の切替
-
-実行モデル・pushdown 方針・配置/モデルのスイープ軸・ベクトル長などは CLI ではなく
-**`src/go/settings/` を編集して再ビルド**で切り替える（CLI は「何を実行するか」だけを受ける）。
+Internal behavior (iteration model, pushdown, vector size, ...) is switched in `src/go/settings/`, not on
+the command line: flags only say what to run.
 
 ---
 
-## テスト
+## Tests
 
 ```bash
 cd src/go
-go test ./...                                                         # ユニット（DB不要）
-# 結合テスト（docker スタックを up した状態で）:
-go test -tags integration ./integration/ -run EngineEquivalence -v    # 4実行モデルの結果一致
-go test -tags integration ./integration/ -run Roundtrip -v            # 移行ラウンドトリップ整合
+go test ./...                       # unit and golden tests (no databases)
+go test -race ./query/exec/         # every placement × every iteration model on an in-memory graph
+# with the docker stack up:
+go test -tags integration ./tests/db/ -run 'TestSmoke$' -v          # small queries × 6 placements vs Neo4j
+go test -tags integration ./tests/db/ -run TestRoundtrip -v # copy migrations there and back
 ```
 
----
-
-## 拡張
-
-新しい実行エンジン / ストア / ワークロードの追加手順、UUID 表現の不変条件、pushdown の拡張点は
-`docs/EXTENDING.md` を参照。
+`tests/throwaway/` (`TestUUIDFormat`, `TestMove`: migrations that delete the source) needs a throwaway
+environment; see the comments at the top of its files.
 
 ---
 
-## 参考文献
+## References
 
 [1] Carlos J. Fernández Candel, Diego Sevilla Ruiz, and Jesús J. García-Molina.
 A unified metamodel for nosql and relational databases. *Information Systems*,

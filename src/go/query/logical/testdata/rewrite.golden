@@ -1,0 +1,79 @@
+### defer_after_limit
+MATCH (p:Person {id: $x})-[:KNOWS]->(f:Person) RETURN f.firstName, f.lastName ORDER BY f.id ASC LIMIT 10
+Projection[f.firstName, f.lastName]
+  GetProperty(f.lastName) [node:Person]
+    GetProperty(f.firstName) [node:Person]
+      Limit[10]
+        Sort[_sort0 ASC]
+          Projection[f.id AS _sort0, f]
+            GetProperty(f.id) [node:Person]
+              Expand((p)-[_r0:KNOWS]->(f:Person))
+                Filter((p.id = 1))
+                  GetProperty(p.id) [node:Person]
+                    EntityScan(p:Person)
+
+### defer_keeps_sort_key
+MATCH (p:Person {id: $x})<-[:HAS_CREATOR]-(m:Message) RETURN m.id, m.length ORDER BY m.length DESC, m.id ASC LIMIT 20
+Limit[20]
+  Sort[m.length DESC, m.id ASC]
+    Projection[m.id, m.length]
+      GetProperty(m.length) [node:Message]
+        GetProperty(m.id) [node:Message]
+          Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+            Filter((p.id = 1))
+              GetProperty(p.id) [node:Person]
+                EntityScan(p:Person)
+
+### defer_partial
+MATCH (p:Person {id: $x})<-[:HAS_CREATOR]-(m:Message) RETURN m.id, m.content, p.firstName ORDER BY m.creationDate DESC LIMIT 10
+Projection[m.id, m.content, p.firstName]
+  GetProperty(p.firstName) [node:Person]
+    GetProperty(m.content) [node:Message]
+      GetProperty(m.id) [node:Message]
+        Limit[10]
+          Sort[_sort0 DESC]
+            Projection[m.creationDate AS _sort0, p, m]
+              GetProperty(m.creationDate) [node:Message]
+                Expand((p)<-[_r0:HAS_CREATOR]-(m:Message))
+                  Filter((p.id = 1))
+                    GetProperty(p.id) [node:Person]
+                      EntityScan(p:Person)
+
+### no_defer_with_distinct
+MATCH (p:Person {id: $x})-[:KNOWS]->(f:Person) WITH DISTINCT f.firstName AS n, f.lastName AS l ORDER BY n ASC LIMIT 5 RETURN n, l
+Projection[n, l]
+  Limit[5]
+    Sort[n ASC]
+      Distinct
+        Projection[f.firstName AS n, f.lastName AS l]
+          GetProperty(f.lastName) [node:Person]
+            GetProperty(f.firstName) [node:Person]
+              Expand((p)-[_r0:KNOWS]->(f:Person))
+                Filter((p.id = 1))
+                  GetProperty(p.id) [node:Person]
+                    EntityScan(p:Person)
+
+### no_defer_without_limit
+MATCH (p:Person {id: $x})-[:KNOWS]->(f:Person) RETURN f.firstName
+Projection[f.firstName]
+  GetProperty(f.firstName) [node:Person]
+    Expand((p)-[_r0:KNOWS]->(f:Person))
+      Filter((p.id = 1))
+        GetProperty(p.id) [node:Person]
+          EntityScan(p:Person)
+
+### with_stage_defer
+MATCH (p:Person {id: $x})-[:KNOWS]-(f:Person) WITH f ORDER BY f.id ASC LIMIT 3 MATCH (f)-[:KNOWS]-(g:Person) RETURN g.id
+Projection[g.id]
+  GetProperty(g.id) [node:Person]
+    Expand((f)-[_r1:KNOWS]-(g:Person))
+      Projection[f]
+        Limit[3]
+          Sort[_sort0 ASC]
+            Projection[f, f.id AS _sort0]
+              GetProperty(f.id) [node:Person]
+                Expand((p)-[_r0:KNOWS]-(f:Person))
+                  Filter((p.id = 1))
+                    GetProperty(p.id) [node:Person]
+                      EntityScan(p:Person)
+

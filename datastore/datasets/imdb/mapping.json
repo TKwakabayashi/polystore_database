@@ -1,0 +1,117 @@
+{
+  "labels": {
+    "Title": [
+      "Title"
+    ],
+    "Person": [
+      "Person"
+    ]
+  },
+  "entities": {
+    "Title": {
+      "labels": [
+        "Title"
+      ],
+      "properties": {
+        "tconst": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "primary_title": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "title_type": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "start_year": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        },
+        "runtime": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        },
+        "genres": {
+          "type": "string[]",
+          "database": [
+            "graph"
+          ]
+        },
+        "average_rating": {
+          "type": "double",
+          "database": [
+            "graph"
+          ]
+        },
+        "num_votes": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {}
+    },
+    "Person": {
+      "labels": [
+        "Person"
+      ],
+      "properties": {
+        "nconst": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "primary_name": {
+          "type": "string",
+          "database": [
+            "graph"
+          ]
+        },
+        "birth_year": {
+          "type": "int",
+          "database": [
+            "graph"
+          ]
+        },
+        "professions": {
+          "type": "string[]",
+          "database": [
+            "graph"
+          ]
+        }
+      },
+      "references": {
+        "WORKED_ON": {
+          "targetEntities": [
+            "Title"
+          ],
+          "database": [
+            "graph"
+          ]
+        }
+      }
+    }
+  },
+  "relationships": {
+    "WORKED_ON": {
+      "labels": [
+        "WORKED_ON"
+      ],
+      "properties": {}
+    }
+  }
+}
